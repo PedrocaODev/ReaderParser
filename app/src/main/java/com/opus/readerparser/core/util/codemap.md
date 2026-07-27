@@ -8,13 +8,14 @@ dependencies — they compile against plain Kotlin/JVM.
 
 ## Design
 
-Three standalone files, each exposing a single top‑level utility (one is an `object` with two public methods):
+Four standalone files, each exposing a single top-level utility (one is an `object` with two public methods):
 
 | File | Function / Object | Signature | Purpose |
 |------|-------------------|-----------|---------|
 | `ComputeSourceId.kt` | `computeSourceId` | `(name: String, lang: String, type: ContentType) -> Long` | Deterministic source identity for database foreign keys |
-| `Hashing.kt` | `hashUrl` | `(url: String) -> String` | Stable, filesystem‑safe path component for downloads |
-| `TitleMatcher.kt` | `TitleMatcher` (object) | `matches(query, title): Boolean` + `editDistance(a, b): Int` | Fuzzy series‑title search for in‑memory filtering |
+| `Hashing.kt` | `hashUrl` | `(url: String) -> String` | Stable, filesystem-safe path component for downloads |
+| `SourceMetadataCache.kt` | `SourceMetadataCache<V>` | `(maxEntries: Int, ttlMs: Long, nowNanos: () -> Long = System::nanoTime)` | Bounded in-memory TTL cache for repository-bound metadata |
+| `TitleMatcher.kt` | `TitleMatcher` (object) | `matches(query, title): Boolean` + `editDistance(a, b): Int` | Fuzzy series-title search for in-memory filtering |
 
 ### `computeSourceId`
 
