@@ -6,11 +6,13 @@ import com.opus.readerparser.domain.SeriesRepository
 import com.opus.readerparser.domain.SourceRepository
 import com.opus.readerparser.domain.model.FilterList
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -39,6 +41,8 @@ class BrowseViewModel @Inject constructor(
     private var requestId = 0L
     private var nextRequestId = 0L
     private var lastRequest: BrowseRequest? = null
+    private var requestJob: Job? = null
+    private var debounceJob: Job? = null
     private var submittedSourceId: Long? = null
     private var submittedMode: BrowseMode = BrowseMode.POPULAR
     private var submittedQuery: String = ""
@@ -48,12 +52,15 @@ class BrowseViewModel @Inject constructor(
         _state.update { it.copy(sources = sources) }
         sources.firstOrNull()?.let { first ->
             _state.update { it.copy(selectedSourceId = first.id) }
+            autoFetchCurrentMode(first.id, BrowseMode.POPULAR)
         }
     }
 
     fun onAction(action: BrowseAction) {
         when (action) {
             is BrowseAction.SelectSource -> {
+                cancelDebounce()
+                val query = _state.value.searchQuery.trim()
                 _state.update {
                     it.copy(
                         selectedSourceId = action.sourceId,
@@ -66,9 +73,15 @@ class BrowseViewModel @Inject constructor(
                 invalidateActiveRequests()
                 _state.update { it.copy(isLoading = false, error = null) }
                 clearSubmittedContext()
-                autoFetchCurrentMode(action.sourceId, _state.value.mode)
+                if (query.isNotBlank()) {
+                    _state.update { it.copy(series = emptyList(), hasNextPage = false, currentPage = 1) }
+                    scheduleDebouncedSearch(action.sourceId, query)
+                } else {
+                    autoFetchCurrentMode(action.sourceId, _state.value.mode)
+                }
             }
             is BrowseAction.SetMode -> {
+                cancelDebounce()
                 _state.update {
                     it.copy(
                         mode = action.mode,
@@ -98,8 +111,38 @@ class BrowseViewModel @Inject constructor(
                     ),
                 )
             }
-            is BrowseAction.SetSearchQuery -> _state.update { it.copy(searchQuery = action.query) }
+            is BrowseAction.SetSearchQuery -> {
+                cancelDebounce()
+                invalidateActiveRequests()
+                val query = action.query.trim()
+                if (query.isBlank()) {
+                    clearSubmittedContext()
+                    _state.update {
+                        it.copy(
+                            searchQuery = action.query,
+                            series = emptyList(),
+                            isLoading = false,
+                            error = null,
+                            retryAvailable = false,
+                            hasNextPage = false,
+                            currentPage = 1,
+                        )
+                    }
+                    return
+                }
+                _state.update {
+                    it.copy(
+                        searchQuery = action.query,
+                        isLoading = false,
+                        error = null,
+                        retryAvailable = false,
+                    )
+                }
+                val sourceId = _state.value.selectedSourceId ?: return
+                scheduleDebouncedSearch(sourceId, query)
+            }
             is BrowseAction.Search -> {
+                cancelDebounce()
                 val sourceId = _state.value.selectedSourceId ?: return
                 val query = _state.value.searchQuery.trim()
                 _state.update {
@@ -112,11 +155,21 @@ class BrowseViewModel @Inject constructor(
                     )
                 }
                 invalidateActiveRequests()
-                clearSubmittedContext()
                 if (query.isBlank()) {
-                    _state.update { it.copy(isLoading = false, error = null) }
+                    clearSubmittedContext()
+                    _state.update {
+                        it.copy(
+                            series = emptyList(),
+                            isLoading = false,
+                            error = null,
+                            retryAvailable = false,
+                            hasNextPage = false,
+                            currentPage = 1,
+                        )
+                    }
                     return
                 }
+                clearSubmittedContext()
                 submitAndStart(
                     BrowseRequest(
                         sourceId = sourceId,
@@ -134,6 +187,43 @@ class BrowseViewModel @Inject constructor(
                 _effects.send(BrowseEffect.NavigateToSeries(action.series))
             }
         }
+    }
+
+    private fun cancelDebounce() {
+        debounceJob?.cancel()
+        debounceJob = null
+    }
+
+    private fun scheduleDebouncedSearch(sourceId: Long, query: String) {
+        debounceJob = viewModelScope.launch {
+            delay(300)
+            if (_state.value.selectedSourceId == sourceId && _state.value.searchQuery.trim() == query) {
+                startSearch(sourceId, query)
+            }
+        }
+    }
+
+    private fun startSearch(sourceId: Long, query: String) {
+        _state.update {
+            it.copy(
+                mode = BrowseMode.SEARCH,
+                error = null,
+                retryAvailable = false,
+                hasNextPage = false,
+                currentPage = 1,
+            )
+        }
+        invalidateActiveRequests()
+        clearSubmittedContext()
+        submitAndStart(
+            BrowseRequest(
+                sourceId = sourceId,
+                mode = BrowseMode.SEARCH,
+                query = query,
+                page = 1,
+                reset = true,
+            ),
+        )
     }
 
     private fun retryCurrentRequest() {
@@ -164,6 +254,9 @@ class BrowseViewModel @Inject constructor(
 
     private fun invalidateActiveRequests() {
         requestId = 0L
+        lastRequest = null
+        requestJob?.cancel()
+        requestJob = null
     }
 
     private fun clearSubmittedContext() {
@@ -176,7 +269,8 @@ class BrowseViewModel @Inject constructor(
         val id = ++nextRequestId
         requestId = id
         lastRequest = request
-        viewModelScope.launch {
+        requestJob?.cancel()
+        requestJob = viewModelScope.launch {
             _state.update { current ->
                 if (request.reset) {
                     current.copy(

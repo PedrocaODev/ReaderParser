@@ -3,6 +3,7 @@ package com.opus.readerparser.data.repository
 import com.opus.readerparser.data.local.database.dao.ChapterDao
 import com.opus.readerparser.data.local.database.entities.ChapterEntity
 import com.opus.readerparser.data.local.database.mappers.toEntity
+import com.opus.readerparser.core.util.SourceMetadataCache
 import com.opus.readerparser.data.source.Source
 import com.opus.readerparser.data.source.SourceRegistry
 import com.opus.readerparser.core.util.computeSourceId
@@ -23,6 +24,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.fail
 import org.junit.Test
+import java.util.concurrent.TimeUnit
 
 /**
  * Tests for [ChapterRepositoryImpl] using hand-rolled fakes.
@@ -88,7 +90,7 @@ class ChapterRepositoryImplTest {
 
     private val fakeDownloadStore = FakeDownloadStore()
 
-    private val repository = ChapterRepositoryImpl(sourceRegistry, fakeDao, fakeDownloadStore)
+    private val repository = chapterRepository()
 
     private val testSeries = TestFixtures.testSeries(sourceId = fakeSource.id)
 
@@ -96,6 +98,25 @@ class ChapterRepositoryImplTest {
         seriesUrl = testSeries.url,
         sourceId = fakeSource.id,
     )
+
+    private fun chapterRepository(
+        registry: SourceRegistry = sourceRegistry,
+        chapterListCache: SourceMetadataCache<List<Chapter>> = SourceMetadataCache(
+            maxEntries = 20,
+            ttlMs = TimeUnit.MINUTES.toMillis(2),
+        ),
+    ): ChapterRepositoryImpl = ChapterRepositoryImpl(registry, fakeDao, fakeDownloadStore, chapterListCache)
+
+    private class FakeClock(startNanos: Long = 0L) {
+        var nowNanos: Long = startNanos
+            private set
+
+        fun advanceMs(ms: Long) {
+            nowNanos += TimeUnit.MILLISECONDS.toNanos(ms)
+        }
+
+        fun read(): Long = nowNanos
+    }
 
     // -----------------------------------------------------------------
     // observeChapters
@@ -158,6 +179,68 @@ class ChapterRepositoryImplTest {
         assertEquals(2, stored.size)
         assertEquals(remoteChapters[0].url, stored[0].chapter.url)
         assertEquals(remoteChapters[1].url, stored[1].chapter.url)
+    }
+
+    @Test
+    fun `refreshChapters returns cached result on second call`() = runTest {
+        val remoteChapters = listOf(
+            testChapter.copy(url = "https://test.invalid/chapter/1", number = 1f),
+        )
+        fakeSource.chapterListResult = remoteChapters
+
+        repository.refreshChapters(testSeries)
+        fakeSource.chapterListResult = listOf(testChapter.copy(url = "https://test.invalid/chapter/changed", number = 2f))
+        repository.refreshChapters(testSeries)
+
+        assertEquals(listOf(testSeries), fakeSource.getChapterListCalls)
+    }
+
+    @Test
+    fun `refreshChapters uses different cache entries for different series urls`() = runTest {
+        val otherSeries = testSeries.copy(url = "https://test.invalid/series/other")
+        val firstRemote = listOf(testChapter.copy(url = "https://test.invalid/chapter/1", number = 1f))
+        val secondRemote = listOf(testChapter.copy(seriesUrl = otherSeries.url, url = "https://test.invalid/chapter/2", number = 1f))
+
+        fakeSource.chapterListResult = firstRemote
+        repository.refreshChapters(testSeries)
+
+        fakeSource.chapterListResult = secondRemote
+        repository.refreshChapters(otherSeries)
+
+        assertEquals(listOf(testSeries, otherSeries), fakeSource.getChapterListCalls)
+    }
+
+    @Test
+    fun `refreshChapters does not cache empty remote lists`() = runTest {
+        fakeSource.chapterListResult = emptyList()
+
+        repository.refreshChapters(testSeries)
+        fakeSource.chapterListResult = listOf(testChapter.copy(url = "https://test.invalid/chapter/1", number = 1f))
+        repository.refreshChapters(testSeries)
+
+        assertEquals(listOf(testSeries, testSeries), fakeSource.getChapterListCalls)
+    }
+
+    @Test
+    fun `refreshChapters re-fetches after cache expiry`() = runTest {
+        val clock = FakeClock()
+        val cache = SourceMetadataCache<List<Chapter>>(
+            maxEntries = 20,
+            ttlMs = 1,
+            nowNanos = clock::read,
+        )
+        val repo = chapterRepository(chapterListCache = cache)
+        val firstRemote = listOf(testChapter.copy(url = "https://test.invalid/chapter/1", number = 1f))
+        val secondRemote = listOf(testChapter.copy(url = "https://test.invalid/chapter/2", number = 2f))
+
+        fakeSource.chapterListResult = firstRemote
+        repo.refreshChapters(testSeries)
+
+        clock.advanceMs(2)
+        fakeSource.chapterListResult = secondRemote
+        repo.refreshChapters(testSeries)
+
+        assertEquals(listOf(testSeries, testSeries), fakeSource.getChapterListCalls)
     }
 
     @Test

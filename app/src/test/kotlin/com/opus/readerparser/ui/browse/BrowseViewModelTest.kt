@@ -14,6 +14,7 @@ import com.opus.readerparser.testutil.TestFixtures
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -42,16 +43,22 @@ class BrowseViewModelTest {
     private fun buildVm(): BrowseViewModel = BrowseViewModel(sourceRepo, seriesRepo)
 
     @Test
-    fun `init loads sources and selects first source without fetching`() = runTest {
+    fun `init loads sources, selects first source, and fetches popular`() = runTest {
         sourceRepo.sourceList = listOf(source1, source2)
+        seriesRepo.fetchPopularHandler = { _, _ ->
+            SeriesPage(listOf(TestFixtures.testSeries(title = "Popular")), hasNextPage = false)
+        }
 
         val vm = buildVm()
+        advanceUntilIdle()
 
         assertThat(vm.state.value.sources).containsExactly(source1, source2).inOrder()
         assertThat(vm.state.value.selectedSourceId).isEqualTo(source1.id)
-        assertThat(seriesRepo.fetchPopularCalls).isEmpty()
+        assertThat(seriesRepo.fetchPopularCalls).containsExactly(source1.id to 1)
         assertThat(seriesRepo.fetchLatestCalls).isEmpty()
         assertThat(seriesRepo.searchCalls).isEmpty()
+        assertThat(vm.state.value.series.map { it.title }).containsExactly("Popular")
+        assertThat(vm.state.value.isLoading).isFalse()
     }
 
     @Test
@@ -80,7 +87,7 @@ class BrowseViewModelTest {
         gate.complete(Unit)
         advanceUntilIdle()
 
-        assertThat(seriesRepo.fetchPopularCalls).containsExactly(source1.id to 1, source2.id to 1).inOrder()
+        assertThat(seriesRepo.fetchPopularCalls).containsExactly(source1.id to 1, source1.id to 1, source2.id to 1).inOrder()
         assertThat(vm.state.value.selectedSourceId).isEqualTo(source2.id)
         assertThat(vm.state.value.series.map { it.title }).containsExactly("Fresh popular")
         assertThat(vm.state.value.error).isNull()
@@ -135,7 +142,7 @@ class BrowseViewModelTest {
         gate.complete(Unit)
         advanceUntilIdle()
 
-        assertThat(seriesRepo.fetchPopularCalls).containsExactly(source1.id to 1)
+        assertThat(seriesRepo.fetchPopularCalls).containsExactly(source1.id to 1, source1.id to 1)
         assertThat(seriesRepo.fetchLatestCalls).containsExactly(source1.id to 1)
         assertThat(vm.state.value.mode).isEqualTo(BrowseMode.LATEST)
         assertThat(vm.state.value.series.map { it.title }).containsExactly("Latest")
@@ -169,20 +176,135 @@ class BrowseViewModelTest {
     }
 
     @Test
-    fun `search mode waits for explicit submission`() = runTest {
-        sourceRepo.sourceList = listOf(source1, source2)
+    fun `nonblank query stable for 300ms starts search automatically`() = runTest {
+        sourceRepo.sourceList = listOf(source1)
+        val gate = CompletableDeferred<Unit>()
+        seriesRepo.searchHandler = { _, query, _, _ ->
+            gate.await()
+            SeriesPage(listOf(TestFixtures.testSeries(title = query)), hasNextPage = false)
+        }
 
         val vm = buildVm()
-        vm.onAction(BrowseAction.SetMode(BrowseMode.SEARCH))
-        vm.onAction(BrowseAction.SelectSource(source2.id))
         vm.onAction(BrowseAction.SetSearchQuery("dragon"))
+
+        advanceTimeBy(299)
+        runCurrent()
+        assertThat(seriesRepo.searchCalls).isEmpty()
+
+        advanceTimeBy(1)
+        runCurrent()
+        assertThat(seriesRepo.searchCalls).containsExactly(
+            SearchCall(source1.id, "dragon", 1, FilterList()),
+        )
+        assertThat(vm.state.value.mode).isEqualTo(BrowseMode.SEARCH)
+        assertThat(vm.state.value.isLoading).isTrue()
+
+        gate.complete(Unit)
         advanceUntilIdle()
 
-        assertThat(vm.state.value.mode).isEqualTo(BrowseMode.SEARCH)
-        assertThat(vm.state.value.selectedSourceId).isEqualTo(source2.id)
-        assertThat(seriesRepo.fetchPopularCalls).isEmpty()
-        assertThat(seriesRepo.fetchLatestCalls).isEmpty()
+        assertThat(vm.state.value.series.map { it.title }).containsExactly("dragon")
+        assertThat(vm.state.value.isLoading).isFalse()
+    }
+
+    @Test
+    fun `query change during debounce cancels earlier debounce`() = runTest {
+        sourceRepo.sourceList = listOf(source1)
+        seriesRepo.searchHandler = { _, query, _, _ ->
+            SeriesPage(listOf(TestFixtures.testSeries(title = query)), hasNextPage = false)
+        }
+
+        val vm = buildVm()
+        vm.onAction(BrowseAction.SetSearchQuery("dra"))
+
+        advanceTimeBy(150)
+        vm.onAction(BrowseAction.SetSearchQuery("dragon"))
+
+        advanceTimeBy(299)
+        runCurrent()
         assertThat(seriesRepo.searchCalls).isEmpty()
+
+        advanceTimeBy(1)
+        runCurrent()
+        assertThat(seriesRepo.searchCalls).containsExactly(
+            SearchCall(source1.id, "dragon", 1, FilterList()),
+        )
+    }
+
+    @Test
+    fun `blank query cancels an active search and clears results`() = runTest {
+        sourceRepo.sourceList = listOf(source1)
+        val gate = CompletableDeferred<Unit>()
+        val cancelled = CompletableDeferred<Unit>()
+        seriesRepo.searchHandler = { _, query, _, _ ->
+            when (query) {
+                "dragon" -> SeriesPage(listOf(TestFixtures.testSeries(title = query)), hasNextPage = false)
+                "castle" -> try {
+                    gate.await()
+                    SeriesPage(listOf(TestFixtures.testSeries(title = query)), hasNextPage = false)
+                } finally {
+                    cancelled.complete(Unit)
+                }
+                else -> error("unexpected query $query")
+            }
+        }
+
+        val vm = buildVm()
+        vm.onAction(BrowseAction.SetSearchQuery("dragon"))
+        vm.onAction(BrowseAction.Search)
+        advanceTimeBy(300)
+        runCurrent()
+        advanceUntilIdle()
+
+        assertThat(vm.state.value.series).isNotEmpty()
+
+        vm.onAction(BrowseAction.SetSearchQuery("castle"))
+        vm.onAction(BrowseAction.Search)
+        runCurrent()
+
+        assertThat(vm.state.value.isLoading).isTrue()
+
+        vm.onAction(BrowseAction.SetSearchQuery("   "))
+        advanceUntilIdle()
+
+        assertThat(vm.state.value.series).isEmpty()
+        assertThat(vm.state.value.isLoading).isFalse()
+        assertThat(cancelled.isCompleted).isTrue()
+        assertThat(seriesRepo.searchCalls).hasSize(2)
+    }
+
+    @Test
+    fun `source change with active query clears results and reschedules`() = runTest {
+        sourceRepo.sourceList = listOf(source1, source2)
+        seriesRepo.searchHandler = { sourceId, query, _, _ ->
+            SeriesPage(listOf(TestFixtures.testSeries(title = "$query-$sourceId")), hasNextPage = false)
+        }
+
+        val vm = buildVm()
+        vm.onAction(BrowseAction.SetSearchQuery("dragon"))
+        advanceTimeBy(300)
+        runCurrent()
+        advanceUntilIdle()
+
+        assertThat(vm.state.value.series.map { it.title }).containsExactly("dragon-${source1.id}")
+
+        vm.onAction(BrowseAction.SelectSource(source2.id))
+
+        assertThat(vm.state.value.selectedSourceId).isEqualTo(source2.id)
+        assertThat(vm.state.value.series).isEmpty()
+
+        advanceTimeBy(299)
+        runCurrent()
+        assertThat(seriesRepo.searchCalls).hasSize(1)
+
+        advanceTimeBy(1)
+        runCurrent()
+        advanceUntilIdle()
+
+        assertThat(seriesRepo.searchCalls).containsExactly(
+            SearchCall(source1.id, "dragon", 1, FilterList()),
+            SearchCall(source2.id, "dragon", 1, FilterList()),
+        ).inOrder()
+        assertThat(vm.state.value.series.map { it.title }).containsExactly("dragon-${source2.id}")
     }
 
     @Test
@@ -202,6 +324,76 @@ class BrowseViewModelTest {
         assertThat(seriesRepo.fetchLatestCalls).containsExactly(source1.id to 1, source2.id to 1).inOrder()
         assertThat(vm.state.value.selectedSourceId).isEqualTo(source2.id)
         assertThat(vm.state.value.series.map { it.title }).containsExactly("Latest ${source2.id}")
+    }
+
+    @Test
+    fun `explicit search action triggers immediately without waiting for debounce`() = runTest {
+        sourceRepo.sourceList = listOf(source1)
+        val gate = CompletableDeferred<Unit>()
+        seriesRepo.searchHandler = { _, query, _, _ ->
+            gate.await()
+            SeriesPage(listOf(TestFixtures.testSeries(title = query)), hasNextPage = false)
+        }
+
+        val vm = buildVm()
+        vm.onAction(BrowseAction.SetSearchQuery("dragon"))
+        vm.onAction(BrowseAction.Search)
+        runCurrent()
+
+        assertThat(vm.state.value.isLoading).isTrue()
+        assertThat(seriesRepo.searchCalls).containsExactly(
+            SearchCall(source1.id, "dragon", 1, FilterList()),
+        )
+
+        advanceTimeBy(300)
+        runCurrent()
+        assertThat(seriesRepo.searchCalls).hasSize(1)
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        assertThat(vm.state.value.series.map { it.title }).containsExactly("dragon")
+        assertThat(vm.state.value.isLoading).isFalse()
+        assertThat(vm.state.value.error).isNull()
+    }
+
+    @Test
+    fun `source change during active search cancels earlier request`() = runTest {
+        sourceRepo.sourceList = listOf(source1, source2)
+        val gate = CompletableDeferred<Unit>()
+        seriesRepo.searchHandler = { sourceId, query, _, _ ->
+            when (sourceId) {
+                source1.id -> {
+                    gate.await()
+                    SeriesPage(listOf(TestFixtures.testSeries(title = "Stale $query")), hasNextPage = false)
+                }
+                else -> SeriesPage(listOf(TestFixtures.testSeries(title = "Fresh $query")), hasNextPage = false)
+            }
+        }
+
+        val vm = buildVm()
+        vm.onAction(BrowseAction.SetSearchQuery("dragon"))
+        advanceTimeBy(300)
+        runCurrent()
+
+        assertThat(vm.state.value.isLoading).isTrue()
+
+        vm.onAction(BrowseAction.SelectSource(source2.id))
+        runCurrent()
+
+        assertThat(vm.state.value.selectedSourceId).isEqualTo(source2.id)
+        assertThat(vm.state.value.series).isEmpty()
+        assertThat(vm.state.value.isLoading).isFalse()
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        assertThat(seriesRepo.searchCalls).containsExactly(
+            SearchCall(source1.id, "dragon", 1, FilterList()),
+            SearchCall(source2.id, "dragon", 1, FilterList()),
+        ).inOrder()
+        assertThat(vm.state.value.series.map { it.title }).containsExactly("Fresh dragon")
+        assertThat(vm.state.value.error).isNull()
     }
 
     @Test
@@ -335,7 +527,7 @@ class BrowseViewModelTest {
         vm.onAction(BrowseAction.SetSearchQuery("dragon edited"))
 
         vm.onAction(BrowseAction.LoadMore)
-        advanceUntilIdle()
+        runCurrent()
 
         assertThat(vm.state.value.series).containsExactly(first, second).inOrder()
         assertThat(vm.state.value.currentPage).isEqualTo(2)

@@ -191,6 +191,44 @@ class SeriesDaoTest {
         assertThat(dao.getLibraryIndexableSeries(1L, nonDownloaded.url)).isNull()
     }
 
+    @Test
+    fun getLibraryIndexableSeries_returnsOnlyLibraryRowsWithDownloadedChapters() = runTest {
+        val libraryDownloaded = seriesEntity(
+            sourceId = 1L,
+            url = "https://example.com/library-downloaded",
+            title = "A Library Series",
+            inLibrary = true,
+            addedAt = 1000L,
+        )
+        val nonLibraryDownloaded = seriesEntity(
+            sourceId = 1L,
+            url = "https://example.com/non-library-downloaded",
+            title = "B Non Library Series",
+            inLibrary = false,
+        )
+        val libraryNotDownloaded = seriesEntity(
+            sourceId = 1L,
+            url = "https://example.com/library-not-downloaded",
+            title = "C Library Not Downloaded",
+            inLibrary = true,
+            addedAt = 2000L,
+        )
+        dao.upsertAll(listOf(libraryDownloaded, nonLibraryDownloaded, libraryNotDownloaded))
+        database.chapterDao().upsertAll(
+            listOf(
+                chapterEntity(seriesUrl = libraryDownloaded.url, url = "https://example.com/library-downloaded/ch/1", downloaded = true),
+                chapterEntity(seriesUrl = nonLibraryDownloaded.url, url = "https://example.com/non-library-downloaded/ch/1", downloaded = true),
+                chapterEntity(seriesUrl = libraryNotDownloaded.url, url = "https://example.com/library-not-downloaded/ch/1", downloaded = false),
+            ),
+        )
+
+        val result = dao.getLibraryIndexableSeries()
+
+        assertThat(result).hasSize(1)
+        assertThat(result[0].url).isEqualTo(libraryDownloaded.url)
+        assertThat(result[0].inLibrary).isTrue()
+    }
+
     // --- upsert ---
 
     @Test

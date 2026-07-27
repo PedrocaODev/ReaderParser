@@ -46,6 +46,8 @@ class SamsungSearchRebuildWorkerTest {
             return emptyList()
         }
 
+        override suspend fun getLibraryIndexableSeries(): List<SeriesEntity> = emptyList()
+
         override suspend fun getLibraryIndexableSeries(sourceId: Long, url: String): SeriesEntity? = null
 
         // --- unused DAO methods ---

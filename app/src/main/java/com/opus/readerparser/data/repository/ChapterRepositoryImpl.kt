@@ -1,6 +1,7 @@
 package com.opus.readerparser.data.repository
 
 import android.util.Log
+import com.opus.readerparser.core.util.SourceMetadataCache
 import com.opus.readerparser.data.local.database.dao.ChapterDao
 import com.opus.readerparser.data.local.database.mappers.toChapterWithState
 import com.opus.readerparser.data.local.database.mappers.toDomain
@@ -23,6 +24,7 @@ class ChapterRepositoryImpl @Inject constructor(
     private val sourceRegistry: SourceRegistry,
     private val chapterDao: ChapterDao,
     private val downloadStore: DownloadStore,
+    private val chapterListCache: SourceMetadataCache<List<Chapter>> = defaultChapterListCache(),
 ) : ChapterRepository {
 
     override fun observeChapters(series: Series): Flow<List<ChapterWithState>> =
@@ -31,6 +33,9 @@ class ChapterRepositoryImpl @Inject constructor(
         }
 
     override suspend fun refreshChapters(series: Series) {
+        val cacheKey = chapterListCacheKey(series.sourceId, series.url)
+        chapterListCache.get(cacheKey)?.let { return }
+
         val remote = sourceRegistry[series.sourceId].getChapterList(series)
         val remoteEntities = remote.map { it.toEntity() }
         val existingChapters = chapterDao.getChaptersForSeries(series.sourceId, series.url)
@@ -51,6 +56,10 @@ class ChapterRepositoryImpl @Inject constructor(
 
         chapterDao.deleteBySeries(series.sourceId, series.url)
         chapterDao.upsertAll(merged)
+
+        if (remote.isNotEmpty()) {
+            chapterListCache.put(cacheKey, remote.toList())
+        }
     }
 
     override suspend fun findByUrl(sourceId: Long, url: String): Chapter? =
@@ -89,3 +98,10 @@ class ChapterRepositoryImpl @Inject constructor(
         private const val TAG = "ChapterRepositoryImpl"
     }
 }
+
+private fun chapterListCacheKey(sourceId: Long, seriesUrl: String): String = "$sourceId:$seriesUrl"
+
+private fun defaultChapterListCache(): SourceMetadataCache<List<Chapter>> = SourceMetadataCache(
+    maxEntries = 20,
+    ttlMs = java.util.concurrent.TimeUnit.MINUTES.toMillis(2),
+)

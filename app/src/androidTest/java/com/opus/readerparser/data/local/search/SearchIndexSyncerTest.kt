@@ -57,6 +57,8 @@ class SearchIndexSyncerTest {
 
         override suspend fun getIndexableSeries(): List<SeriesEntity> = backingStore.toList()
 
+        override suspend fun getLibraryIndexableSeries(): List<SeriesEntity> = backingStore.toList()
+
         override suspend fun getLibraryIndexableSeries(sourceId: Long, url: String): SeriesEntity? =
             backingStore.find { it.sourceId == sourceId && it.url == url && it.inLibrary }
 
