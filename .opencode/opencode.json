@@ -63,6 +63,11 @@
       "rtk *":                              "allow",
 
       "./gradlew *":                        "allow",
+      "ANDROID_HOME=* ./gradlew *":         "allow",
+      "ANDROID_SDK_ROOT=* ./gradlew *":     "allow",
+      "ANDROID_HOME=* ANDROID_SDK_ROOT=* ./gradlew *": "allow",
+      "rtk test ./gradlew *":                  "allow",
+      "ANDROID_HOME=* ANDROID_SDK_ROOT=* rtk test ./gradlew *": "allow",
 
       "./gradlew :app:ktlintFormat":        "ask",
       "./gradlew :app:installDebug":        "ask",
@@ -157,7 +162,8 @@
     },
     "orchestrator": {
       "permission": {
-        "skill": "allow"
+        "skill": "allow",
+        "bash": "allow"
       }
     },
     "oracle": {
