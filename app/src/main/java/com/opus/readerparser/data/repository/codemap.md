@@ -25,9 +25,9 @@ for the lifetime of the app.
 
 **Side-effect pattern for browse flows.** `SeriesRepositoryImpl.fetchPopular()`,
 `fetchLatest()`, `search()`, and `refreshDetails()` all persist any returned
-series to the database via `saveSeries()`. This means browsing implicitly
-caches listing results, so library addition is never a no-op due to a missing
-row.
+series to the database via `saveSeries()`. They also consult the in-memory
+`SourceMetadataCache` before calling a source again, so repeated metadata reads
+stay cheap without adding persistent storage.
 
 **Fuzzy search fallback in `search()`.** When a remote search returns empty
 results on page 1 with a non-blank query, `SeriesRepositoryImpl.search()`

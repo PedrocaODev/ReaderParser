@@ -21,6 +21,26 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
 import java.util.Locale
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+
+@Serializable
+private data class ChapterApiResponse(
+    val data: ChapterData,
+)
+
+@Serializable
+private data class ChapterData(
+    val chapter: ChapterPages,
+)
+
+@Serializable
+private data class ChapterPages(
+    val pages: List<PageUrl>,
+)
+
+@Serializable
+private data class PageUrl(val url: String)
 
 /**
  * Source plugin for [Asura Scans](https://asurascans.com/), a manhwa scanlation site.
@@ -213,8 +233,12 @@ class AsuraScans(
         }
         val status = parseStatus(statusEl?.text()?.trim())
         val coverUrl = doc.selectFirst("#desktop-cover-container img")?.absUrl("src")
+        val extractedTitle = doc.selectFirst("article h1")?.text()?.trim().orEmpty()
+        val title = if (extractedTitle.isNotBlank()) extractedTitle
+                    else series.title.takeIf { it.isNotBlank() } ?: ""
 
         return series.copy(
+            title = title,
             author = author,
             artist = artist,
             description = description,
@@ -266,19 +290,52 @@ class AsuraScans(
     }
 
     // =========================================================================
-    // getChapterContent (manhwa — override chapterPagesParse)
+    // getChapterContent
     // =========================================================================
 
     /**
-     * Extracts page image URLs in reading order from a chapter page.
+     * Fetches chapter page image URLs via the AsuraScans API.
      *
-     * Images are in `<div data-page="N">` containers:
-     * ```html
-     * <div data-page="0" class="w-full">
-     *   <img src="https://cdn.asurascans.com/asura-images/chapters/{slug}/{chapter}/hash.webp" />
-     * </div>
-     * ```
+     * API endpoint: `https://api.asurascans.com/api/series/{series_slug}/chapters/{chapter_slug}`
+     *
+     * Falls back to HTML parsing ([super.getChapterContent]) if the API call fails
+     * or returns an empty page list.
      */
+    override suspend fun getChapterContent(chapter: Chapter): ChapterContent {
+        val seriesSlug = chapter.seriesUrl.substringAfterLast("/")
+            .substringBeforeLast("-")
+            .takeIf { it.isNotBlank() } ?: return super.getChapterContent(chapter)
+
+        val chapterNumber = chapter.number.toInt()
+        val chapterSlug = "chapter-$chapterNumber"
+        val apiUrl = "https://api.asurascans.com/api/series/$seriesSlug/chapters/$chapterSlug"
+
+        return try {
+            val response = client.get(apiUrl) {
+                header("User-Agent", USER_AGENT)
+                header("Accept", "application/json")
+            }.bodyAsText()
+
+            val parsed = JSON_PARSER
+                .decodeFromString<ChapterApiResponse>(response)
+            val pageUrls = parsed.data.chapter.pages.map { it.url }
+
+            if (pageUrls.isNotEmpty()) {
+                ChapterContent.Pages(pageUrls)
+            } else {
+                super.getChapterContent(chapter)
+            }
+        } catch (e: Exception) {
+            // Fall back to HTML parsing
+            super.getChapterContent(chapter)
+        }
+    }
+
+    // =========================================================================
+    // HTML fallback — manhwa page parsing
+    // =========================================================================
+
+    /** HTML fallback when the API endpoint fails or returns empty. */
     override fun chapterPagesParse(doc: Document): List<String> =
         doc.select("div[data-page] img").map { it.absUrl("src") }
 
@@ -360,6 +417,9 @@ class AsuraScans(
             .replace("&quot;", "\"")
 
     companion object {
+        /** Reusable JSON parser — tolerates unexpected API fields. */
+        private val JSON_PARSER = Json { ignoreUnknownKeys = true }
+
         /** Browser-like User-Agent to bypass Cloudflare anti-bot protection. */
         private const val USER_AGENT =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" +

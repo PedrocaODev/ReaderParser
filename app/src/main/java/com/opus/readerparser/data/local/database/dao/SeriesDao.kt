@@ -115,4 +115,18 @@ interface SeriesDao {
         """,
     )
     suspend fun getIndexableSeries(): List<SeriesEntity>
+
+    /** Returns library members that have at least one downloaded chapter. */
+    @Query(
+        """
+        SELECT DISTINCT s.*
+        FROM series s
+        INNER JOIN chapters c
+          ON s.sourceId = c.sourceId AND s.url = c.seriesUrl
+        WHERE s.inLibrary = 1
+          AND c.downloaded = 1
+        ORDER BY s.title ASC
+        """,
+    )
+    suspend fun getLibraryIndexableSeries(): List<SeriesEntity>
 }

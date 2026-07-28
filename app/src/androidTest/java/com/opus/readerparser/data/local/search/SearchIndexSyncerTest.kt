@@ -57,6 +57,8 @@ class SearchIndexSyncerTest {
 
         override suspend fun getIndexableSeries(): List<SeriesEntity> = backingStore.toList()
 
+        override suspend fun getLibraryIndexableSeries(): List<SeriesEntity> = backingStore.toList()
+
         override suspend fun getLibraryIndexableSeries(sourceId: Long, url: String): SeriesEntity? =
             backingStore.find { it.sourceId == sourceId && it.url == url && it.inLibrary }
 
@@ -115,9 +117,7 @@ class SearchIndexSyncerTest {
         override fun query(
             uri: Uri,
             projection: Array<String>?,
-            selection: String?,
-            selectionArgs: Array<String>?,
-            sortOrder: String?,
+            queryArgs: Bundle?,
         ): Cursor? = null
         override fun bulkInsert(uri: Uri, values: Array<ContentValues>): Int = values.size
         override fun delete(uri: Uri, where: String?, selectionArgs: Array<String?>?): Int = 0

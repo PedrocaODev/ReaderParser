@@ -46,6 +46,8 @@ class SamsungSearchRebuildWorkerTest {
             return emptyList()
         }
 
+        override suspend fun getLibraryIndexableSeries(): List<SeriesEntity> = emptyList()
+
         override suspend fun getLibraryIndexableSeries(sourceId: Long, url: String): SeriesEntity? = null
 
         // --- unused DAO methods ---
@@ -79,9 +81,7 @@ class SamsungSearchRebuildWorkerTest {
             override fun query(
                 uri: Uri,
                 projection: Array<String>?,
-                selection: String?,
-                selectionArgs: Array<String>?,
-                sortOrder: String?,
+                queryArgs: Bundle?,
             ): Cursor? = null
             override fun bulkInsert(uri: Uri, values: Array<ContentValues>): Int = values.size
             override fun delete(uri: Uri, where: String?, selectionArgs: Array<String?>?): Int = 0
@@ -103,9 +103,7 @@ class SamsungSearchRebuildWorkerTest {
             override fun query(
                 uri: Uri,
                 projection: Array<String>?,
-                selection: String?,
-                selectionArgs: Array<String>?,
-                sortOrder: String?,
+                queryArgs: Bundle?,
             ): Cursor? = null
             override fun bulkInsert(uri: Uri, values: Array<ContentValues>): Int =
                 throw RuntimeException("write failed")

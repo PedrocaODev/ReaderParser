@@ -1,6 +1,7 @@
 package com.opus.readerparser.data.repository
 
 import com.opus.readerparser.core.util.TitleMatcher
+import com.opus.readerparser.core.util.SourceMetadataCache
 import com.opus.readerparser.data.local.database.dao.SeriesDao
 import com.opus.readerparser.data.local.database.mappers.toDomain
 import com.opus.readerparser.data.local.database.mappers.toEntity
@@ -9,6 +10,7 @@ import com.opus.readerparser.data.local.search.SamsungSearchHit
 import com.opus.readerparser.data.local.search.SamsungSearchQueryResult
 import com.opus.readerparser.data.source.SourceRegistry
 import com.opus.readerparser.domain.SeriesRepository
+import com.opus.readerparser.domain.model.Filter
 import com.opus.readerparser.domain.model.FilterList
 import com.opus.readerparser.domain.model.LibrarySearchResult
 import com.opus.readerparser.domain.model.Series
@@ -25,6 +27,8 @@ class SeriesRepositoryImpl @Inject constructor(
     private val sourceRegistry: SourceRegistry,
     private val seriesDao: SeriesDao,
     private val samsungSearchClient: SamsungSearchClient,
+    private val catalogSearchCache: SourceMetadataCache<SeriesPage> = defaultCatalogSearchCache(),
+    private val detailCache: SourceMetadataCache<Series> = defaultDetailCache(),
 ) : SeriesRepository {
 
     override fun observeLibrary(): Flow<List<Series>> =
@@ -37,14 +41,26 @@ class SeriesRepositoryImpl @Inject constructor(
             .drop(1)
 
     override suspend fun fetchPopular(sourceId: Long, page: Int): SeriesPage {
+        val cacheKey = catalogCacheKey(sourceId, "popular", page)
+        catalogSearchCache.get(cacheKey)?.let { return it }
+
         val result = sourceRegistry[sourceId].getPopular(page)
         result.series.forEach { saveSeries(it) }
+        if (result.series.isNotEmpty()) {
+            catalogSearchCache.put(cacheKey, result.snapshot())
+        }
         return result
     }
 
     override suspend fun fetchLatest(sourceId: Long, page: Int): SeriesPage {
+        val cacheKey = catalogCacheKey(sourceId, "latest", page)
+        catalogSearchCache.get(cacheKey)?.let { return it }
+
         val result = sourceRegistry[sourceId].getLatest(page)
         result.series.forEach { saveSeries(it) }
+        if (result.series.isNotEmpty()) {
+            catalogSearchCache.put(cacheKey, result.snapshot())
+        }
         return result
     }
 
@@ -54,6 +70,9 @@ class SeriesRepositoryImpl @Inject constructor(
         page: Int,
         filters: FilterList,
     ): SeriesPage {
+        val cacheKey = searchCacheKey(sourceId, query, page, filters)
+        catalogSearchCache.get(cacheKey)?.let { return it }
+
         val result = sourceRegistry[sourceId].search(query, page, filters)
         result.series.forEach { saveSeries(it) }
 
@@ -67,30 +86,56 @@ class SeriesRepositoryImpl @Inject constructor(
             return SeriesPage(matched, hasNextPage = false)
         }
 
+        if (result.series.isNotEmpty()) {
+            catalogSearchCache.put(cacheKey, result.snapshot())
+        }
+
         return result
     }
 
     override suspend fun searchLibrary(query: String): LibrarySearchResult {
-        return when (val result = samsungSearchClient.query(query)) {
-            is SamsungSearchQueryResult.Failure -> LibrarySearchResult.Failure(result.message)
+        val trimmedQuery = query.trim()
+        if (trimmedQuery.isBlank()) return LibrarySearchResult.Success(emptyList())
+
+        val eligibleSeries = seriesDao.getLibraryIndexableSeries()
+
+        return when (val result = samsungSearchClient.query(trimmedQuery)) {
             is SamsungSearchQueryResult.Success -> LibrarySearchResult.Success(
-                result.hits.mapNotNull { hit ->
-                    hit.toLookupKey()?.let { (sourceId, url) ->
-                        seriesDao.getLibraryIndexableSeries(sourceId, url)?.toDomain()
-                    }
-                },
+                eligibleSeries
+                    .associateBy { it.sourceId to it.url }
+                    .let { eligible ->
+                        result.hits.mapNotNull { hit ->
+                            hit.toLookupKey()?.let { (sourceId, url) ->
+                                eligible[sourceId to url]?.toDomain()
+                            }
+                        }
+                    },
+            )
+            is SamsungSearchQueryResult.Failure -> LibrarySearchResult.Success(
+                eligibleSeries
+                    .map { it.toDomain() }
+                    .filter { it.matchesLibraryQuery(trimmedQuery) },
             )
         }
     }
 
     override suspend fun refreshDetails(series: Series): Series {
+        val cacheKey = detailCacheKey(series.sourceId, series.url)
+        detailCache.get(cacheKey)?.let { return it }
+
         val updated = sourceRegistry[series.sourceId].getSeriesDetails(series)
-        saveSeries(updated)
+        if (updated.title.isNotBlank()) {
+            saveSeries(updated)
+            detailCache.put(cacheKey, updated.snapshot())
+        }
         return updated
     }
 
     override suspend fun addToLibrary(series: Series) {
         val toSave = if (series.title.isBlank()) refreshDetails(series) else series
+        if (toSave.title.isBlank() && seriesDao.getByUrl(toSave.sourceId, toSave.url) == null) {
+            seriesDao.insert(toSave.toEntity())
+        }
         seriesDao.addToLibrary(toSave.sourceId, toSave.url, System.currentTimeMillis())
     }
 
@@ -126,4 +171,58 @@ class SeriesRepositoryImpl @Inject constructor(
         if (url.isBlank()) return null
         return sourceId to url
     }
+
+    private fun Series.matchesLibraryQuery(query: String): Boolean =
+        TitleMatcher.matches(query, title) ||
+            author?.let { TitleMatcher.matches(query, it) } == true ||
+            genres.any { TitleMatcher.matches(query, it) }
 }
+
+private fun catalogCacheKey(sourceId: Long, operation: String, page: Int): String =
+    "$sourceId:$operation:$page"
+
+private fun searchCacheKey(
+    sourceId: Long,
+    query: String,
+    page: Int,
+    filters: FilterList,
+): String {
+    val nq = normalizedQuery(query)
+    val fs = filters.toSnapshot()
+    return "$sourceId:search:${nq.length}:$nq:$page:${fs.length}:$fs"
+}
+
+private fun detailCacheKey(sourceId: Long, url: String): String = "$sourceId:$url"
+
+private fun normalizedQuery(query: String): String =
+    query.trim().lowercase().replace(WHITESPACE, " ")
+
+private fun FilterList.toSnapshot(): String = filters.joinToString(separator = "\u001f") { filter ->
+    when (filter) {
+        is Filter.Text -> filter.snapshot("text")
+        is Filter.Select -> filter.snapshot("select")
+        is Filter.Toggle -> "toggle:${filter.key.length}:${filter.key}:${filter.value}"
+    }
+}
+
+private fun Filter.Text.snapshot(type: String): String =
+    "$type:${key.length}:$key:${value.length}:$value"
+
+private fun Filter.Select.snapshot(type: String): String =
+    "$type:${key.length}:$key:${value.length}:$value"
+
+private fun SeriesPage.snapshot(): SeriesPage = copy(series = series.toList())
+
+private fun Series.snapshot(): Series = copy(genres = genres.toList())
+
+private val WHITESPACE = Regex("\\s+")
+
+private fun defaultCatalogSearchCache(): SourceMetadataCache<SeriesPage> = SourceMetadataCache(
+    maxEntries = 100,
+    ttlMs = java.util.concurrent.TimeUnit.MINUTES.toMillis(5),
+)
+
+private fun defaultDetailCache(): SourceMetadataCache<Series> = SourceMetadataCache(
+    maxEntries = 50,
+    ttlMs = java.util.concurrent.TimeUnit.MINUTES.toMillis(15),
+)

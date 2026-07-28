@@ -9,13 +9,17 @@ import com.opus.readerparser.data.local.search.SamsungSearchQueryResult
 import com.opus.readerparser.data.local.search.SamsungSearchSchema
 import com.opus.readerparser.data.local.search.SearchProviderDelegate
 import com.opus.readerparser.data.source.SourceRegistry
+import com.opus.readerparser.core.util.SourceMetadataCache
 import com.opus.readerparser.domain.model.ContentType
+import com.opus.readerparser.domain.model.Filter
 import com.opus.readerparser.domain.model.FilterList
 import com.opus.readerparser.domain.model.LibrarySearchResult
 import com.opus.readerparser.domain.model.Series
 import com.opus.readerparser.domain.model.SeriesPage
+import com.opus.readerparser.domain.model.SeriesStatus
 import com.opus.readerparser.fakes.FakeSource
 import com.opus.readerparser.testutil.TestFixtures
+import java.lang.reflect.Method
 import android.content.ContentValues
 import android.database.Cursor
 import android.net.Uri
@@ -33,6 +37,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
+import java.util.concurrent.TimeUnit
 
 /**
  * Tests for [SeriesRepositoryImpl] using hand-rolled fakes.
@@ -50,6 +55,10 @@ class SeriesRepositoryImplTest {
         private val downloadedKeys = mutableSetOf<Pair<Long, String>>()
         private val libraryFlow = MutableStateFlow<List<SeriesEntity>>(emptyList())
         private val indexableFlow = MutableStateFlow<List<SeriesEntity>>(emptyList())
+        var getIndexableSeriesCalls = 0
+            private set
+        var getLibraryIndexableSeriesCalls = 0
+            private set
 
         private fun refreshFlows() {
             libraryFlow.value = store.filter { it.inLibrary }
@@ -65,7 +74,15 @@ class SeriesRepositoryImplTest {
             store.filter { it.sourceId == sourceId }
 
         override suspend fun getLibraryIndexableSeries(sourceId: Long, url: String): SeriesEntity? =
-            store.find { it.sourceId == sourceId && it.url == url && it.inLibrary && downloadedKeys.contains(sourceId to url) }
+            run {
+                getLibraryIndexableSeriesCalls++
+                store.find { it.sourceId == sourceId && it.url == url && it.inLibrary && downloadedKeys.contains(sourceId to url) }
+            }
+
+        override suspend fun getLibraryIndexableSeries(): List<SeriesEntity> {
+            getLibraryIndexableSeriesCalls++
+            return store.filter { it.inLibrary && downloadedKeys.contains(it.sourceId to it.url) }
+        }
 
         override suspend fun upsert(series: SeriesEntity) {
             val idx = store.indexOfFirst { it.sourceId == series.sourceId && it.url == series.url }
@@ -143,7 +160,10 @@ class SeriesRepositoryImplTest {
 
         override fun observeIndexableSeries(): Flow<List<SeriesEntity>> = indexableFlow
 
-        override suspend fun getIndexableSeries(): List<SeriesEntity> = indexableFlow.value
+        override suspend fun getIndexableSeries(): List<SeriesEntity> {
+            getIndexableSeriesCalls++
+            return indexableFlow.value
+        }
     }
 
     // ---- Test fixtures ----
@@ -159,9 +179,7 @@ class SeriesRepositoryImplTest {
         override fun query(
             uri: Uri,
             projection: Array<String>?,
-            selection: String?,
-            selectionArgs: Array<String>?,
-            sortOrder: String?,
+            queryArgs: Bundle?,
         ): Cursor? = null
         override fun bulkInsert(uri: Uri, values: Array<ContentValues>): Int = values.size
         override fun delete(uri: Uri, where: String?, selectionArgs: Array<String?>?): Int = 0
@@ -180,9 +198,32 @@ class SeriesRepositoryImplTest {
         }
     }
 
-    private val repository = SeriesRepositoryImpl(sourceRegistry, fakeDao, fakeSearchClient)
+    private val repository = seriesRepository()
 
     private val testSeries = TestFixtures.testSeries(sourceId = fakeSource.id)
+
+    private fun seriesRepository(
+        registry: SourceRegistry = sourceRegistry,
+        catalogSearchCache: SourceMetadataCache<SeriesPage> = SourceMetadataCache(
+            maxEntries = 100,
+            ttlMs = TimeUnit.MINUTES.toMillis(5),
+        ),
+        detailCache: SourceMetadataCache<Series> = SourceMetadataCache(
+            maxEntries = 50,
+            ttlMs = TimeUnit.MINUTES.toMillis(15),
+        ),
+    ): SeriesRepositoryImpl = SeriesRepositoryImpl(registry, fakeDao, fakeSearchClient, catalogSearchCache, detailCache)
+
+    private class FakeClock(startNanos: Long = 0L) {
+        var nowNanos: Long = startNanos
+            private set
+
+        fun advanceMs(ms: Long) {
+            nowNanos += TimeUnit.MILLISECONDS.toNanos(ms)
+        }
+
+        fun read(): Long = nowNanos
+    }
 
     // -----------------------------------------------------------------
     // observeLibrary
@@ -245,6 +286,67 @@ class SeriesRepositoryImplTest {
         assertEquals(listOf(2), fakeSource.getPopularCalls)
     }
 
+    @Test
+    fun `fetchPopular returns cached result on second call`() = runTest {
+        val expected = SeriesPage(listOf(testSeries), hasNextPage = true)
+        fakeSource.popularResult = expected
+
+        val first = repository.fetchPopular(fakeSource.id, 1)
+        fakeSource.popularResult = SeriesPage(listOf(testSeries.copy(title = "Changed")), hasNextPage = false)
+        val second = repository.fetchPopular(fakeSource.id, 1)
+
+        assertEquals(expected, first)
+        assertEquals(expected, second)
+        assertEquals(listOf(1), fakeSource.getPopularCalls)
+    }
+
+    @Test
+    fun `fetchPopular and fetchLatest use different cache entries`() = runTest {
+        val popular = SeriesPage(listOf(testSeries.copy(title = "Popular")), hasNextPage = false)
+        val latest = SeriesPage(listOf(testSeries.copy(title = "Latest")), hasNextPage = false)
+        fakeSource.popularResult = popular
+        fakeSource.latestResult = latest
+
+        val resultPopular = repository.fetchPopular(fakeSource.id, 1)
+        val resultLatest = repository.fetchLatest(fakeSource.id, 1)
+        fakeSource.latestResult = SeriesPage(listOf(testSeries.copy(title = "Changed latest")), hasNextPage = false)
+        val cachedLatest = repository.fetchLatest(fakeSource.id, 1)
+
+        assertEquals("Popular", resultPopular.series[0].title)
+        assertEquals("Latest", resultLatest.series[0].title)
+        assertEquals("Latest", cachedLatest.series[0].title)
+        assertEquals(listOf(1), fakeSource.getPopularCalls)
+        assertEquals(listOf(1), fakeSource.getLatestCalls)
+    }
+
+    @Test
+    fun `fetchPopular uses different cache entries for different source and page`() = runTest {
+        val otherSource = FakeSource(name = "OtherSource", lang = "en", type = ContentType.NOVEL)
+        val otherRegistry = SourceRegistry(mapOf(fakeSource.id to fakeSource, otherSource.id to otherSource))
+        val repo = seriesRepository(registry = otherRegistry)
+
+        fakeSource.popularResult = SeriesPage(listOf(testSeries.copy(title = "First source")), hasNextPage = false)
+        otherSource.popularResult = SeriesPage(listOf(testSeries.copy(sourceId = otherSource.id, title = "Second source")), hasNextPage = false)
+
+        repo.fetchPopular(fakeSource.id, 1)
+        repo.fetchPopular(fakeSource.id, 2)
+        repo.fetchPopular(otherSource.id, 1)
+
+        assertEquals(listOf(1, 2), fakeSource.getPopularCalls)
+        assertEquals(listOf(1), otherSource.getPopularCalls)
+    }
+
+    @Test
+    fun `fetchPopular does not cache empty remote results`() = runTest {
+        fakeSource.popularResult = SeriesPage(emptyList(), hasNextPage = false)
+
+        repository.fetchPopular(fakeSource.id, 1)
+        fakeSource.popularResult = SeriesPage(listOf(testSeries), hasNextPage = false)
+        repository.fetchPopular(fakeSource.id, 1)
+
+        assertEquals(listOf(1, 1), fakeSource.getPopularCalls)
+    }
+
     // -----------------------------------------------------------------
     // fetchLatest
     // -----------------------------------------------------------------
@@ -274,6 +376,72 @@ class SeriesRepositoryImplTest {
 
         assertEquals(expected, result)
         assertEquals(listOf(Triple("query", 3, filters)), fakeSource.searchCalls)
+    }
+
+    @Test
+    fun `search treats filter order as part of the cache key`() = runTest {
+        val firstFilters = FilterList(
+            listOf(
+                Filter.Text(key = "genre", value = "action"),
+                Filter.Toggle(key = "completed", value = true),
+            ),
+        )
+        val secondFilters = FilterList(
+            listOf(
+                Filter.Toggle(key = "completed", value = true),
+                Filter.Text(key = "genre", value = "action"),
+            ),
+        )
+        fakeSource.searchResult = SeriesPage(listOf(testSeries), hasNextPage = false)
+
+        repository.search(fakeSource.id, "query", 1, firstFilters)
+        repository.search(fakeSource.id, "query", 1, secondFilters)
+
+        assertEquals(
+            listOf(
+                Triple("query", 1, firstFilters),
+                Triple("query", 1, secondFilters),
+            ),
+            fakeSource.searchCalls,
+        )
+    }
+
+    @Test
+    fun `search cache key encodes variable length query and filters`() {
+        val keyMethod = searchCacheKeyMethod()
+        val filters = FilterList(
+            listOf(
+                Filter.Text(key = "genre", value = "action:adventure"),
+                Filter.Toggle(key = "completed", value = true),
+            ),
+        )
+        val snapshot = "text:5:genre:16:action:adventure\u001ftoggle:9:completed:true"
+
+        val key = keyMethod.invoke(null, 7L, "a:b", 3, filters) as String
+
+        assertTrue(key.startsWith("7:search:3:a:b:3:"))
+        assertTrue(key.endsWith(":${snapshot.length}:$snapshot"))
+    }
+
+    @Test
+    fun `search cache keeps different queries isolated`() = runTest {
+        val first = SeriesPage(listOf(testSeries.copy(title = "First")), hasNextPage = false)
+        val second = SeriesPage(listOf(testSeries.copy(title = "Second")), hasNextPage = false)
+        fakeSource.searchResult = first
+
+        val filters = FilterList(
+            listOf(
+                Filter.Text(key = "genre", value = "action:adventure"),
+            ),
+        )
+
+        val result1 = repository.search(fakeSource.id, "series:one", 1, filters)
+        fakeSource.searchResult = second
+        val result2 = repository.search(fakeSource.id, "series:two", 1, filters)
+
+        assertEquals(first, result1)
+        assertEquals(second, result2)
+        assertEquals(listOf(Triple("series:one", 1, filters), Triple("series:two", 1, filters)), fakeSource.searchCalls)
     }
 
     // -----------------------------------------------------------------
@@ -415,7 +583,7 @@ class SeriesRepositoryImplTest {
     }
 
     @Test
-    fun `searchLibrary maps Samsung hits to local library indexable rows in provider order`() = runTest {
+    fun `searchLibrary preserves Samsung Search hit ordering`() = runTest {
         val first = testSeries.toEntity().copy(
             url = "https://test.invalid/first",
             title = "Local First Title",
@@ -442,10 +610,12 @@ class SeriesRepositoryImplTest {
         }
 
         assertEquals(listOf("query"), fakeSearchClient.queryCalls)
+        assertEquals(0, fakeDao.getIndexableSeriesCalls)
+        assertEquals(1, fakeDao.getLibraryIndexableSeriesCalls)
     }
 
     @Test
-    fun `searchLibrary filters out non-library and non-indexable hits`() = runTest {
+    fun `search library excludes series not in library even if downloaded`() = runTest {
         val indexable = testSeries.toEntity().copy(
             url = "https://test.invalid/indexable",
             title = "Indexable",
@@ -476,16 +646,40 @@ class SeriesRepositoryImplTest {
             }
             is LibrarySearchResult.Failure -> fail("Expected success but got failure: ${result.message}")
         }
+
+        assertEquals(0, fakeDao.getIndexableSeriesCalls)
+        assertEquals(1, fakeDao.getLibraryIndexableSeriesCalls)
     }
 
     @Test
-    fun `searchLibrary surfaces provider failure`() = runTest {
+    fun `search library includes series in library with downloaded chapters`() = runTest {
+        val alpha = testSeries.toEntity().copy(
+            url = "https://test.invalid/alpha",
+            title = "Alpha Story",
+            author = "Beta Author",
+            genresJson = "[\"Adventure\"]",
+        )
+        val beta = testSeries.toEntity().copy(
+            url = "https://test.invalid/beta",
+            title = "Other Title",
+            author = "Query Match",
+            genresJson = "[\"Drama\"]",
+        )
+        fakeDao.upsertLibraryIndexable(alpha)
+        fakeDao.upsertLibraryIndexable(beta)
+
         fakeSearchClient.queryResult = SamsungSearchQueryResult.Failure("provider down")
 
         when (val result = repository.searchLibrary("query")) {
-            is LibrarySearchResult.Success -> fail("Expected failure but got success")
-            is LibrarySearchResult.Failure -> assertEquals("provider down", result.message)
+            is LibrarySearchResult.Success -> {
+                assertEquals(listOf("Other Title"), result.series.map { it.title })
+            }
+            is LibrarySearchResult.Failure -> fail("Expected success but got failure: ${result.message}")
         }
+
+        assertEquals(listOf("query"), fakeSearchClient.queryCalls)
+        assertEquals(0, fakeDao.getIndexableSeriesCalls)
+        assertEquals(1, fakeDao.getLibraryIndexableSeriesCalls)
     }
 
     // -----------------------------------------------------------------
@@ -513,6 +707,54 @@ class SeriesRepositoryImplTest {
         }
 
     @Test
+    fun `refreshDetails returns cached result on second call`() = runTest {
+        val enriched = testSeries.copy(title = "Enriched", author = "Author")
+        fakeSource.seriesDetailsResult = { enriched }
+
+        val first = repository.refreshDetails(testSeries)
+        fakeSource.seriesDetailsResult = { testSeries.copy(title = "Changed") }
+        val second = repository.refreshDetails(testSeries)
+
+        assertEquals(enriched, first)
+        assertEquals(enriched, second)
+        assertEquals(listOf(testSeries), fakeSource.getSeriesDetailsCalls)
+    }
+
+    @Test
+    fun `refreshDetails re-fetches after cache expiry`() = runTest {
+        val clock = FakeClock()
+        val detailCache = SourceMetadataCache<Series>(
+            maxEntries = 50,
+            ttlMs = 1,
+            nowNanos = clock::read,
+        )
+        val repo = seriesRepository(detailCache = detailCache)
+        val first = testSeries.copy(title = "First title")
+        val second = testSeries.copy(title = "Second title")
+
+        fakeSource.seriesDetailsResult = { first }
+        repo.refreshDetails(testSeries)
+
+        clock.advanceMs(2)
+        fakeSource.seriesDetailsResult = { second }
+
+        val result = repo.refreshDetails(testSeries)
+
+        assertEquals(second, result)
+        assertEquals(listOf(testSeries, testSeries), fakeSource.getSeriesDetailsCalls)
+    }
+
+    @Test
+    fun `refreshDetails does not cache blank details`() = runTest {
+        fakeSource.seriesDetailsResult = { testSeries.copy(title = "") }
+
+        repository.refreshDetails(testSeries)
+        repository.refreshDetails(testSeries)
+
+        assertEquals(listOf(testSeries, testSeries), fakeSource.getSeriesDetailsCalls)
+    }
+
+    @Test
     fun `refreshDetails does not cascade delete chapters`() = runTest {
         // Pre-insert series with inLibrary=true, simulating a library entry
         fakeDao.upsert(testSeries.toEntity().copy(inLibrary = true, addedAt = 1000L))
@@ -529,6 +771,64 @@ class SeriesRepositoryImplTest {
         // Verify inLibrary and addedAt were preserved (not wiped by saveSeries)
         assertTrue(stored.inLibrary)
         assertEquals(1000L, stored.addedAt)
+    }
+
+    @Test
+    fun `refreshDetails repairs blank library title while preserving bookmark identity and data`() = runTest {
+        val blankBookmark = testSeries.copy(title = "", author = "Existing author")
+        val savedBookmark = blankBookmark.toEntity().copy(inLibrary = true, addedAt = 1000L)
+        fakeDao.upsert(savedBookmark)
+        fakeSource.seriesDetailsResult = {
+            testSeries.copy(title = "Repaired title", author = "Refreshed author")
+        }
+
+        repository.refreshDetails(blankBookmark)
+
+        val stored = fakeDao.getByUrl(blankBookmark.sourceId, blankBookmark.url)!!
+        assertEquals(blankBookmark.sourceId, stored.sourceId)
+        assertEquals(blankBookmark.url, stored.url)
+        assertEquals("Repaired title", stored.title)
+        assertEquals("Refreshed author", stored.author)
+        assertTrue(stored.inLibrary)
+        assertEquals(1000L, stored.addedAt)
+    }
+
+    @Test
+    fun `refreshDetails does not overwrite bookmark metadata when parsed title is blank`() = runTest {
+        val blankBookmark = testSeries.copy(title = "", author = "Existing Author")
+        val savedBookmark = blankBookmark.toEntity().copy(inLibrary = true, addedAt = 1000L)
+        fakeDao.upsert(savedBookmark)
+        val parsedSeries = blankBookmark.copy(
+            author = "Parsed Author",
+            artist = "Parsed Artist",
+            description = "Parsed description",
+            coverUrl = "https://test.invalid/cover.jpg",
+            genres = listOf("Parsed Genre"),
+            status = SeriesStatus.COMPLETED,
+        )
+        fakeSource.seriesDetailsResult = { parsedSeries }
+
+        val result = repository.refreshDetails(blankBookmark)
+
+        assertEquals(parsedSeries, result)
+        assertEquals(savedBookmark, fakeDao.getByUrl(blankBookmark.sourceId, blankBookmark.url))
+    }
+
+    @Test
+    fun `refreshDetails failure leaves blank library bookmark unchanged`() = runTest {
+        val blankBookmark = testSeries.copy(title = "", author = "Existing author")
+        val savedBookmark = blankBookmark.toEntity().copy(inLibrary = true, addedAt = 1000L)
+        fakeDao.upsert(savedBookmark)
+        fakeSource.seriesDetailsResult = { throw IllegalStateException("Parsing failed") }
+
+        try {
+            repository.refreshDetails(blankBookmark)
+            fail("Expected refresh failure")
+        } catch (expected: IllegalStateException) {
+            assertEquals("Parsing failed", expected.message)
+        }
+
+        assertEquals(savedBookmark, fakeDao.getByUrl(blankBookmark.sourceId, blankBookmark.url))
     }
 
     // -----------------------------------------------------------------
@@ -577,6 +877,21 @@ class SeriesRepositoryImplTest {
 
         // Source should have been called with the stub
         assertEquals(listOf(stubSeries), fakeSource.getSeriesDetailsCalls)
+    }
+
+    @Test
+    fun `addToLibrary inserts blank title series when refresh cannot fix title`() = runTest {
+        val stubSeries = testSeries.copy(title = "", author = "Existing author")
+        val refreshed = stubSeries.copy(author = "Parsed author")
+        fakeSource.seriesDetailsResult = { refreshed }
+
+        repository.addToLibrary(stubSeries)
+
+        val stored = fakeDao.getByUrl(testSeries.sourceId, testSeries.url)
+        assertNotNull("expected blank-title series to be inserted", stored)
+        assertTrue(stored!!.inLibrary)
+        assertEquals("", stored.title)
+        assertEquals("Parsed author", stored.author)
     }
 
     @Test
@@ -688,4 +1003,15 @@ class SeriesRepositoryImplTest {
             // Expected — SourceRegistry throws for unregistered IDs
         }
     }
+
+    private fun searchCacheKeyMethod(): Method = Class
+        .forName("com.opus.readerparser.data.repository.SeriesRepositoryImplKt")
+        .getDeclaredMethod(
+            "searchCacheKey",
+            Long::class.javaPrimitiveType,
+            String::class.java,
+            Int::class.javaPrimitiveType,
+            FilterList::class.java,
+        )
+        .apply { isAccessible = true }
 }
