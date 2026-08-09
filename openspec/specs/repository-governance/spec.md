@@ -8,14 +8,11 @@ constitutes a trivial exception exempt from the OpenSpec workflow.
 
 ---
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: Non-trivial work MUST start as an OpenSpec change
 
-Any work that adds, modifies, or removes functionality, behavior, data flow,
-or public interface MUST begin by creating an OpenSpec change under
-`openspec/changes/` before code or documentation edits begin. The change MUST
-include at minimum a `proposal.md` describing what and why.
+Any work that adds, modifies, or removes functionality, behavior, data flow, or public interface MUST begin by creating an OpenSpec change under `openspec/changes/` before code or documentation edits begin. The change MUST include at minimum a `proposal.md` describing what and why.
 
 #### Scenario: Feature development requires an OpenSpec change
 
@@ -35,9 +32,7 @@ include at minimum a `proposal.md` describing what and why.
 
 ### Requirement: Trivial and read-only work MAY proceed without an OpenSpec change
 
-The following categories of work are explicitly exempt from the OpenSpec
-workflow. This list is exhaustive; any work not listed here is non-trivial and
-MUST follow the OpenSpec workflow.
+The following categories of work are explicitly exempt from the OpenSpec workflow. This list is exhaustive; any work not listed here is non-trivial and MUST follow the OpenSpec workflow.
 
 - **Read-only exploration**: answering questions, grepping the codebase,
   inspecting files, generating temporary knowledge graphs or dashboards
@@ -71,7 +66,7 @@ MUST follow the OpenSpec workflow.
 
 ### Requirement: Canonical documentation files have defined ownership
 
-The following files are the authoritative durable truth for repository
+The following files MUST be the authoritative durable truth for repository
 conventions, architecture, and navigation. Each file has a defined scope. No
 other file may redefine or duplicate the content owned by these files.
 

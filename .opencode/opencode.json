@@ -168,7 +168,7 @@
     },
     "oracle": {
       "permission": {
-        "skill": { "*": "deny", "simplify": "allow", "android-skill-router": "allow", "openspec-propose": "allow", "openspec-apply-change": "allow", "openspec-archive-change": "allow", "openspec-explore": "allow", "trace-matrix": "allow" }
+        "skill": { "*": "deny", "simplify": "allow", "android-skill-router": "allow", "openspec-house-style": "allow", "trace-matrix": "allow" }
       }
     },
     "designer": {

@@ -1,11 +1,14 @@
+## Purpose
+Specifies that refreshing a series' chapter list from the remote source preserves the existing local `read`, `progress`, and `downloaded` state on already-known chapters, while inserting new chapters with default state and removing stale rows.
+
 ## Requirements
 
 ### Requirement: refreshChapters preserves chapter state
 
-When `ChapterRepository.refreshChapters(series)` fetches the remote chapter
-list and upserts it into the local database, the system SHALL preserve the
-existing `read`, `progress`, and `downloaded` values for chapters that already
-exist locally.
+The system SHALL preserve the existing `read`, `progress`, and `downloaded`
+values for chapters that already exist locally when
+`ChapterRepository.refreshChapters(series)` fetches the remote chapter list
+and upserts it into the local database.
 
 #### Scenario: Refresh preserves read state
 - **WHEN** `refreshChapters` is called for a series

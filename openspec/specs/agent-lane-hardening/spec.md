@@ -1,3 +1,6 @@
+## Purpose
+Defines hard lane boundaries between the build, runner, reviewer, and integrator agents so that git write operations, verification tasks, diff review, and the git/PR/CI lifecycle are each owned by exactly one agent, and codifies the apply and archive flows that dispatch them through runner/reviewer correction and integrator merge.
+
 ## Requirements
 
 ### Requirement: Build agent SHALL NOT run git commands or verification tasks

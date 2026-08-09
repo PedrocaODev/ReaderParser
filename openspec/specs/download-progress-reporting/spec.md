@@ -1,3 +1,6 @@
+## Purpose
+Specifies that chapter downloads report intermediate progress at meaningful milestones (per-page for manhwa, on content fetch and disk write for novels), that the Downloads screen reflects RUNNING progress, and that updates propagate reactively through the Worker → repository → DAO → ViewModel → UI chain.
+
 ## Requirements
 
 ### Requirement: Intermediate progress updates during download

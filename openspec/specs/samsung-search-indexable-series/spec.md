@@ -11,7 +11,7 @@ insert batching.
 
 ---
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: Schema registration via public API
 ReaderParser SHALL register a search schema named `com.opus.readerparser.series` by calling `ContentResolver.call()` with method `register_schema` against `content://com.samsung.android.smartsuggestions.search/v2`. The schema XML SHALL be bundled as an asset and sent as `byte[]` in the `schema-content` extra. The schema name SHALL be sent in the `extras` bundle under key `"name"` — the provider does not read the schema name from the `arg` parameter. The schema name SHALL start with the app's package name to pass `validateSchemaName()`.
