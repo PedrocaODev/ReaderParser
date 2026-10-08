@@ -10,7 +10,7 @@ permission:
 agent:
   class: W
   owns: Domain models (data classes), Source interface, HtmlSource, SourceRegistry, computeSourceId, and their tests
-  reads: architecture.md, data/source/AGENTS.md, app/src/test/kotlin/com/opus/readerparser/testutil/
+  reads: docs/architecture.md, data/source/AGENTS.md, app/src/test/kotlin/com/opus/readerparser/testutil/
   routing:
     - domain
     - model
@@ -121,7 +121,7 @@ For each type:
 
 ## What you do not do
 - Do not add Android dependencies to domain models.
-- Do not modify the `Source` interface beyond what `architecture.md` defines.
+- Do not modify the `Source` interface beyond what `docs/architecture.md` defines.
 - Do not add a third variant to `ChapterContent`.
 - Do not use `runBlocking` in production code.
 - Do not catch exceptions in Source methods.
@@ -131,7 +131,7 @@ For each type:
 ## Before writing any code
 
 Read these (in this order):
-1. `architecture.md` — the full Source interface definition, HtmlSource base class,
+1. `docs/architecture.md` — the full Source interface definition, HtmlSource base class,
    domain models, computeSourceId formula.
 2. `data/source/AGENTS.md` — Source contract rules.
 3. `testutil/KtorMockHelpers.kt` and `testutil/MainDispatcherRule.kt` — understand
