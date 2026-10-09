@@ -14,7 +14,9 @@ import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -152,7 +154,7 @@ class SearchIndexSyncerTest {
     fun setUp() {
         fakeDao = FakeSeriesDao()
         fakeClient = FakeSearchClient()
-        syncer = SearchIndexSyncer(fakeDao, fakeClient)
+        syncer = SearchIndexSyncer(fakeDao, fakeClient, testDispatcher)
     }
 
     // --- rebuildIndex ---
@@ -188,7 +190,7 @@ class SearchIndexSyncerTest {
     @Test
     fun rebuildIndex_returns_false_when_samsung_search_is_unavailable() = testScope.runTest {
         fakeClient = FakeSearchClient(available = false)
-        syncer = SearchIndexSyncer(fakeDao, fakeClient)
+        syncer = SearchIndexSyncer(fakeDao, fakeClient, testDispatcher)
 
         fakeDao.emitIndexable(listOf(fakeEntity()))
         val result = syncer.rebuildIndex()
@@ -238,7 +240,7 @@ class SearchIndexSyncerTest {
     @Test
     fun rebuildIndex_ensureRegistered_returns_false_when_unavailable() = testScope.runTest {
         fakeClient = FakeSearchClient(available = false)
-        syncer = SearchIndexSyncer(fakeDao, fakeClient)
+        syncer = SearchIndexSyncer(fakeDao, fakeClient, testDispatcher)
 
         fakeDao.emitIndexable(listOf(fakeEntity()))
         val result = syncer.rebuildIndex(ensureRegistered = true)
@@ -275,9 +277,11 @@ class SearchIndexSyncerTest {
     fun startObserving_triggers_rebuild_when_flow_emits() = testScope.runTest {
         val series = listOf(fakeEntity())
 
-        syncer.startObserving(testScope)
+        syncer.startObserving(backgroundScope)
+        runCurrent()
         fakeDao.emitIndexable(series)
-        advanceUntilIdle()
+        advanceTimeBy(3000L)
+        runCurrent()
 
         assertEquals("deleteAll should be called once", 1, fakeClient.deleteAllCalls)
         assertEquals("1 document should be inserted", 1, fakeClient.lastInsertedCount)
@@ -285,11 +289,13 @@ class SearchIndexSyncerTest {
 
     @Test
     fun startObserving_cancels_previous_observation_on_re_call() = testScope.runTest {
-        syncer.startObserving(testScope)
-        syncer.startObserving(testScope) // second call cancels first
+        syncer.startObserving(backgroundScope)
+        syncer.startObserving(backgroundScope) // second call cancels first
+        runCurrent()
 
         fakeDao.emitIndexable(listOf(fakeEntity()))
-        advanceUntilIdle()
+        advanceTimeBy(3000L)
+        runCurrent()
 
         // Should still work — only one active observation
         assertEquals("deleteAll should be called once", 1, fakeClient.deleteAllCalls)

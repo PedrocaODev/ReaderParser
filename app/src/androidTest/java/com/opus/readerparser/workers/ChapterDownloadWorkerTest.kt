@@ -133,7 +133,13 @@ class ChapterDownloadWorkerTest {
         workManager.enqueue(request).result.get()
         val testDriver = WorkManagerTestInitHelper.getTestDriver(context)!!
         testDriver.setAllConstraintsMet(request.id)
-        return workManager.getWorkInfoById(request.id).get()!!
+        val deadline = System.currentTimeMillis() + 5000L
+        var info = workManager.getWorkInfoById(request.id).get()!!
+        while (!info.state.isFinished && System.currentTimeMillis() < deadline) {
+            Thread.sleep(25)
+            info = workManager.getWorkInfoById(request.id).get()!!
+        }
+        return info
     }
 
     // --- tests ---
