@@ -6,8 +6,10 @@ import com.opus.readerparser.domain.SeriesRepository
 import com.opus.readerparser.domain.model.LibrarySearchResult
 import com.opus.readerparser.domain.model.Series
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -31,7 +33,8 @@ class LibraryViewModel @Inject constructor(
     /** The complete, unfiltered library list used as the source for re-filtering. */
     private var allLibrarySeries: List<Series> = emptyList()
     private var searchGeneration: Long = 0
-    private var searchJob: kotlinx.coroutines.Job? = null
+    private var searchJob: Job? = null
+    private var debounceJob: Job? = null
     private val attemptedRepairs = mutableSetOf<Pair<Long, String>>()
 
     init {
@@ -100,11 +103,11 @@ class LibraryViewModel @Inject constructor(
     }
 
     private fun handleSearchQuery(query: String) {
-        searchJob?.cancel()
+        debounceJob?.cancel()
         val trimmedQuery = query.trim()
-        val requestId = ++searchGeneration
 
         if (trimmedQuery.isBlank()) {
+            searchJob?.cancel()
             _state.update { current ->
                 current.copy(
                     searchQuery = query,
@@ -117,10 +120,16 @@ class LibraryViewModel @Inject constructor(
         }
 
         _state.update { current ->
-            current.copy(searchQuery = query, isLoading = true, error = null)
+            current.copy(searchQuery = query)
         }
 
-        refreshSearch(trimmedQuery, requestId, showLoading = true)
+        debounceJob = viewModelScope.launch {
+            delay(300)
+            if (_state.value.searchQuery.trim() == trimmedQuery) {
+                val requestId = ++searchGeneration
+                refreshSearch(trimmedQuery, requestId, showLoading = true)
+            }
+        }
     }
 
     private fun refreshSearch(query: String, requestId: Long, showLoading: Boolean) {
@@ -131,7 +140,7 @@ class LibraryViewModel @Inject constructor(
         searchJob = viewModelScope.launch {
             try {
                 when (val result = seriesRepository.searchLibrary(query)) {
-                    is LibrarySearchResult.Success -> if (requestId == searchGeneration) {
+                    is LibrarySearchResult.Success -> if (requestId == searchGeneration && _state.value.searchQuery.trim() == query) {
                         _state.update { current ->
                             current.copy(
                                 isLoading = false,
@@ -140,7 +149,7 @@ class LibraryViewModel @Inject constructor(
                             )
                         }
                     }
-                    is LibrarySearchResult.Failure -> if (requestId == searchGeneration) {
+                    is LibrarySearchResult.Failure -> if (requestId == searchGeneration && _state.value.searchQuery.trim() == query) {
                         _state.update { current ->
                             current.copy(
                                 isLoading = false,
@@ -152,7 +161,7 @@ class LibraryViewModel @Inject constructor(
                 }
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
-                if (requestId == searchGeneration) {
+                if (requestId == searchGeneration && _state.value.searchQuery.trim() == query) {
                     _state.update { current ->
                         current.copy(
                             isLoading = false,
