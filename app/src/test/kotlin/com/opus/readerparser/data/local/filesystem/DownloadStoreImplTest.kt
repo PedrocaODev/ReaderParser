@@ -180,4 +180,230 @@ class DownloadStoreImplTest {
 
         assertTrue("onPageDownloaded should not be called for empty list", !callbackInvoked)
     }
+
+    @Test
+    fun `interrupted first write leaves no valid download and read returns null`() = runTest {
+        val store = makeStore()
+        val imageUrls = listOf(
+            "https://cdn.invalid/page1.jpg",
+            "https://cdn.invalid/page2.jpg",
+            "https://cdn.invalid/page3.jpg",
+        )
+        val failingFetchBytes: suspend (String) -> ByteArray = { url ->
+            if (url.contains("page2")) throw java.io.IOException("Network connection dropped")
+            fakeImageBytes
+        }
+
+        try {
+            store.writeManhwa(chapter, imageUrls, failingFetchBytes)
+            org.junit.Assert.fail("Expected IOException")
+        } catch (e: java.io.IOException) {
+            assertEquals("Network connection dropped", e.message)
+        }
+
+        assertNull(store.read(chapter))
+
+        val seriesDir = tmpDir.root
+            .resolve("${chapter.sourceId}")
+            .resolve(hashUrl(chapter.seriesUrl))
+        val leftoverStaging = seriesDir.listFiles { f -> f.name.startsWith(".staging") }
+        assertTrue(leftoverStaging.isNullOrEmpty())
+    }
+
+    @Test
+    fun `failed replacement preserves previous complete version`() = runTest {
+        val store = makeStore()
+        val initialUrls = listOf(
+            "https://cdn.invalid/page1.jpg",
+            "https://cdn.invalid/page2.jpg",
+            "https://cdn.invalid/page3.jpg",
+        )
+        store.writeManhwa(chapter, initialUrls, fetchBytes)
+
+        val beforeResult = store.read(chapter)
+        assertNotNull(beforeResult)
+        assertEquals(3, (beforeResult as ChapterContent.Pages).imageUrls.size)
+
+        val newUrls = listOf(
+            "https://cdn.invalid/new-page1.jpg",
+            "https://cdn.invalid/new-page2.jpg",
+            "https://cdn.invalid/new-page3.jpg",
+        )
+        val failingFetchBytes: suspend (String) -> ByteArray = { url ->
+            if (url.contains("new-page2")) throw java.io.IOException("Network failure on page 2")
+            byteArrayOf(1, 2, 3)
+        }
+
+        try {
+            store.writeManhwa(chapter, newUrls, failingFetchBytes)
+            org.junit.Assert.fail("Expected IOException")
+        } catch (e: java.io.IOException) {
+            assertEquals("Network failure on page 2", e.message)
+        }
+
+        val afterResult = store.read(chapter)
+        assertNotNull(afterResult)
+        assertTrue(afterResult is ChapterContent.Pages)
+        val pages = afterResult as ChapterContent.Pages
+        assertEquals(3, pages.imageUrls.size)
+
+        val dir = tmpDir.root
+            .resolve("${chapter.sourceId}")
+            .resolve(hashUrl(chapter.seriesUrl))
+            .resolve(hashUrl(chapter.url))
+        assertTrue(dir.resolve("001.jpg").readBytes().contentEquals(fakeImageBytes))
+    }
+
+    @Test
+    fun `replacing 3-page download with 1-page download returns exactly 1 page on read`() = runTest {
+        val store = makeStore()
+        val initialUrls = listOf(
+            "https://cdn.invalid/page1.jpg",
+            "https://cdn.invalid/page2.jpg",
+            "https://cdn.invalid/page3.jpg",
+        )
+        store.writeManhwa(chapter, initialUrls, fetchBytes)
+
+        val singlePageUrl = listOf("https://cdn.invalid/single.jpg")
+        val singleBytes = byteArrayOf(9, 9, 9)
+        store.writeManhwa(chapter, singlePageUrl, fetchBytes = { singleBytes })
+
+        val result = store.read(chapter)
+        assertNotNull(result)
+        assertTrue(result is ChapterContent.Pages)
+        val pages = result as ChapterContent.Pages
+        assertEquals(1, pages.imageUrls.size)
+        assertTrue(pages.imageUrls[0].endsWith("001.jpg"))
+
+        val dir = tmpDir.root
+            .resolve("${chapter.sourceId}")
+            .resolve(hashUrl(chapter.seriesUrl))
+            .resolve(hashUrl(chapter.url))
+        assertTrue(dir.resolve("001.jpg").exists())
+        assertTrue(!dir.resolve("002.jpg").exists())
+        assertTrue(!dir.resolve("003.jpg").exists())
+    }
+
+    @Test
+    fun `missing page file causes read to return null`() = runTest {
+        val store = makeStore()
+        val imageUrls = listOf(
+            "https://cdn.invalid/page1.jpg",
+            "https://cdn.invalid/page2.jpg",
+            "https://cdn.invalid/page3.jpg",
+        )
+        store.writeManhwa(chapter, imageUrls, fetchBytes)
+
+        val dir = tmpDir.root
+            .resolve("${chapter.sourceId}")
+            .resolve(hashUrl(chapter.seriesUrl))
+            .resolve(hashUrl(chapter.url))
+
+        dir.resolve("002.jpg").delete()
+
+        assertNull("Missing page should return null to allow network fallback", store.read(chapter))
+    }
+
+    @Test
+    fun `empty page file causes read to return null`() = runTest {
+        val store = makeStore()
+        val imageUrls = listOf(
+            "https://cdn.invalid/page1.jpg",
+            "https://cdn.invalid/page2.jpg",
+            "https://cdn.invalid/page3.jpg",
+        )
+        store.writeManhwa(chapter, imageUrls, fetchBytes)
+
+        val dir = tmpDir.root
+            .resolve("${chapter.sourceId}")
+            .resolve(hashUrl(chapter.seriesUrl))
+            .resolve(hashUrl(chapter.url))
+
+        dir.resolve("002.jpg").writeBytes(byteArrayOf())
+
+        assertNull("0-byte page should return null to allow network fallback", store.read(chapter))
+    }
+
+    @Test
+    fun `page order is strictly maintained`() = runTest {
+        val store = makeStore()
+        val imageUrls = (1..15).map { "https://cdn.invalid/page$it.jpg" }
+        store.writeManhwa(chapter, imageUrls, fetchBytes)
+
+        val result = store.read(chapter)
+        assertNotNull(result)
+        assertTrue(result is ChapterContent.Pages)
+        val pages = (result as ChapterContent.Pages).imageUrls
+
+        assertEquals(15, pages.size)
+        pages.forEachIndexed { index, uri ->
+            val expectedSuffix = "%03d.jpg".format(index + 1)
+            assertTrue("Expected URI to end with $expectedSuffix, but was $uri", uri.endsWith(expectedSuffix))
+        }
+    }
+
+    @Test
+    fun `stale extra files in directory are ignored by read`() = runTest {
+        val store = makeStore()
+        val imageUrls = listOf(
+            "https://cdn.invalid/page1.jpg",
+            "https://cdn.invalid/page2.jpg",
+        )
+        store.writeManhwa(chapter, imageUrls, fetchBytes)
+
+        val dir = tmpDir.root
+            .resolve("${chapter.sourceId}")
+            .resolve(hashUrl(chapter.seriesUrl))
+            .resolve(hashUrl(chapter.url))
+
+        // Create a stale extra file
+        dir.resolve("003.jpg").writeBytes(byteArrayOf(5, 5))
+        dir.resolve("stale.tmp").writeBytes(byteArrayOf(1))
+
+        val result = store.read(chapter)
+        assertNotNull(result)
+        assertTrue(result is ChapterContent.Pages)
+        val pages = (result as ChapterContent.Pages).imageUrls
+        assertEquals(2, pages.size)
+        assertTrue(pages[0].endsWith("001.jpg"))
+        assertTrue(pages[1].endsWith("002.jpg"))
+    }
+
+    @Test
+    fun `corrupted or empty meta file causes read to return null`() = runTest {
+        val store = makeStore()
+        store.writeNovel(chapter, "<p>content</p>")
+
+        val dir = tmpDir.root
+            .resolve("${chapter.sourceId}")
+            .resolve(hashUrl(chapter.seriesUrl))
+            .resolve(hashUrl(chapter.url))
+
+        // Corrupt meta.json
+        dir.resolve("meta.json").writeText("{ not-valid-json }")
+        assertNull(store.read(chapter))
+
+        // Truncate meta.json to empty
+        dir.resolve("meta.json").writeText("")
+        assertNull(store.read(chapter))
+    }
+
+    @Test
+    fun `empty novel content file causes read to return null`() = runTest {
+        val store = makeStore()
+        store.writeNovel(chapter, "<p>content</p>")
+
+        val dir = tmpDir.root
+            .resolve("${chapter.sourceId}")
+            .resolve(hashUrl(chapter.seriesUrl))
+            .resolve(hashUrl(chapter.url))
+
+        // Truncate content.html to empty
+        dir.resolve("content.html").writeText("")
+        assertNull(store.read(chapter))
+
+        // Delete content.html
+        dir.resolve("content.html").delete()
+        assertNull(store.read(chapter))
+    }
 }
