@@ -1,9 +1,11 @@
 package com.opus.readerparser.data.local.database.dao
 
 import androidx.room.Dao
+import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import com.opus.readerparser.data.local.database.entities.ChapterEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -18,6 +20,38 @@ interface ChapterDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(chapters: List<ChapterEntity>)
+
+    @Delete
+    suspend fun deleteChapters(chapters: List<ChapterEntity>)
+
+    @Transaction
+    suspend fun replaceChaptersForSeries(
+        sourceId: Long,
+        seriesUrl: String,
+        remoteChapters: List<ChapterEntity>,
+    ) {
+        val existing = getChaptersForSeries(sourceId, seriesUrl)
+        val existingMap = existing.associateBy { it.url }
+
+        val merged = remoteChapters.map { entity ->
+            val existingChapter = existingMap[entity.url]
+            if (existingChapter != null) {
+                entity.copy(
+                    read = existingChapter.read,
+                    progress = existingChapter.progress,
+                    downloaded = existingChapter.downloaded,
+                )
+            } else {
+                entity
+            }
+        }
+
+        val remoteUrls = remoteChapters.map { it.url }.toSet()
+        val toDelete = existing.filter { it.url !in remoteUrls }
+        deleteChapters(toDelete)
+
+        upsertAll(merged)
+    }
 
     @Query("UPDATE chapters SET read = :read WHERE sourceId = :sourceId AND url = :url")
     suspend fun markRead(sourceId: Long, url: String, read: Boolean)
