@@ -17,20 +17,22 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.opus.readerparser.domain.model.Chapter
+import com.opus.readerparser.domain.model.ChapterWithState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReaderChapterListSheet(
-    chapters: List<Chapter>,
+    chapters: List<ChapterWithState>,
     currentChapterUrl: String?,
     onChapterSelected: (Chapter) -> Unit,
     onDismissRequest: () -> Unit,
 ) {
-    val currentChapterIndex = chapters.indexOfFirst { it.url == currentChapterUrl }
+    val currentChapterIndex = chapters.indexOfFirst { it.chapter.url == currentChapterUrl }
     val listState = rememberLazyListState()
 
     LaunchedEffect(currentChapterIndex) {
@@ -69,11 +71,11 @@ fun ReaderChapterListSheet(
             ) {
                 itemsIndexed(
                     items = chapters,
-                    key = { _, chapter -> "${chapter.sourceId}|${chapter.url}" },
-                ) { index, chapter ->
-                    val isCurrentChapter = chapter.url == currentChapterUrl
+                    key = { _, item -> "${item.chapter.sourceId}|${item.chapter.url}" },
+                ) { index, item ->
+                    val isCurrentChapter = item.chapter.url == currentChapterUrl
                     Card(
-                        onClick = { onChapterSelected(chapter) },
+                        onClick = { onChapterSelected(item.chapter) },
                         colors = CardDefaults.cardColors(
                             containerColor = if (isCurrentChapter) {
                                 MaterialTheme.colorScheme.secondaryContainer
@@ -89,17 +91,28 @@ fun ReaderChapterListSheet(
                         Row(
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = chapter.name,
+                                    text = item.chapter.name,
                                     style = MaterialTheme.typography.bodyLarge,
                                     color = if (isCurrentChapter) {
                                         MaterialTheme.colorScheme.onSecondaryContainer
+                                    } else if (item.read) {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
                                     } else {
                                         MaterialTheme.colorScheme.onSurface
                                     },
                                 )
+                                if (item.downloaded) {
+                                    Text(
+                                        text = "Downloaded",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.testTag("downloaded_indicator"),
+                                    )
+                                }
                             }
                             if (isCurrentChapter) {
                                 Text(

@@ -4,13 +4,18 @@ import androidx.lifecycle.SavedStateHandle
 import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
 import com.opus.readerparser.domain.ChapterRepository
+import com.opus.readerparser.domain.model.AppSettings
+import com.opus.readerparser.domain.model.AppTheme
 import com.opus.readerparser.domain.model.Chapter
 import com.opus.readerparser.domain.model.ChapterContent
 import com.opus.readerparser.domain.model.ChapterWithState
 import com.opus.readerparser.domain.model.ContentType
+import com.opus.readerparser.domain.model.ManhwaLayout
+import com.opus.readerparser.domain.model.ManhwaZoom
 import com.opus.readerparser.domain.model.Series
 import com.opus.readerparser.fakes.FakeChapterRepository
 import com.opus.readerparser.fakes.FakeDownloadEnqueuer
+import com.opus.readerparser.fakes.FakeSettingsRepository
 import com.opus.readerparser.testutil.MainDispatcherRule
 import com.opus.readerparser.testutil.TestFixtures
 import com.opus.readerparser.ui.reader.ReaderAction
@@ -22,7 +27,9 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
@@ -52,7 +59,7 @@ class ReaderViewModelTest {
         assertThat(state.html).isEqualTo(html)
         assertThat(state.isLoading).isFalse()
         assertThat(state.chapter).isEqualTo(chapter)
-        assertThat(state.seriesChapters).containsExactly(chapter)
+        assertThat(state.seriesChapters.map { it.chapter }).containsExactly(chapter)
         assertThat(repo.markReadCalls).containsExactly(chapter to true)
     }
 
@@ -75,7 +82,7 @@ class ReaderViewModelTest {
         assertThat(state.pages).isEqualTo(pages)
         assertThat(state.isLoading).isFalse()
         assertThat(state.chapter).isEqualTo(chapter)
-        assertThat(state.seriesChapters).containsExactly(chapter)
+        assertThat(state.seriesChapters.map { it.chapter }).containsExactly(chapter)
     }
 
     @Test
@@ -96,7 +103,7 @@ class ReaderViewModelTest {
 
         advanceUntilIdle()
 
-        assertThat(vm.state.value.seriesChapters).containsExactly(chapter, next).inOrder()
+        assertThat(vm.state.value.seriesChapters.map { it.chapter }).containsExactly(chapter, next).inOrder()
     }
 
     @Test
@@ -124,6 +131,7 @@ class ReaderViewModelTest {
             savedState = savedStateHandle(series, chapter, ContentType.NOVEL),
             chapterRepository = repo,
             downloadEnqueuer = FakeDownloadEnqueuer(),
+            settingsRepository = FakeSettingsRepository(),
         )
 
         advanceUntilIdle()
@@ -146,6 +154,7 @@ class ReaderViewModelTest {
             savedState = savedStateHandle(series, chapter, ContentType.NOVEL),
             chapterRepository = repo,
             downloadEnqueuer = FakeDownloadEnqueuer(),
+            settingsRepository = FakeSettingsRepository(),
         )
 
         advanceUntilIdle()
@@ -231,6 +240,7 @@ class ReaderViewModelTest {
             savedState = savedStateHandle(series, chapter, ContentType.NOVEL),
             chapterRepository = repo,
             downloadEnqueuer = FakeDownloadEnqueuer(),
+            settingsRepository = FakeSettingsRepository(),
         )
 
         advanceUntilIdle()
@@ -270,6 +280,7 @@ class ReaderViewModelTest {
             savedState = savedStateHandle(series, chapter, ContentType.NOVEL),
             chapterRepository = repo,
             downloadEnqueuer = FakeDownloadEnqueuer(),
+            settingsRepository = FakeSettingsRepository(),
         )
 
         advanceUntilIdle()
@@ -452,6 +463,7 @@ class ReaderViewModelTest {
             savedState = savedStateHandle(series, chapter, ContentType.NOVEL),
             chapterRepository = repo,
             downloadEnqueuer = FakeDownloadEnqueuer(),
+            settingsRepository = FakeSettingsRepository(),
         )
 
         advanceUntilIdle()
@@ -502,6 +514,7 @@ class ReaderViewModelTest {
             savedState = savedStateHandle(series, chapter, ContentType.NOVEL),
             chapterRepository = repo,
             downloadEnqueuer = FakeDownloadEnqueuer(),
+            settingsRepository = FakeSettingsRepository(),
         )
 
         advanceUntilIdle()
@@ -590,6 +603,7 @@ class ReaderViewModelTest {
             savedState = savedStateHandle(series, chapter, ContentType.NOVEL),
             chapterRepository = repo,
             downloadEnqueuer = downloadEnqueuer,
+            settingsRepository = FakeSettingsRepository(),
         )
 
         advanceUntilIdle()
@@ -605,6 +619,145 @@ class ReaderViewModelTest {
         assertThat(vm.state.value.chapter).isEqualTo(chapter)
     }
 
+    @Test
+    fun `observeChapters updates seriesChapters reactively with ChapterWithState`() = runTest {
+        val series = TestFixtures.testSeries(type = ContentType.MANHWA)
+        val chapter = testChapter(series)
+        val initialChapterState = ChapterWithState(chapter, read = false, downloaded = false, progress = 0f)
+        val (vm, repo) = createViewModel(
+            series = series,
+            chapter = chapter,
+            contentType = ContentType.MANHWA,
+            contentResult = ChapterContent.Pages(listOf("https://cdn.invalid/p1.jpg")),
+            chapters = listOf(initialChapterState),
+        )
+        advanceUntilIdle()
+        assertThat(vm.state.value.seriesChapters).containsExactly(initialChapterState)
+
+        val updatedChapterState = ChapterWithState(chapter, read = true, downloaded = true, progress = 1f)
+        repo.setChapters(series.url, listOf(updatedChapterState))
+        advanceUntilIdle()
+
+        assertThat(vm.state.value.seriesChapters).containsExactly(updatedChapterState)
+        assertThat(vm.state.value.seriesChapters.first().downloaded).isTrue()
+        assertThat(vm.state.value.seriesChapters.first().read).isTrue()
+    }
+
+    @Test
+    fun `SetProgress debounces persistence by 300ms`() = runTest {
+        val series = TestFixtures.testSeries(type = ContentType.NOVEL)
+        val chapter = testChapter(series)
+        val (vm, repo) = createViewModel(
+            series = series,
+            chapter = chapter,
+            contentType = ContentType.NOVEL,
+            contentResult = ChapterContent.Text("<p>Chapter body</p>"),
+        )
+        advanceUntilIdle()
+        repo.setProgressCalls.clear()
+
+        vm.onAction(ReaderAction.SetProgress(0.4f))
+        advanceTimeBy(299)
+        runCurrent()
+        assertThat(repo.setProgressCalls).isEmpty()
+
+        advanceTimeBy(1)
+        runCurrent()
+        assertThat(repo.setProgressCalls).containsExactly(chapter to 0.4f)
+        assertThat(vm.state.value.progress).isEqualTo(0.4f)
+    }
+
+    @Test
+    fun `duplicate SetProgress does not trigger redundant persistence`() = runTest {
+        val series = TestFixtures.testSeries(type = ContentType.NOVEL)
+        val chapter = testChapter(series)
+        val (vm, repo) = createViewModel(
+            series = series,
+            chapter = chapter,
+            contentType = ContentType.NOVEL,
+            contentResult = ChapterContent.Text("<p>Chapter body</p>"),
+        )
+        advanceUntilIdle()
+        repo.setProgressCalls.clear()
+
+        vm.onAction(ReaderAction.SetProgress(0.5f))
+        advanceTimeBy(300)
+        runCurrent()
+        assertThat(repo.setProgressCalls).containsExactly(chapter to 0.5f)
+
+        vm.onAction(ReaderAction.SetProgress(0.5f))
+        advanceTimeBy(300)
+        runCurrent()
+        advanceUntilIdle()
+
+        assertThat(repo.setProgressCalls).containsExactly(chapter to 0.5f)
+    }
+
+    @Test
+    fun `flushProgress and chapter navigation flush pending progress immediately`() = runTest {
+        val series = TestFixtures.testSeries(type = ContentType.NOVEL)
+        val c1 = testChapter(series, url = "https://test.invalid/chapter/1", name = "Chapter 1")
+        val c2 = testChapter(series, url = "https://test.invalid/chapter/2", name = "Chapter 2")
+        val (vm, repo) = createViewModel(
+            series = series,
+            chapter = c1,
+            contentType = ContentType.NOVEL,
+            contentResult = ChapterContent.Text("<p>Chapter 1 body</p>"),
+            chapters = listOf(
+                ChapterWithState(c1, read = false, downloaded = false, progress = 0f),
+                ChapterWithState(c2, read = false, downloaded = false, progress = 0f),
+            ),
+        )
+        advanceUntilIdle()
+        repo.setProgressCalls.clear()
+
+        vm.onAction(ReaderAction.SetProgress(0.6f))
+        advanceTimeBy(100)
+        assertThat(repo.setProgressCalls).isEmpty()
+
+        vm.onAction(ReaderAction.FlushProgress)
+        runCurrent()
+        assertThat(repo.setProgressCalls).containsExactly(c1 to 0.6f)
+
+        vm.onAction(ReaderAction.SetProgress(0.8f))
+        advanceTimeBy(100)
+        assertThat(repo.setProgressCalls).containsExactly(c1 to 0.6f)
+
+        vm.onAction(ReaderAction.NextChapter)
+        runCurrent()
+        assertThat(repo.setProgressCalls).containsExactly(c1 to 0.6f, c1 to 0.8f).inOrder()
+    }
+
+    @Test
+    fun `settingsRepository emission updates state settings`() = runTest {
+        val series = TestFixtures.testSeries(type = ContentType.NOVEL)
+        val chapter = testChapter(series)
+        val fakeSettingsRepo = FakeSettingsRepository()
+        val (vm, _) = createViewModel(
+            series = series,
+            chapter = chapter,
+            contentType = ContentType.NOVEL,
+            contentResult = ChapterContent.Text("<p>Chapter body</p>"),
+            settingsRepository = fakeSettingsRepo,
+        )
+        advanceUntilIdle()
+        assertThat(vm.state.value.settings).isEqualTo(AppSettings())
+
+        fakeSettingsRepo.setNovelFontSize(24)
+        fakeSettingsRepo.setNovelFontFamily("Georgia")
+        fakeSettingsRepo.setManhwaLayout(ManhwaLayout.PAGED_LTR)
+        fakeSettingsRepo.setManhwaZoom(ManhwaZoom.ORIGINAL)
+        fakeSettingsRepo.setTheme(AppTheme.DARK)
+        advanceUntilIdle()
+
+        val settings = vm.state.value.settings
+        assertThat(settings.novelFontSize).isEqualTo(24)
+        assertThat(settings.novelFontFamily).isEqualTo("Georgia")
+        assertThat(settings.manhwaLayout).isEqualTo(ManhwaLayout.PAGED_LTR)
+        assertThat(settings.manhwaZoom).isEqualTo(ManhwaZoom.ORIGINAL)
+        assertThat(settings.theme).isEqualTo(AppTheme.DARK)
+    }
+
     private fun createViewModel(
         series: Series,
         chapter: Chapter,
@@ -613,6 +766,7 @@ class ReaderViewModelTest {
         chapters: List<ChapterWithState> = listOf(
             ChapterWithState(chapter, read = false, downloaded = false, progress = 0f),
         ),
+        settingsRepository: FakeSettingsRepository = FakeSettingsRepository(),
     ): Pair<ReaderViewModel, FakeChapterRepository> {
         val chapterRepository = FakeChapterRepository().apply {
             this.contentResult = contentResult
@@ -623,6 +777,7 @@ class ReaderViewModelTest {
             savedState = savedStateHandle(series, chapter, contentType),
             chapterRepository = chapterRepository,
             downloadEnqueuer = downloadEnqueuer,
+            settingsRepository = settingsRepository,
         ) to chapterRepository
     }
 
@@ -634,6 +789,7 @@ class ReaderViewModelTest {
         chapters: List<ChapterWithState> = listOf(
             ChapterWithState(chapter, read = false, downloaded = false, progress = 0f),
         ),
+        settingsRepository: FakeSettingsRepository = FakeSettingsRepository(),
     ): Triple<ReaderViewModel, FakeChapterRepository, FakeDownloadEnqueuer> {
         val chapterRepository = FakeChapterRepository().apply {
             this.contentResult = contentResult
@@ -645,6 +801,7 @@ class ReaderViewModelTest {
                 savedState = savedStateHandle(series, chapter, contentType),
                 chapterRepository = chapterRepository,
                 downloadEnqueuer = downloadEnqueuer,
+                settingsRepository = settingsRepository,
             ),
             chapterRepository,
             downloadEnqueuer,
