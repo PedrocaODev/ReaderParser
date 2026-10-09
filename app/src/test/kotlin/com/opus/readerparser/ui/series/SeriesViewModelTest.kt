@@ -5,11 +5,13 @@ import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
 import com.opus.readerparser.domain.model.ChapterWithState
 import com.opus.readerparser.domain.model.ContentType
+import com.opus.readerparser.domain.model.Series
 import com.opus.readerparser.fakes.FakeChapterRepository
 import com.opus.readerparser.fakes.FakeDownloadEnqueuer
 import com.opus.readerparser.fakes.FakeSeriesRepository
 import com.opus.readerparser.testutil.MainDispatcherRule
 import com.opus.readerparser.testutil.TestFixtures
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.test.runTest
 import org.junit.Before
 import org.junit.Rule
@@ -221,5 +223,86 @@ class SeriesViewModelTest {
         }
         assertThat(downloadEnqueuer.enqueueBatchCalls).hasSize(1)
         assertThat(downloadEnqueuer.enqueueBatchCalls.first().chapterUrls).hasSize(2)
+    }
+
+    @Test
+    fun `if persisted series exists state series is populated on init before remote refresh completes`() = runTest {
+        val persisted = series.copy(title = "Persisted Title", type = ContentType.MANHWA)
+        val refreshGate = CompletableDeferred<Series>()
+        val repo = FakeSeriesRepository().apply {
+            getPersistedSeriesResult = { _, _ -> persisted }
+            refreshDetailsHandler = { refreshGate.await() }
+        }
+
+        val viewModel = SeriesViewModel(
+            savedState = SavedStateHandle(
+                mapOf("sourceId" to persisted.sourceId, "seriesUrl" to persisted.url)
+            ),
+            seriesRepository = repo,
+            chapterRepository = chapterRepo,
+            downloadEnqueuer = downloadEnqueuer,
+        )
+
+        // Before remote refresh finishes, state series is already populated with persisted series
+        assertThat(viewModel.state.value.series).isEqualTo(persisted)
+        assertThat(viewModel.state.value.series?.title).isEqualTo("Persisted Title")
+        assertThat(viewModel.state.value.series?.type).isEqualTo(ContentType.MANHWA)
+        assertThat(viewModel.state.value.isLoading).isTrue()
+
+        // Allow remote refresh to finish
+        val remoteSeries = persisted.copy(title = "Remote Refreshed Title")
+        refreshGate.complete(remoteSeries)
+
+        assertThat(viewModel.state.value.series).isEqualTo(remoteSeries)
+        assertThat(viewModel.state.value.isLoading).isFalse()
+    }
+
+    @Test
+    fun `if persisted series exists state series is populated on init without remote refresh`() = runTest {
+        val persisted = series.copy(title = "Persisted Offline Title")
+        val repo = FakeSeriesRepository().apply {
+            getPersistedSeriesResult = { _, _ -> persisted }
+            refreshDetailsHandler = { throw IllegalStateException("Network unavailable") }
+        }
+
+        val viewModel = SeriesViewModel(
+            savedState = SavedStateHandle(
+                mapOf("sourceId" to persisted.sourceId, "seriesUrl" to persisted.url)
+            ),
+            seriesRepository = repo,
+            chapterRepository = chapterRepo,
+            downloadEnqueuer = downloadEnqueuer,
+        )
+
+        assertThat(viewModel.state.value.series).isEqualTo(persisted)
+        assertThat(viewModel.state.value.isLoading).isFalse()
+        assertThat(viewModel.state.value.error).isEqualTo("Network unavailable")
+    }
+
+    @Test
+    fun `when refreshDetails fails persisted series is retained in state while error is set and isLoading is false`() = runTest {
+        val persisted = series.copy(title = "Persisted Retained Series")
+        val repo = FakeSeriesRepository().apply {
+            getPersistedSeriesResult = { _, _ -> persisted }
+            refreshDetailsHandler = { throw RuntimeException("Remote refresh failed") }
+        }
+
+        val viewModel = SeriesViewModel(
+            savedState = SavedStateHandle(
+                mapOf("sourceId" to persisted.sourceId, "seriesUrl" to persisted.url)
+            ),
+            seriesRepository = repo,
+            chapterRepository = chapterRepo,
+            downloadEnqueuer = downloadEnqueuer,
+        )
+
+        assertThat(viewModel.state.value.series).isEqualTo(persisted)
+        assertThat(viewModel.state.value.isLoading).isFalse()
+        assertThat(viewModel.state.value.error).isEqualTo("Remote refresh failed")
+
+        viewModel.effects.test {
+            val effect = awaitItem() as SeriesEffect.ShowError
+            assertThat(effect.message).isEqualTo("Remote refresh failed")
+        }
     }
 }

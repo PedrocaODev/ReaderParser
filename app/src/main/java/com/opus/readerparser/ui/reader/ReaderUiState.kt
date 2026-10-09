@@ -1,12 +1,15 @@
 package com.opus.readerparser.ui.reader
 
+import com.opus.readerparser.domain.model.AppSettings
 import com.opus.readerparser.domain.model.Chapter
+import com.opus.readerparser.domain.model.ChapterWithState
 import com.opus.readerparser.domain.model.ContentType
 
 data class ReaderUiState(
     val chapter: Chapter? = null,
     val chapterUrl: String? = null,
-    val seriesChapters: List<Chapter> = emptyList(),
+    val seriesChapters: List<ChapterWithState> = emptyList(),
+    val settings: AppSettings = AppSettings(),
     val contentType: ContentType = ContentType.NOVEL,
     val html: String = "",
     val pages: List<String> = emptyList(),
@@ -28,6 +31,7 @@ sealed interface ReaderAction {
     data object OpenChapterList : ReaderAction
     data object DownloadChapter : ReaderAction
     data object Retry : ReaderAction
+    data object FlushProgress : ReaderAction
 }
 
 sealed interface ReaderEffect {

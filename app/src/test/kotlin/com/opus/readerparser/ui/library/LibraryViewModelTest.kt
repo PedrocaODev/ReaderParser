@@ -11,6 +11,7 @@ import com.opus.readerparser.testutil.TestFixtures
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -338,5 +339,181 @@ class LibraryViewModelTest {
 
         assertThat(vm.state.value.series).isEmpty()
         assertThat(vm.state.value.error).isNull()
+    }
+
+    @Test
+    fun `nonblank search query is debounced by 300ms`() = runTest {
+        val series = TestFixtures.testSeries(title = "Debounced Series")
+        repo.searchLibraryHandler = { LibrarySearchResult.Success(listOf(series)) }
+
+        vm.onAction(LibraryAction.SetSearchQuery("test"))
+        runCurrent()
+        assertThat(vm.state.value.searchQuery).isEqualTo("test")
+        assertThat(repo.searchLibraryCalls).isEmpty()
+
+        advanceTimeBy(299)
+        runCurrent()
+        assertThat(repo.searchLibraryCalls).isEmpty()
+
+        advanceTimeBy(1)
+        runCurrent()
+        assertThat(repo.searchLibraryCalls).containsExactly("test")
+        assertThat(vm.state.value.series).containsExactly(series)
+    }
+
+    @Test
+    fun `query change during debounce cancels earlier debounce`() = runTest {
+        val series = TestFixtures.testSeries(title = "Final Series")
+        repo.searchLibraryHandler = { LibrarySearchResult.Success(listOf(series)) }
+
+        vm.onAction(LibraryAction.SetSearchQuery("first"))
+        advanceTimeBy(200)
+        runCurrent()
+        assertThat(repo.searchLibraryCalls).isEmpty()
+
+        vm.onAction(LibraryAction.SetSearchQuery("second"))
+        advanceTimeBy(200) // 400ms from start, but only 200ms from "second"
+        runCurrent()
+        assertThat(repo.searchLibraryCalls).isEmpty()
+
+        advanceTimeBy(100) // 300ms from "second"
+        runCurrent()
+        assertThat(repo.searchLibraryCalls).containsExactly("second")
+        assertThat(vm.state.value.series).containsExactly(series)
+    }
+
+    @Test
+    fun `blank query executes immediately and restores library`() = runTest {
+        val book1 = TestFixtures.testSeries(title = "Book 1")
+        val book2 = TestFixtures.testSeries(title = "Book 2")
+        repo.addToLibrary(book1)
+        repo.addToLibrary(book2)
+        advanceUntilIdle()
+
+        repo.searchLibraryHandler = { LibrarySearchResult.Success(listOf(book1)) }
+        vm.onAction(LibraryAction.SetSearchQuery("Book 1"))
+        advanceUntilIdle()
+        assertThat(vm.state.value.series).containsExactly(book1)
+
+        // Type a new query, but before debounce completes, clear it with blank query
+        vm.onAction(LibraryAction.SetSearchQuery("pending"))
+        runCurrent()
+        vm.onAction(LibraryAction.SetSearchQuery("   "))
+        runCurrent()
+
+        assertThat(vm.state.value.searchQuery).isEqualTo("   ")
+        assertThat(vm.state.value.isLoading).isFalse()
+        assertThat(vm.state.value.error).isNull()
+        assertThat(vm.state.value.series).containsExactly(book1, book2)
+
+        advanceUntilIdle()
+        assertThat(repo.searchLibraryCalls).containsExactly("Book 1")
+    }
+
+    @Test
+    fun `library invalidation executes search immediately without 300ms delay`() = runTest {
+        val series = TestFixtures.testSeries(title = "Solo")
+        repo.addToLibrary(series)
+        repo.searchLibraryHandler = { LibrarySearchResult.Success(listOf(series)) }
+
+        vm.onAction(LibraryAction.SetSearchQuery("Solo"))
+        advanceUntilIdle()
+        assertThat(repo.searchLibraryCalls).containsExactly("Solo")
+
+        // Trigger invalidation
+        repo.emitLibrarySearchInvalidation()
+        runCurrent() // Immediate, no advanceTimeBy(300) needed
+
+        assertThat(repo.searchLibraryCalls).containsExactly("Solo", "Solo")
+    }
+
+    @Test
+    fun `stale search response is rejected if query changed`() = runTest {
+        val result1 = TestFixtures.testSeries(title = "Result 1")
+        val result2 = TestFixtures.testSeries(title = "Result 2")
+        val gate1 = CompletableDeferred<LibrarySearchResult>()
+
+        repo.searchLibraryHandler = { query ->
+            when (query) {
+                "first" -> gate1.await()
+                else -> LibrarySearchResult.Success(listOf(result2))
+            }
+        }
+
+        vm.onAction(LibraryAction.SetSearchQuery("first"))
+        advanceTimeBy(300)
+        runCurrent()
+        assertThat(repo.searchLibraryCalls).containsExactly("first")
+
+        // User changes query while first search is pending
+        vm.onAction(LibraryAction.SetSearchQuery("second"))
+        runCurrent()
+
+        // First search returns before second debounce completes
+        gate1.complete(LibrarySearchResult.Success(listOf(result1)))
+        advanceTimeBy(100)
+        runCurrent()
+
+        // Result1 is rejected because query in state is now "second"
+        assertThat(vm.state.value.series).isEmpty()
+
+        // Complete debounce and search for "second"
+        advanceTimeBy(200)
+        runCurrent()
+        assertThat(repo.searchLibraryCalls).containsExactly("first", "second")
+        assertThat(vm.state.value.series).containsExactly(result2)
+    }
+
+    @Test
+    fun `search propagates non-downloaded library series to ui`() = runTest {
+        val nonDownloaded = TestFixtures.testSeries(
+            title = "SSS-Class Suicide Hunter",
+            url = "https://test.invalid/sss-hunter",
+        )
+        repo.addToLibrary(nonDownloaded)
+        advanceUntilIdle()
+
+        repo.searchLibraryHandler = { query ->
+            if (query == "Hunter") {
+                LibrarySearchResult.Success(listOf(nonDownloaded))
+            } else {
+                LibrarySearchResult.Success(emptyList())
+            }
+        }
+
+        vm.onAction(LibraryAction.SetSearchQuery("Hunter"))
+        advanceUntilIdle()
+
+        assertThat(vm.state.value.series).containsExactly(nonDownloaded)
+        assertThat(vm.state.value.isLoading).isFalse()
+        assertThat(vm.state.value.error).isNull()
+    }
+
+    @Test
+    fun `clearing search restores observed library grid with all library series`() = runTest {
+        val series1 = TestFixtures.testSeries(title = "Alpha Series", url = "https://test.invalid/1")
+        val series2 = TestFixtures.testSeries(title = "Beta Series", url = "https://test.invalid/2")
+        val nonDownloaded = TestFixtures.testSeries(title = "SSS-Class Suicide Hunter", url = "https://test.invalid/3")
+
+        repo.addToLibrary(series1)
+        repo.addToLibrary(series2)
+        repo.addToLibrary(nonDownloaded)
+        advanceUntilIdle()
+
+        assertThat(vm.state.value.series).containsExactly(series1, series2, nonDownloaded)
+
+        repo.searchLibraryHandler = { LibrarySearchResult.Success(listOf(nonDownloaded)) }
+        vm.onAction(LibraryAction.SetSearchQuery("Hunter"))
+        advanceUntilIdle()
+        assertThat(vm.state.value.series).containsExactly(nonDownloaded)
+
+        // Clear search bar
+        vm.onAction(LibraryAction.SetSearchQuery(""))
+        runCurrent()
+
+        assertThat(vm.state.value.searchQuery).isEmpty()
+        assertThat(vm.state.value.isLoading).isFalse()
+        assertThat(vm.state.value.error).isNull()
+        assertThat(vm.state.value.series).containsExactly(series1, series2, nonDownloaded)
     }
 }

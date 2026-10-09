@@ -1,5 +1,6 @@
 package com.opus.readerparser.ui.navigation
 
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CollectionsBookmark
 import androidx.compose.material.icons.filled.Download
@@ -11,6 +12,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
 import androidx.navigation.NavController
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -93,10 +95,11 @@ fun AppNavGraph(onNavGraphReady: (NavController) -> Unit = {}) {
                 }
             }
         },
-    ) { _ ->
+    ) { innerPadding ->
         NavHost(
             navController = navController,
             startDestination = Destinations.LIBRARY,
+            modifier = Modifier.padding(innerPadding),
         ) {
             composable(Destinations.LIBRARY) {
                 LibraryScreen(

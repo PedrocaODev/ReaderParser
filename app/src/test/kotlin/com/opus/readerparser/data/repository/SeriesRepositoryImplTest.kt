@@ -59,6 +59,8 @@ class SeriesRepositoryImplTest {
             private set
         var getLibraryIndexableSeriesCalls = 0
             private set
+        var getLibrarySeriesCalls = 0
+            private set
 
         private fun refreshFlows() {
             libraryFlow.value = store.filter { it.inLibrary }
@@ -82,6 +84,11 @@ class SeriesRepositoryImplTest {
         override suspend fun getLibraryIndexableSeries(): List<SeriesEntity> {
             getLibraryIndexableSeriesCalls++
             return store.filter { it.inLibrary && downloadedKeys.contains(it.sourceId to it.url) }
+        }
+
+        override suspend fun getLibrarySeries(): List<SeriesEntity> {
+            getLibrarySeriesCalls++
+            return store.filter { it.inLibrary }
         }
 
         override suspend fun upsert(series: SeriesEntity) {
@@ -611,7 +618,7 @@ class SeriesRepositoryImplTest {
 
         assertEquals(listOf("query"), fakeSearchClient.queryCalls)
         assertEquals(0, fakeDao.getIndexableSeriesCalls)
-        assertEquals(1, fakeDao.getLibraryIndexableSeriesCalls)
+        assertEquals(1, fakeDao.getLibrarySeriesCalls)
     }
 
     @Test
@@ -642,13 +649,13 @@ class SeriesRepositoryImplTest {
 
         when (val result = repository.searchLibrary("query")) {
             is LibrarySearchResult.Success -> {
-                assertEquals(listOf("Indexable"), result.series.map { it.title })
+                assertEquals(listOf("Not Downloaded", "Indexable"), result.series.map { it.title })
             }
             is LibrarySearchResult.Failure -> fail("Expected success but got failure: ${result.message}")
         }
 
         assertEquals(0, fakeDao.getIndexableSeriesCalls)
-        assertEquals(1, fakeDao.getLibraryIndexableSeriesCalls)
+        assertEquals(1, fakeDao.getLibrarySeriesCalls)
     }
 
     @Test
@@ -679,7 +686,181 @@ class SeriesRepositoryImplTest {
 
         assertEquals(listOf("query"), fakeSearchClient.queryCalls)
         assertEquals(0, fakeDao.getIndexableSeriesCalls)
-        assertEquals(1, fakeDao.getLibraryIndexableSeriesCalls)
+        assertEquals(1, fakeDao.getLibrarySeriesCalls)
+    }
+
+    @Test
+    fun `searchLibrary ranks exact title first, prefix second, substring third, author or genre fourth`() = runTest {
+        val exactMatch = testSeries.toEntity().copy(
+            url = "https://test.invalid/exact",
+            title = "Solo",
+            inLibrary = true,
+        )
+        val prefixMatch = testSeries.toEntity().copy(
+            url = "https://test.invalid/prefix",
+            title = "Solo Leveling",
+            inLibrary = true,
+        )
+        val substringMatch = testSeries.toEntity().copy(
+            url = "https://test.invalid/substring",
+            title = "The Solo Hunter",
+            inLibrary = true,
+        )
+        val authorAndTitleMatch = testSeries.toEntity().copy(
+            url = "https://test.invalid/both",
+            title = "Another Solo Story",
+            author = "Solo Author",
+            inLibrary = true,
+        )
+        val authorMatch = testSeries.toEntity().copy(
+            url = "https://test.invalid/author",
+            title = "Author Match Story",
+            author = "Solo Writer",
+            inLibrary = true,
+        )
+        val genreMatch = testSeries.toEntity().copy(
+            url = "https://test.invalid/genre",
+            title = "Genre Match Story",
+            genresJson = "[\"Solo\"]",
+            inLibrary = true,
+        )
+        val descriptionMatch = testSeries.toEntity().copy(
+            url = "https://test.invalid/desc",
+            title = "Desc Match Story",
+            description = "A solo journey across the world",
+            inLibrary = true,
+        )
+
+        // Insert in scrambled order
+        fakeDao.upsert(descriptionMatch)
+        fakeDao.upsert(genreMatch)
+        fakeDao.upsert(authorMatch)
+        fakeDao.upsert(substringMatch)
+        fakeDao.upsert(authorAndTitleMatch)
+        fakeDao.upsert(prefixMatch)
+        fakeDao.upsert(exactMatch)
+
+        fakeSearchClient.queryResult = SamsungSearchQueryResult.Failure("provider unavailable")
+
+        assertLibrarySearchTitles(
+            "Solo",
+            listOf(
+                "Solo",
+                "Solo Leveling",
+                "The Solo Hunter",
+                "Another Solo Story",
+                "Genre Match Story",
+                "Author Match Story",
+                "Desc Match Story",
+            ),
+        )
+    }
+
+    @Test
+    fun `searchLibrary matches zero-downloaded series by case-insensitive substring and query words`() = runTest {
+        val sssHunter = testSeries.toEntity().copy(
+            url = "https://test.invalid/sss-hunter",
+            title = "SSS-Class Suicide Hunter",
+            inLibrary = true,
+        )
+        fakeDao.upsert(sssHunter)
+
+        fakeSearchClient.queryResult = SamsungSearchQueryResult.Failure("fallback")
+
+        assertLibrarySearchTitles("Hunter", listOf("SSS-Class Suicide Hunter"))
+        assertLibrarySearchTitles("hunter", listOf("SSS-Class Suicide Hunter"))
+        assertLibrarySearchTitles("SSS Hunter", listOf("SSS-Class Suicide Hunter"))
+        assertLibrarySearchTitles("sss hunter", listOf("SSS-Class Suicide Hunter"))
+    }
+
+    @Test
+    fun `searchLibrary includes zero-downloaded series when Samsung Search returns hit`() = runTest {
+        val sssHunter = testSeries.toEntity().copy(
+            url = "https://test.invalid/sss-hunter",
+            title = "SSS-Class Suicide Hunter",
+            inLibrary = true,
+        )
+        fakeDao.upsert(sssHunter)
+
+        fakeSearchClient.queryResult = SamsungSearchQueryResult.Success(
+            listOf(
+                SamsungSearchHit(
+                    id = "${sssHunter.sourceId}:${sssHunter.url}",
+                    title = "Remote Hit",
+                    sourceUrl = "readerparser://series/${sssHunter.sourceId}/${sssHunter.url}",
+                ),
+            ),
+        )
+
+        assertLibrarySearchTitles("Hunter", listOf("SSS-Class Suicide Hunter"))
+    }
+
+    @Test
+    fun `searchLibrary includes zero-downloaded matching series when Samsung Search returns hits for another series`() = runTest {
+        val hitSeries = testSeries.toEntity().copy(
+            url = "https://test.invalid/hit-hunter",
+            title = "Hit Hunter",
+        )
+        val zeroDownloaded = testSeries.toEntity().copy(
+            url = "https://test.invalid/zero-hunter",
+            title = "Zero Hunter",
+            inLibrary = true,
+        )
+        fakeDao.upsertLibraryIndexable(hitSeries)
+        fakeDao.upsert(zeroDownloaded)
+
+        fakeSearchClient.queryResult = SamsungSearchQueryResult.Success(
+            listOf(
+                SamsungSearchHit(
+                    id = "${hitSeries.sourceId}:${hitSeries.url}",
+                    title = "Remote Hit Hunter",
+                    sourceUrl = "readerparser://series/${hitSeries.sourceId}/${hitSeries.url}",
+                ),
+            ),
+        )
+
+        assertLibrarySearchTitles("Hunter", listOf("Hit Hunter", "Zero Hunter"))
+    }
+
+    @Test
+    fun `searchLibrary returns zero-downloaded matching series when Samsung Search returns empty hits`() = runTest {
+        val zeroDownloaded = testSeries.toEntity().copy(
+            url = "https://test.invalid/zero-hunter",
+            title = "Zero Hunter",
+            inLibrary = true,
+        )
+        fakeDao.upsert(zeroDownloaded)
+
+        fakeSearchClient.queryResult = SamsungSearchQueryResult.Success(emptyList())
+
+        assertLibrarySearchTitles("Hunter", listOf("Zero Hunter"))
+    }
+
+    @Test
+    fun `searchLibrary fallback preserves relative order among same-rank matches`() = runTest {
+        val exact1 = testSeries.toEntity().copy(
+            url = "https://test.invalid/exact1",
+            title = "Solo",
+        )
+        val exact2 = testSeries.toEntity().copy(
+            url = "https://test.invalid/exact2",
+            title = "solo",
+        )
+        fakeDao.upsertLibraryIndexable(exact1)
+        fakeDao.upsertLibraryIndexable(exact2)
+
+        fakeSearchClient.queryResult = SamsungSearchQueryResult.Failure("provider down")
+
+        assertLibrarySearchTitles("solo", listOf("Solo", "solo"))
+    }
+
+    private suspend fun assertLibrarySearchTitles(query: String, expectedTitles: List<String>) {
+        when (val result = repository.searchLibrary(query)) {
+            is LibrarySearchResult.Success -> {
+                assertEquals(expectedTitles, result.series.map { it.title })
+            }
+            is LibrarySearchResult.Failure -> fail("Expected success: ${result.message}")
+        }
     }
 
     // -----------------------------------------------------------------
@@ -829,6 +1010,36 @@ class SeriesRepositoryImplTest {
         }
 
         assertEquals(savedBookmark, fakeDao.getByUrl(blankBookmark.sourceId, blankBookmark.url))
+    }
+
+    // -----------------------------------------------------------------
+    // getPersistedSeries
+    // -----------------------------------------------------------------
+
+    @Test
+    fun `getPersistedSeries returns mapped domain series when series exists in DAO`() = runTest {
+        val entity = testSeries.toEntity().copy(
+            title = "Persisted Title",
+            author = "Persisted Author",
+            type = "NOVEL",
+        )
+        fakeDao.upsert(entity)
+
+        val result = repository.getPersistedSeries(testSeries.sourceId, testSeries.url)
+
+        assertNotNull(result)
+        assertEquals("Persisted Title", result?.title)
+        assertEquals("Persisted Author", result?.author)
+        assertEquals(ContentType.NOVEL, result?.type)
+        assertEquals(testSeries.sourceId, result?.sourceId)
+        assertEquals(testSeries.url, result?.url)
+    }
+
+    @Test
+    fun `getPersistedSeries returns null when series does not exist in DAO`() = runTest {
+        val result = repository.getPersistedSeries(9999L, "https://nonexistent.invalid")
+
+        assertNull(result)
     }
 
     // -----------------------------------------------------------------

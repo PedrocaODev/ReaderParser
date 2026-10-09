@@ -13,6 +13,9 @@ interface SeriesDao {
     @Query("SELECT * FROM series WHERE inLibrary = 1 ORDER BY addedAt DESC")
     fun observeLibrary(): Flow<List<SeriesEntity>>
 
+    @Query("SELECT * FROM series WHERE inLibrary = 1 ORDER BY addedAt DESC")
+    suspend fun getLibrarySeries(): List<SeriesEntity>
+
     @Query("SELECT * FROM series WHERE sourceId = :sourceId AND url = :url")
     suspend fun getByUrl(sourceId: Long, url: String): SeriesEntity?
 

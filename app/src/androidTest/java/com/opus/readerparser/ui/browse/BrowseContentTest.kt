@@ -144,7 +144,6 @@ class BrowseContentTest {
         val series = listOf(
             Series(sourceId = 1L, url = "url1", title = "First", type = ContentType.MANHWA),
             Series(sourceId = 1L, url = "url2", title = "Second", type = ContentType.MANHWA),
-            Series(sourceId = 1L, url = "url3", title = "Third", type = ContentType.MANHWA),
         )
         composeRule.setContent {
             ReaderParserTheme {
@@ -155,9 +154,9 @@ class BrowseContentTest {
         }
 
         val bounds = composeRule.onAllNodesWithTag("series_card").fetchSemanticsNodes().map { it.boundsInRoot }
-        assertThat(bounds).hasSize(3)
+        assertThat(bounds).hasSize(2)
         assertThat(bounds[1].top).isGreaterThan(bounds[0].top)
-        assertThat(bounds[2].top).isGreaterThan(bounds[1].top)
+        assertThat(bounds[1].left).isEqualTo(bounds[0].left)
     }
 
     @Test

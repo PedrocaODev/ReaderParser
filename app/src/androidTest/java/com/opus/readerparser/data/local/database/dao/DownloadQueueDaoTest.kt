@@ -183,4 +183,48 @@ class DownloadQueueDaoTest {
             assertThat(awaitItem()).hasSize(1)
         }
     }
+
+    // --- getRunning ---
+
+    @Test
+    fun getRunning_returnsRunningEntityWhenPresent() = runTest {
+        dao.upsert(downloadEntity(chapterUrl = "https://example.com/ch/1", state = "QUEUED"))
+        dao.upsert(downloadEntity(chapterUrl = "https://example.com/ch/2", state = "RUNNING"))
+        dao.upsert(downloadEntity(chapterUrl = "https://example.com/ch/3", state = "COMPLETED"))
+
+        val running = dao.getRunning()
+        assertThat(running).isNotNull()
+        assertThat(running?.chapterUrl).isEqualTo("https://example.com/ch/2")
+    }
+
+    @Test
+    fun getRunning_returnsNullWhenNoRunningEntity() = runTest {
+        dao.upsert(downloadEntity(chapterUrl = "https://example.com/ch/1", state = "QUEUED"))
+        dao.upsert(downloadEntity(chapterUrl = "https://example.com/ch/3", state = "COMPLETED"))
+
+        val running = dao.getRunning()
+        assertThat(running).isNull()
+    }
+
+    // --- getNextQueued ---
+
+    @Test
+    fun getNextQueued_returnsFirstQueuedEntityByRowId() = runTest {
+        dao.upsert(downloadEntity(chapterUrl = "https://example.com/ch/1", state = "COMPLETED"))
+        dao.upsert(downloadEntity(chapterUrl = "https://example.com/ch/2", state = "QUEUED"))
+        dao.upsert(downloadEntity(chapterUrl = "https://example.com/ch/3", state = "QUEUED"))
+
+        val next = dao.getNextQueued()
+        assertThat(next).isNotNull()
+        assertThat(next?.chapterUrl).isEqualTo("https://example.com/ch/2")
+    }
+
+    @Test
+    fun getNextQueued_returnsNullWhenNoQueuedEntity() = runTest {
+        dao.upsert(downloadEntity(chapterUrl = "https://example.com/ch/1", state = "RUNNING"))
+        dao.upsert(downloadEntity(chapterUrl = "https://example.com/ch/2", state = "COMPLETED"))
+
+        val next = dao.getNextQueued()
+        assertThat(next).isNull()
+    }
 }

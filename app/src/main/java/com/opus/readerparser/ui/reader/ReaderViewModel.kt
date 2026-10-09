@@ -5,17 +5,22 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.opus.readerparser.domain.ChapterRepository
 import com.opus.readerparser.domain.DownloadEnqueuer
+import com.opus.readerparser.domain.SettingsRepository
 import com.opus.readerparser.domain.model.Chapter
 import com.opus.readerparser.domain.model.ChapterContent
 import com.opus.readerparser.domain.model.ChapterWithState
 import com.opus.readerparser.domain.model.ContentType
 import com.opus.readerparser.domain.model.Series
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
@@ -27,6 +32,7 @@ class ReaderViewModel @Inject constructor(
     savedState: SavedStateHandle,
     private val chapterRepository: ChapterRepository,
     private val downloadEnqueuer: DownloadEnqueuer,
+    private val settingsRepository: SettingsRepository,
 ) : ViewModel() {
 
     private val sourceId: Long = checkNotNull(savedState["sourceId"])
@@ -42,12 +48,28 @@ class ReaderViewModel @Inject constructor(
     private val _effects = Channel<ReaderEffect>(Channel.BUFFERED)
     val effects: Flow<ReaderEffect> = _effects.receiveAsFlow()
 
+    private var pendingProgress: Float = -1f
+    private var progressJob: Job? = null
     private var lastPersistedProgress: Float = -1f
 
     private val seriesStub: Series
         get() = Series(sourceId = sourceId, url = seriesUrl, title = "", type = routeContentType)
 
     init {
+        viewModelScope.launch {
+            chapterRepository.observeChapters(seriesStub)
+                .catch { /* Chapter loading errors handled in loadCurrentChapter */ }
+                .collect { chapters ->
+                    _state.update { it.copy(seriesChapters = chapters) }
+                }
+        }
+        viewModelScope.launch {
+            settingsRepository.observeSettings()
+                .catch { /* Fallback to default settings if observation fails */ }
+                .collect { settings ->
+                    _state.update { it.copy(settings = settings) }
+                }
+        }
         loadCurrentChapter()
     }
 
@@ -60,19 +82,14 @@ class ReaderViewModel @Inject constructor(
                 val clamped = action.progress.coerceIn(0f, 1f)
                 if (clamped == lastPersistedProgress) return
                 _state.update { it.copy(progress = clamped) }
-                viewModelScope.launch {
-                    try {
-                        chapterRepository.setProgress(chapter, clamped)
-                        lastPersistedProgress = clamped
-                        if (clamped > 0.98f) {
-                            chapterRepository.markRead(chapter, true)
-                        }
-                    } catch (e: Exception) {
-                        if (e is kotlinx.coroutines.CancellationException) throw e
-                        // Progress stays in state for retry, but don't mark as persisted.
-                    }
+                pendingProgress = clamped
+                progressJob?.cancel()
+                progressJob = viewModelScope.launch {
+                    delay(300)
+                    saveProgress(chapter, clamped)
                 }
             }
+            is ReaderAction.FlushProgress -> flushProgress()
             is ReaderAction.SetPage -> {
                 val pages = _state.value.pages
                 _state.update { it.copy(currentPage = action.page) }
@@ -114,6 +131,50 @@ class ReaderViewModel @Inject constructor(
         }
     }
 
+    fun flushProgress() {
+        val chapter = _state.value.chapter ?: return
+        val progress = pendingProgress
+        if (progress >= 0f && progress != lastPersistedProgress) {
+            progressJob?.cancel()
+            progressJob = null
+            saveProgressNonCancellable(chapter, progress)
+        }
+    }
+
+    override fun onCleared() {
+        flushProgress()
+        super.onCleared()
+    }
+
+    private suspend fun saveProgress(chapter: Chapter, progress: Float) {
+        try {
+            chapterRepository.setProgress(chapter, progress)
+            lastPersistedProgress = progress
+            if (progress > 0.98f) {
+                chapterRepository.markRead(chapter, true)
+            }
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            // Progress stays in state for retry, but don't mark as persisted.
+        }
+    }
+
+    private fun saveProgressNonCancellable(chapter: Chapter, progress: Float) {
+        val previous = lastPersistedProgress
+        lastPersistedProgress = progress
+        viewModelScope.launch(NonCancellable) {
+            try {
+                chapterRepository.setProgress(chapter, progress)
+                if (progress > 0.98f) {
+                    chapterRepository.markRead(chapter, true)
+                }
+            } catch (e: Exception) {
+                lastPersistedProgress = previous
+                if (e is kotlinx.coroutines.CancellationException) throw e
+            }
+        }
+    }
+
     private fun loadCurrentChapter() {
         viewModelScope.launch {
             try {
@@ -135,6 +196,9 @@ class ReaderViewModel @Inject constructor(
 
     private fun loadChapter(chapter: Chapter) {
         viewModelScope.launch {
+            progressJob?.cancel()
+            progressJob = null
+            pendingProgress = -1f
             lastPersistedProgress = 0f
             _state.update {
                 it.copy(
@@ -223,6 +287,7 @@ class ReaderViewModel @Inject constructor(
     }
 
     private fun navigateChapter(forward: Boolean) {
+        flushProgress()
         viewModelScope.launch {
             val current = _state.value.chapter ?: return@launch
             val chapters = loadSeriesChapters()
@@ -235,14 +300,18 @@ class ReaderViewModel @Inject constructor(
     }
 
     private fun navigateToSelectedChapter(chapter: Chapter) {
+        if (chapter.url == _state.value.chapter?.url) return
+        flushProgress()
         viewModelScope.launch {
-            if (chapter.url == _state.value.chapter?.url) return@launch
             _effects.send(ReaderEffect.NavigateToChapter(chapter))
         }
     }
 
-    private suspend fun loadSeriesChapters() =
-        chapterRepository.observeChapters(seriesStub).first().also { chapters ->
-            _state.update { it.copy(seriesChapters = chapters.map(ChapterWithState::chapter)) }
+    private suspend fun loadSeriesChapters(): List<ChapterWithState> {
+        val current = _state.value.seriesChapters
+        if (current.isNotEmpty()) return current
+        return chapterRepository.observeChapters(seriesStub).first().also { chapters ->
+            _state.update { it.copy(seriesChapters = chapters) }
         }
+    }
 }

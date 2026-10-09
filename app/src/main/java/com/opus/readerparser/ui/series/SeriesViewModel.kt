@@ -49,6 +49,7 @@ class SeriesViewModel @Inject constructor(
 
     init {
         observe()
+        loadPersistedSeries()
         refresh()
     }
 
@@ -126,6 +127,20 @@ class SeriesViewModel @Inject constructor(
         }
     }
 
+    private fun loadPersistedSeries() {
+        viewModelScope.launch {
+            val persisted = seriesRepository.getPersistedSeries(sourceId, seriesUrl) ?: return@launch
+            val inLibrary = seriesRepository.isInLibrary(sourceId, seriesUrl)
+            _state.update { current ->
+                if (current.series == null) {
+                    current.copy(series = persisted, inLibrary = inLibrary)
+                } else {
+                    current
+                }
+            }
+        }
+    }
+
     private fun refresh() {
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true, error = null) }
@@ -135,7 +150,20 @@ class SeriesViewModel @Inject constructor(
                 val inLibrary = seriesRepository.isInLibrary(updated.sourceId, updated.url)
                 _state.update { it.copy(series = updated, inLibrary = inLibrary, isLoading = false) }
             } catch (e: Exception) {
-                _state.update { it.copy(isLoading = false, error = e.message ?: "Failed to load series") }
+                val fallbackSeries = _state.value.series ?: seriesRepository.getPersistedSeries(sourceId, seriesUrl)
+                val inLibrary = if (fallbackSeries != null) {
+                    seriesRepository.isInLibrary(sourceId, seriesUrl)
+                } else {
+                    _state.value.inLibrary
+                }
+                _state.update {
+                    it.copy(
+                        series = fallbackSeries ?: it.series,
+                        inLibrary = inLibrary,
+                        isLoading = false,
+                        error = e.message ?: "Failed to load series",
+                    )
+                }
                 _effects.send(SeriesEffect.ShowError(e.message ?: "Failed to load series"))
             }
         }

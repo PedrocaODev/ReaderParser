@@ -75,6 +75,11 @@ class ChapterRepositoryImplTest {
             store.filter { it.sourceId == sourceId && it.seriesUrl == seriesUrl }
                 .sortedBy { it.number }
 
+        override suspend fun deleteChapters(chapters: List<ChapterEntity>) {
+            val toDeleteKeys = chapters.map { it.sourceId to it.url }.toSet()
+            store.removeAll { (it.sourceId to it.url) in toDeleteKeys }
+        }
+
         override suspend fun deleteBySeries(sourceId: Long, seriesUrl: String) {
             store.removeAll { it.sourceId == sourceId && it.seriesUrl == seriesUrl }
         }
@@ -524,5 +529,36 @@ class ChapterRepositoryImplTest {
         val stored2 = fakeDao.getByUrl(testSeries.sourceId, ch2.url)
         assertNotNull(stored1)
         assertNull(stored2)
+    }
+
+    @Test
+    fun `refreshChapters atomically updates existing, removes stale, and inserts new chapters`() = runTest {
+        val existingChapter = testChapter.copy(url = "https://test.invalid/chapter/1", number = 1f)
+        val staleChapter = testChapter.copy(url = "https://test.invalid/chapter/stale", number = 2f)
+        val newChapter = testChapter.copy(url = "https://test.invalid/chapter/new", number = 3f)
+
+        fakeDao.upsertAll(
+            listOf(
+                existingChapter.toEntity().copy(read = true, progress = 0.5f, downloaded = true),
+                staleChapter.toEntity(),
+            ),
+        )
+
+        fakeSource.chapterListResult = listOf(existingChapter, newChapter)
+
+        repository.refreshChapters(testSeries)
+
+        val storedExisting = fakeDao.getByUrl(testSeries.sourceId, existingChapter.url)!!
+        assertEquals(true, storedExisting.read)
+        assertEquals(0.5f, storedExisting.progress, 0.001f)
+        assertEquals(true, storedExisting.downloaded)
+
+        val storedNew = fakeDao.getByUrl(testSeries.sourceId, newChapter.url)!!
+        assertEquals(false, storedNew.read)
+        assertEquals(0f, storedNew.progress, 0.001f)
+        assertEquals(false, storedNew.downloaded)
+
+        val storedStale = fakeDao.getByUrl(testSeries.sourceId, staleChapter.url)
+        assertNull(storedStale)
     }
 }

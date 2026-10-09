@@ -1,19 +1,16 @@
 package com.opus.readerparser.data.repository
 
-import androidx.work.ExistingWorkPolicy
 import com.opus.readerparser.data.local.database.dao.DownloadQueueDao
 import com.opus.readerparser.data.local.database.entities.DownloadQueueEntity
-import com.opus.readerparser.core.util.hashUrl
 import com.opus.readerparser.domain.DownloadEnqueuer
 import com.opus.readerparser.domain.model.DownloadState
-import com.opus.readerparser.workers.ChapterDownloadWorker
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class DownloadEnqueuerImpl @Inject constructor(
     private val dao: DownloadQueueDao,
-    private val workManager: WorkManagerHelper,
+    private val scheduler: DownloadQueueScheduler,
 ) : DownloadEnqueuer {
 
     override suspend fun enqueueChapter(sourceId: Long, chapterUrl: String) {
@@ -27,15 +24,12 @@ class DownloadEnqueuerImpl @Inject constructor(
                 sourceId = sourceId,
                 chapterUrl = chapterUrl,
                 state = DownloadState.QUEUED.name,
+                progress = 0f,
+                errorMessage = null,
             ),
         )
 
-        val request = ChapterDownloadWorker.buildRequest(sourceId, chapterUrl)
-        workManager.enqueueUniqueWork(
-            workName(sourceId, chapterUrl),
-            ExistingWorkPolicy.KEEP,
-            request,
-        )
+        scheduler.scheduleNext()
     }
 
     override suspend fun enqueueBatch(sourceId: Long, chapterUrls: List<String>) {
@@ -53,22 +47,12 @@ class DownloadEnqueuerImpl @Inject constructor(
                     sourceId = sourceId,
                     chapterUrl = chapterUrl,
                     state = DownloadState.QUEUED.name,
+                    progress = 0f,
+                    errorMessage = null,
                 ),
             )
         }
 
-        // Build a sequential chain so chapters download one at a time
-        val requests = toEnqueue.map { chapterUrl ->
-            ChapterDownloadWorker.buildRequest(sourceId, chapterUrl)
-        }
-        val batchWorkName = "batch-$sourceId-${hashUrl(toEnqueue.joinToString(","))}"
-        workManager.enqueueChain(
-            workName = batchWorkName,
-            policy = ExistingWorkPolicy.KEEP,
-            requests = requests,
-        )
+        scheduler.scheduleNext()
     }
-
-    private fun workName(sourceId: Long, chapterUrl: String): String =
-        "download-$sourceId-${hashUrl(chapterUrl)}"
 }

@@ -33,6 +33,9 @@ android {
     }
 
     buildTypes {
+        debug {
+            applicationIdSuffix = ".debug"
+        }
         release {
             signingConfig = signingConfigs.findByName("ciRelease")
             isMinifyEnabled = false
