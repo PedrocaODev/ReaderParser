@@ -111,11 +111,24 @@ class SeriesRepositoryImpl @Inject constructor(
                         }
                     },
             )
-            is SamsungSearchQueryResult.Failure -> LibrarySearchResult.Success(
-                eligibleSeries
+            is SamsungSearchQueryResult.Failure -> {
+                val matching = eligibleSeries
                     .map { it.toDomain() }
-                    .filter { it.matchesLibraryQuery(trimmedQuery) },
-            )
+                    .filter { it.matchesLibraryQuery(trimmedQuery) }
+                val ranked = matching.sortedWith(
+                    compareBy { series ->
+                        val normalizedTitle = series.title.trim().lowercase()
+                        val normalizedQ = trimmedQuery.lowercase()
+                        when {
+                            normalizedTitle == normalizedQ -> 0
+                            normalizedTitle.startsWith(normalizedQ) -> 1
+                            TitleMatcher.matches(trimmedQuery, series.title) -> 2
+                            else -> 3
+                        }
+                    },
+                )
+                LibrarySearchResult.Success(ranked)
+            }
         }
     }
 
@@ -130,6 +143,9 @@ class SeriesRepositoryImpl @Inject constructor(
         }
         return updated
     }
+
+    override suspend fun getPersistedSeries(sourceId: Long, url: String): Series? =
+        seriesDao.getByUrl(sourceId, url)?.toDomain()
 
     override suspend fun addToLibrary(series: Series) {
         val toSave = if (series.title.isBlank()) refreshDetails(series) else series
@@ -175,7 +191,8 @@ class SeriesRepositoryImpl @Inject constructor(
     private fun Series.matchesLibraryQuery(query: String): Boolean =
         TitleMatcher.matches(query, title) ||
             author?.let { TitleMatcher.matches(query, it) } == true ||
-            genres.any { TitleMatcher.matches(query, it) }
+            genres.any { TitleMatcher.matches(query, it) } ||
+            description?.let { TitleMatcher.matches(query, it) } == true
 }
 
 private fun catalogCacheKey(sourceId: Long, operation: String, page: Int): String =
