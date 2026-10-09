@@ -21,6 +21,7 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
 import java.util.Locale
+import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
@@ -304,31 +305,39 @@ class AsuraScans(
     override suspend fun getChapterContent(chapter: Chapter): ChapterContent {
         val seriesSlug = chapter.seriesUrl.substringAfterLast("/")
             .substringBeforeLast("-")
-            .takeIf { it.isNotBlank() } ?: return super.getChapterContent(chapter)
+            .takeIf { it.isNotBlank() }
 
-        val chapterNumber = chapter.number.toInt()
-        val chapterSlug = "chapter-$chapterNumber"
-        val apiUrl = "https://api.asurascans.com/api/series/$seriesSlug/chapters/$chapterSlug"
+        if (seriesSlug != null && chapter.number >= 0f && chapter.number % 1f == 0f) {
+            val chapterNumber = chapter.number.toInt()
+            val chapterSlug = "chapter-$chapterNumber"
+            val apiUrl = "https://api.asurascans.com/api/series/$seriesSlug/chapters/$chapterSlug"
 
-        return try {
-            val response = client.get(apiUrl) {
-                header("User-Agent", USER_AGENT)
-                header("Accept", "application/json")
-            }.bodyAsText()
+            try {
+                val response = client.get(apiUrl) {
+                    header("User-Agent", USER_AGENT)
+                    header("Accept", "application/json")
+                }
+                if (response.status.value in 200..299) {
+                    val parsed = JSON_PARSER
+                        .decodeFromString<ChapterApiResponse>(response.bodyAsText())
+                    val pageUrls = parsed.data.chapter.pages.map { it.url }
 
-            val parsed = JSON_PARSER
-                .decodeFromString<ChapterApiResponse>(response)
-            val pageUrls = parsed.data.chapter.pages.map { it.url }
-
-            if (pageUrls.isNotEmpty()) {
-                ChapterContent.Pages(pageUrls)
-            } else {
-                super.getChapterContent(chapter)
+                    if (pageUrls.isNotEmpty()) {
+                        return ChapterContent.Pages(pageUrls)
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // Fall back to HTML parsing
             }
-        } catch (e: Exception) {
-            // Fall back to HTML parsing
-            super.getChapterContent(chapter)
         }
+
+        val htmlContent = super.getChapterContent(chapter)
+        if (htmlContent is ChapterContent.Pages && htmlContent.imageUrls.isEmpty()) {
+            throw IllegalStateException("No pages found for chapter: ${chapter.url}")
+        }
+        return htmlContent
     }
 
     // =========================================================================
