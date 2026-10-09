@@ -59,6 +59,8 @@ class SeriesRepositoryImplTest {
             private set
         var getLibraryIndexableSeriesCalls = 0
             private set
+        var getLibrarySeriesCalls = 0
+            private set
 
         private fun refreshFlows() {
             libraryFlow.value = store.filter { it.inLibrary }
@@ -82,6 +84,11 @@ class SeriesRepositoryImplTest {
         override suspend fun getLibraryIndexableSeries(): List<SeriesEntity> {
             getLibraryIndexableSeriesCalls++
             return store.filter { it.inLibrary && downloadedKeys.contains(it.sourceId to it.url) }
+        }
+
+        override suspend fun getLibrarySeries(): List<SeriesEntity> {
+            getLibrarySeriesCalls++
+            return store.filter { it.inLibrary }
         }
 
         override suspend fun upsert(series: SeriesEntity) {
@@ -611,7 +618,7 @@ class SeriesRepositoryImplTest {
 
         assertEquals(listOf("query"), fakeSearchClient.queryCalls)
         assertEquals(0, fakeDao.getIndexableSeriesCalls)
-        assertEquals(1, fakeDao.getLibraryIndexableSeriesCalls)
+        assertEquals(1, fakeDao.getLibrarySeriesCalls)
     }
 
     @Test
@@ -642,13 +649,13 @@ class SeriesRepositoryImplTest {
 
         when (val result = repository.searchLibrary("query")) {
             is LibrarySearchResult.Success -> {
-                assertEquals(listOf("Indexable"), result.series.map { it.title })
+                assertEquals(listOf("Not Downloaded", "Indexable"), result.series.map { it.title })
             }
             is LibrarySearchResult.Failure -> fail("Expected success but got failure: ${result.message}")
         }
 
         assertEquals(0, fakeDao.getIndexableSeriesCalls)
-        assertEquals(1, fakeDao.getLibraryIndexableSeriesCalls)
+        assertEquals(1, fakeDao.getLibrarySeriesCalls)
     }
 
     @Test
@@ -679,66 +686,154 @@ class SeriesRepositoryImplTest {
 
         assertEquals(listOf("query"), fakeSearchClient.queryCalls)
         assertEquals(0, fakeDao.getIndexableSeriesCalls)
-        assertEquals(1, fakeDao.getLibraryIndexableSeriesCalls)
+        assertEquals(1, fakeDao.getLibrarySeriesCalls)
     }
 
     @Test
-    fun `searchLibrary ranks exact title first, prefix second, fuzzy substring third, metadata fourth`() = runTest {
+    fun `searchLibrary ranks exact title first, prefix second, substring third, author or genre fourth`() = runTest {
         val exactMatch = testSeries.toEntity().copy(
             url = "https://test.invalid/exact",
             title = "Solo",
+            inLibrary = true,
         )
         val prefixMatch = testSeries.toEntity().copy(
             url = "https://test.invalid/prefix",
             title = "Solo Leveling",
+            inLibrary = true,
         )
         val substringMatch = testSeries.toEntity().copy(
             url = "https://test.invalid/substring",
             title = "The Solo Hunter",
+            inLibrary = true,
+        )
+        val authorAndTitleMatch = testSeries.toEntity().copy(
+            url = "https://test.invalid/both",
+            title = "Another Solo Story",
+            author = "Solo Author",
+            inLibrary = true,
         )
         val authorMatch = testSeries.toEntity().copy(
             url = "https://test.invalid/author",
             title = "Author Match Story",
             author = "Solo Writer",
+            inLibrary = true,
         )
         val genreMatch = testSeries.toEntity().copy(
             url = "https://test.invalid/genre",
             title = "Genre Match Story",
             genresJson = "[\"Solo\"]",
+            inLibrary = true,
         )
         val descriptionMatch = testSeries.toEntity().copy(
             url = "https://test.invalid/desc",
             title = "Desc Match Story",
             description = "A solo journey across the world",
+            inLibrary = true,
         )
 
         // Insert in scrambled order
-        fakeDao.upsertLibraryIndexable(descriptionMatch)
-        fakeDao.upsertLibraryIndexable(substringMatch)
-        fakeDao.upsertLibraryIndexable(authorMatch)
-        fakeDao.upsertLibraryIndexable(prefixMatch)
-        fakeDao.upsertLibraryIndexable(genreMatch)
-        fakeDao.upsertLibraryIndexable(exactMatch)
+        fakeDao.upsert(descriptionMatch)
+        fakeDao.upsert(genreMatch)
+        fakeDao.upsert(authorMatch)
+        fakeDao.upsert(substringMatch)
+        fakeDao.upsert(authorAndTitleMatch)
+        fakeDao.upsert(prefixMatch)
+        fakeDao.upsert(exactMatch)
 
         fakeSearchClient.queryResult = SamsungSearchQueryResult.Failure("provider unavailable")
 
-        when (val result = repository.searchLibrary("Solo")) {
-            is LibrarySearchResult.Success -> {
-                val titles = result.series.map { it.title }
-                assertEquals(
-                    listOf(
-                        "Solo",
-                        "Solo Leveling",
-                        "The Solo Hunter",
-                        "Desc Match Story",
-                        "Author Match Story",
-                        "Genre Match Story",
-                    ),
-                    titles,
-                )
-            }
-            is LibrarySearchResult.Failure -> fail("Expected success but got failure: ${result.message}")
-        }
+        assertLibrarySearchTitles(
+            "Solo",
+            listOf(
+                "Solo",
+                "Solo Leveling",
+                "The Solo Hunter",
+                "Another Solo Story",
+                "Genre Match Story",
+                "Author Match Story",
+                "Desc Match Story",
+            ),
+        )
+    }
+
+    @Test
+    fun `searchLibrary matches zero-downloaded series by case-insensitive substring and query words`() = runTest {
+        val sssHunter = testSeries.toEntity().copy(
+            url = "https://test.invalid/sss-hunter",
+            title = "SSS-Class Suicide Hunter",
+            inLibrary = true,
+        )
+        fakeDao.upsert(sssHunter)
+
+        fakeSearchClient.queryResult = SamsungSearchQueryResult.Failure("fallback")
+
+        assertLibrarySearchTitles("Hunter", listOf("SSS-Class Suicide Hunter"))
+        assertLibrarySearchTitles("hunter", listOf("SSS-Class Suicide Hunter"))
+        assertLibrarySearchTitles("SSS Hunter", listOf("SSS-Class Suicide Hunter"))
+        assertLibrarySearchTitles("sss hunter", listOf("SSS-Class Suicide Hunter"))
+    }
+
+    @Test
+    fun `searchLibrary includes zero-downloaded series when Samsung Search returns hit`() = runTest {
+        val sssHunter = testSeries.toEntity().copy(
+            url = "https://test.invalid/sss-hunter",
+            title = "SSS-Class Suicide Hunter",
+            inLibrary = true,
+        )
+        fakeDao.upsert(sssHunter)
+
+        fakeSearchClient.queryResult = SamsungSearchQueryResult.Success(
+            listOf(
+                SamsungSearchHit(
+                    id = "${sssHunter.sourceId}:${sssHunter.url}",
+                    title = "Remote Hit",
+                    sourceUrl = "readerparser://series/${sssHunter.sourceId}/${sssHunter.url}",
+                ),
+            ),
+        )
+
+        assertLibrarySearchTitles("Hunter", listOf("SSS-Class Suicide Hunter"))
+    }
+
+    @Test
+    fun `searchLibrary includes zero-downloaded matching series when Samsung Search returns hits for another series`() = runTest {
+        val hitSeries = testSeries.toEntity().copy(
+            url = "https://test.invalid/hit-hunter",
+            title = "Hit Hunter",
+        )
+        val zeroDownloaded = testSeries.toEntity().copy(
+            url = "https://test.invalid/zero-hunter",
+            title = "Zero Hunter",
+            inLibrary = true,
+        )
+        fakeDao.upsertLibraryIndexable(hitSeries)
+        fakeDao.upsert(zeroDownloaded)
+
+        fakeSearchClient.queryResult = SamsungSearchQueryResult.Success(
+            listOf(
+                SamsungSearchHit(
+                    id = "${hitSeries.sourceId}:${hitSeries.url}",
+                    title = "Remote Hit Hunter",
+                    sourceUrl = "readerparser://series/${hitSeries.sourceId}/${hitSeries.url}",
+                ),
+            ),
+        )
+
+        assertLibrarySearchTitles("Hunter", listOf("Hit Hunter", "Zero Hunter"))
+    }
+
+    @Test
+    fun `searchLibrary returns zero-downloaded matching series when Samsung Search returns empty hits`() = runTest {
+        val zeroDownloaded = testSeries.toEntity().copy(
+            url = "https://test.invalid/zero-hunter",
+            title = "Zero Hunter",
+            inLibrary = true,
+        )
+        fakeDao.upsert(zeroDownloaded)
+
+        fakeSearchClient.queryResult = SamsungSearchQueryResult.Success(emptyList())
+
+        assertLibrarySearchTitles("Hunter", listOf("Zero Hunter"))
     }
 
     @Test
@@ -756,11 +851,15 @@ class SeriesRepositoryImplTest {
 
         fakeSearchClient.queryResult = SamsungSearchQueryResult.Failure("provider down")
 
-        when (val result = repository.searchLibrary("solo")) {
+        assertLibrarySearchTitles("solo", listOf("Solo", "solo"))
+    }
+
+    private suspend fun assertLibrarySearchTitles(query: String, expectedTitles: List<String>) {
+        when (val result = repository.searchLibrary(query)) {
             is LibrarySearchResult.Success -> {
-                assertEquals(listOf("Solo", "solo"), result.series.map { it.title })
+                assertEquals(expectedTitles, result.series.map { it.title })
             }
-            is LibrarySearchResult.Failure -> fail("Expected success but got failure: ${result.message}")
+            is LibrarySearchResult.Failure -> fail("Expected success: ${result.message}")
         }
     }
 

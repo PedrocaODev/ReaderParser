@@ -97,39 +97,44 @@ class SeriesRepositoryImpl @Inject constructor(
         val trimmedQuery = query.trim()
         if (trimmedQuery.isBlank()) return LibrarySearchResult.Success(emptyList())
 
-        val eligibleSeries = seriesDao.getLibraryIndexableSeries()
+        val normalizedQ = trimmedQuery.lowercase()
+        val queryWords = normalizedQ.split(WHITESPACE).filter { it.isNotEmpty() }
+        val eligibleSeries = seriesDao.getLibrarySeries()
 
-        return when (val result = samsungSearchClient.query(trimmedQuery)) {
-            is SamsungSearchQueryResult.Success -> LibrarySearchResult.Success(
-                eligibleSeries
-                    .associateBy { it.sourceId to it.url }
-                    .let { eligible ->
-                        result.hits.mapNotNull { hit ->
-                            hit.toLookupKey()?.let { (sourceId, url) ->
-                                eligible[sourceId to url]?.toDomain()
-                            }
-                        }
-                    },
-            )
+        val (hitSeries, hitKeys) = when (val result = samsungSearchClient.query(trimmedQuery)) {
+            is SamsungSearchQueryResult.Success -> {
+                val eligibleMap = eligibleSeries.associateBy { it.sourceId to it.url }
+                val hits = mutableListOf<Series>()
+                val keys = mutableSetOf<Pair<Long, String>>()
+                for (hit in result.hits) {
+                    val key = hit.toLookupKey() ?: continue
+                    val entity = eligibleMap[key] ?: continue
+                    if (keys.add(key)) {
+                        hits.add(entity.toDomain())
+                    }
+                }
+                hits to keys
+            }
             is SamsungSearchQueryResult.Failure -> {
-                val matching = eligibleSeries
-                    .map { it.toDomain() }
-                    .filter { it.matchesLibraryQuery(trimmedQuery) }
-                val ranked = matching.sortedWith(
-                    compareBy { series ->
-                        val normalizedTitle = series.title.trim().lowercase()
-                        val normalizedQ = trimmedQuery.lowercase()
-                        when {
-                            normalizedTitle == normalizedQ -> 0
-                            normalizedTitle.startsWith(normalizedQ) -> 1
-                            TitleMatcher.matches(trimmedQuery, series.title) -> 2
-                            else -> 3
-                        }
-                    },
-                )
-                LibrarySearchResult.Success(ranked)
+                emptyList<Series>() to emptySet<Pair<Long, String>>()
             }
         }
+
+        val buckets = Array(5) { mutableListOf<Series>() }
+        for (entity in eligibleSeries) {
+            val key = entity.sourceId to entity.url
+            if (key in hitKeys) continue
+            val series = entity.toDomain()
+            val rank = series.libraryMatchRank(trimmedQuery, normalizedQ, queryWords) ?: continue
+            buckets[rank].add(series)
+        }
+
+        val rankedRemaining = ArrayList<Series>()
+        for (bucket in buckets) {
+            rankedRemaining.addAll(bucket)
+        }
+
+        return LibrarySearchResult.Success(hitSeries + rankedRemaining)
     }
 
     override suspend fun refreshDetails(series: Series): Series {
@@ -188,11 +193,57 @@ class SeriesRepositoryImpl @Inject constructor(
         return sourceId to url
     }
 
-    private fun Series.matchesLibraryQuery(query: String): Boolean =
-        TitleMatcher.matches(query, title) ||
-            author?.let { TitleMatcher.matches(query, it) } == true ||
-            genres.any { TitleMatcher.matches(query, it) } ||
-            description?.let { TitleMatcher.matches(query, it) } == true
+    private fun Series.libraryMatchRank(
+        trimmedQuery: String,
+        normalizedQ: String,
+        queryWords: List<String>,
+    ): Int? {
+        val normalizedTitle = title.trim().lowercase()
+        return when {
+            normalizedTitle == normalizedQ -> 0
+            normalizedTitle.startsWith(normalizedQ) -> 1
+            normalizedTitle.contains(normalizedQ) ||
+                (queryWords.isNotEmpty() && queryWords.all { normalizedTitle.contains(it) }) ||
+                TitleMatcher.matches(trimmedQuery, title) -> 2
+            authorOrGenreMatches(trimmedQuery, normalizedQ, queryWords) -> 3
+            descriptionMatches(trimmedQuery, normalizedQ, queryWords) -> 4
+            else -> null
+        }
+    }
+
+    private fun Series.matchesLibraryQuery(
+        trimmedQuery: String,
+        normalizedQ: String,
+        queryWords: List<String>,
+    ): Boolean = libraryMatchRank(trimmedQuery, normalizedQ, queryWords) != null
+
+    private fun Series.authorOrGenreMatches(
+        trimmedQuery: String,
+        normalizedQ: String,
+        queryWords: List<String>,
+    ): Boolean =
+        author?.let { matchesText(trimmedQuery, normalizedQ, queryWords, it) } == true ||
+            genres.any { matchesText(trimmedQuery, normalizedQ, queryWords, it) }
+
+    private fun Series.descriptionMatches(
+        trimmedQuery: String,
+        normalizedQ: String,
+        queryWords: List<String>,
+    ): Boolean =
+        description?.let { matchesText(trimmedQuery, normalizedQ, queryWords, it) } == true
+
+    private fun matchesText(
+        trimmedQuery: String,
+        normalizedQ: String,
+        queryWords: List<String>,
+        text: String,
+    ): Boolean {
+        val normalizedText = text.trim().lowercase()
+        if (normalizedQ.isEmpty()) return true
+        if (normalizedText.contains(normalizedQ)) return true
+        if (queryWords.isNotEmpty() && queryWords.all { normalizedText.contains(it) }) return true
+        return TitleMatcher.matches(trimmedQuery, text)
+    }
 }
 
 private fun catalogCacheKey(sourceId: Long, operation: String, page: Int): String =

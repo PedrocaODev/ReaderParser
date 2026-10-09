@@ -62,6 +62,8 @@ class SearchIndexSyncerTest {
         override suspend fun getLibraryIndexableSeries(sourceId: Long, url: String): SeriesEntity? =
             backingStore.find { it.sourceId == sourceId && it.url == url && it.inLibrary }
 
+        override suspend fun getLibrarySeries(): List<SeriesEntity> = backingStore.filter { it.inLibrary }
+
         // --- unused DAO methods ---
         override fun observeLibrary(): Flow<List<SeriesEntity>> = emptyFlow()
         override suspend fun getByUrl(sourceId: Long, url: String): SeriesEntity? = null

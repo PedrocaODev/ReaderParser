@@ -463,4 +463,57 @@ class LibraryViewModelTest {
         assertThat(repo.searchLibraryCalls).containsExactly("first", "second")
         assertThat(vm.state.value.series).containsExactly(result2)
     }
+
+    @Test
+    fun `search propagates non-downloaded library series to ui`() = runTest {
+        val nonDownloaded = TestFixtures.testSeries(
+            title = "SSS-Class Suicide Hunter",
+            url = "https://test.invalid/sss-hunter",
+        )
+        repo.addToLibrary(nonDownloaded)
+        advanceUntilIdle()
+
+        repo.searchLibraryHandler = { query ->
+            if (query == "Hunter") {
+                LibrarySearchResult.Success(listOf(nonDownloaded))
+            } else {
+                LibrarySearchResult.Success(emptyList())
+            }
+        }
+
+        vm.onAction(LibraryAction.SetSearchQuery("Hunter"))
+        advanceUntilIdle()
+
+        assertThat(vm.state.value.series).containsExactly(nonDownloaded)
+        assertThat(vm.state.value.isLoading).isFalse()
+        assertThat(vm.state.value.error).isNull()
+    }
+
+    @Test
+    fun `clearing search restores observed library grid with all library series`() = runTest {
+        val series1 = TestFixtures.testSeries(title = "Alpha Series", url = "https://test.invalid/1")
+        val series2 = TestFixtures.testSeries(title = "Beta Series", url = "https://test.invalid/2")
+        val nonDownloaded = TestFixtures.testSeries(title = "SSS-Class Suicide Hunter", url = "https://test.invalid/3")
+
+        repo.addToLibrary(series1)
+        repo.addToLibrary(series2)
+        repo.addToLibrary(nonDownloaded)
+        advanceUntilIdle()
+
+        assertThat(vm.state.value.series).containsExactly(series1, series2, nonDownloaded)
+
+        repo.searchLibraryHandler = { LibrarySearchResult.Success(listOf(nonDownloaded)) }
+        vm.onAction(LibraryAction.SetSearchQuery("Hunter"))
+        advanceUntilIdle()
+        assertThat(vm.state.value.series).containsExactly(nonDownloaded)
+
+        // Clear search bar
+        vm.onAction(LibraryAction.SetSearchQuery(""))
+        runCurrent()
+
+        assertThat(vm.state.value.searchQuery).isEmpty()
+        assertThat(vm.state.value.isLoading).isFalse()
+        assertThat(vm.state.value.error).isNull()
+        assertThat(vm.state.value.series).containsExactly(series1, series2, nonDownloaded)
+    }
 }
