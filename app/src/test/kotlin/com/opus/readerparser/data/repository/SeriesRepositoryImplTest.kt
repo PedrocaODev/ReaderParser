@@ -682,6 +682,88 @@ class SeriesRepositoryImplTest {
         assertEquals(1, fakeDao.getLibraryIndexableSeriesCalls)
     }
 
+    @Test
+    fun `searchLibrary ranks exact title first, prefix second, fuzzy substring third, metadata fourth`() = runTest {
+        val exactMatch = testSeries.toEntity().copy(
+            url = "https://test.invalid/exact",
+            title = "Solo",
+        )
+        val prefixMatch = testSeries.toEntity().copy(
+            url = "https://test.invalid/prefix",
+            title = "Solo Leveling",
+        )
+        val substringMatch = testSeries.toEntity().copy(
+            url = "https://test.invalid/substring",
+            title = "The Solo Hunter",
+        )
+        val authorMatch = testSeries.toEntity().copy(
+            url = "https://test.invalid/author",
+            title = "Author Match Story",
+            author = "Solo Writer",
+        )
+        val genreMatch = testSeries.toEntity().copy(
+            url = "https://test.invalid/genre",
+            title = "Genre Match Story",
+            genresJson = "[\"Solo\"]",
+        )
+        val descriptionMatch = testSeries.toEntity().copy(
+            url = "https://test.invalid/desc",
+            title = "Desc Match Story",
+            description = "A solo journey across the world",
+        )
+
+        // Insert in scrambled order
+        fakeDao.upsertLibraryIndexable(descriptionMatch)
+        fakeDao.upsertLibraryIndexable(substringMatch)
+        fakeDao.upsertLibraryIndexable(authorMatch)
+        fakeDao.upsertLibraryIndexable(prefixMatch)
+        fakeDao.upsertLibraryIndexable(genreMatch)
+        fakeDao.upsertLibraryIndexable(exactMatch)
+
+        fakeSearchClient.queryResult = SamsungSearchQueryResult.Failure("provider unavailable")
+
+        when (val result = repository.searchLibrary("Solo")) {
+            is LibrarySearchResult.Success -> {
+                val titles = result.series.map { it.title }
+                assertEquals(
+                    listOf(
+                        "Solo",
+                        "Solo Leveling",
+                        "The Solo Hunter",
+                        "Desc Match Story",
+                        "Author Match Story",
+                        "Genre Match Story",
+                    ),
+                    titles,
+                )
+            }
+            is LibrarySearchResult.Failure -> fail("Expected success but got failure: ${result.message}")
+        }
+    }
+
+    @Test
+    fun `searchLibrary fallback preserves relative order among same-rank matches`() = runTest {
+        val exact1 = testSeries.toEntity().copy(
+            url = "https://test.invalid/exact1",
+            title = "Solo",
+        )
+        val exact2 = testSeries.toEntity().copy(
+            url = "https://test.invalid/exact2",
+            title = "solo",
+        )
+        fakeDao.upsertLibraryIndexable(exact1)
+        fakeDao.upsertLibraryIndexable(exact2)
+
+        fakeSearchClient.queryResult = SamsungSearchQueryResult.Failure("provider down")
+
+        when (val result = repository.searchLibrary("solo")) {
+            is LibrarySearchResult.Success -> {
+                assertEquals(listOf("Solo", "solo"), result.series.map { it.title })
+            }
+            is LibrarySearchResult.Failure -> fail("Expected success but got failure: ${result.message}")
+        }
+    }
+
     // -----------------------------------------------------------------
     // refreshDetails
     // -----------------------------------------------------------------
@@ -829,6 +911,36 @@ class SeriesRepositoryImplTest {
         }
 
         assertEquals(savedBookmark, fakeDao.getByUrl(blankBookmark.sourceId, blankBookmark.url))
+    }
+
+    // -----------------------------------------------------------------
+    // getPersistedSeries
+    // -----------------------------------------------------------------
+
+    @Test
+    fun `getPersistedSeries returns mapped domain series when series exists in DAO`() = runTest {
+        val entity = testSeries.toEntity().copy(
+            title = "Persisted Title",
+            author = "Persisted Author",
+            type = "NOVEL",
+        )
+        fakeDao.upsert(entity)
+
+        val result = repository.getPersistedSeries(testSeries.sourceId, testSeries.url)
+
+        assertNotNull(result)
+        assertEquals("Persisted Title", result?.title)
+        assertEquals("Persisted Author", result?.author)
+        assertEquals(ContentType.NOVEL, result?.type)
+        assertEquals(testSeries.sourceId, result?.sourceId)
+        assertEquals(testSeries.url, result?.url)
+    }
+
+    @Test
+    fun `getPersistedSeries returns null when series does not exist in DAO`() = runTest {
+        val result = repository.getPersistedSeries(9999L, "https://nonexistent.invalid")
+
+        assertNull(result)
     }
 
     // -----------------------------------------------------------------
