@@ -50,6 +50,7 @@ class ChapterDownloadWorkerTest {
     private lateinit var fakeDownloadStore: FakeDownloadStoreAndroidTest
     private lateinit var fakeSource: FakeSourceAndroidTest
     private lateinit var workManager: WorkManager
+    private lateinit var testWorkerFactory: TestWorkerFactory
 
     @Before
     fun setUp() {
@@ -67,7 +68,7 @@ class ChapterDownloadWorkerTest {
         fakeDownloadRepository = FakeDownloadRepositoryAndroidTest()
         fakeDownloadStore = FakeDownloadStoreAndroidTest()
 
-        val factory = TestWorkerFactory(
+        testWorkerFactory = TestWorkerFactory(
             chapterRepository = chapterRepository,
             downloadRepository = fakeDownloadRepository,
             store = fakeDownloadStore,
@@ -76,7 +77,7 @@ class ChapterDownloadWorkerTest {
         WorkManagerTestInitHelper.initializeTestWorkManager(
             context,
             androidx.work.Configuration.Builder()
-                .setWorkerFactory(factory)
+                .setWorkerFactory(testWorkerFactory)
                 .build(),
         )
 
@@ -272,6 +273,36 @@ class ChapterDownloadWorkerTest {
         assertThat(completedCall).isNotNull()
         assertThat(completedCall!!.progress).isEqualTo(1f)
     }
+
+    @Test
+    fun manhwaChapter_non2xxImageResponse_failsAndDoesNotMarkDownloaded() = runTest {
+        testWorkerFactory.client = HttpClient(MockEngine) {
+            engine {
+                addHandler { respond("Forbidden", HttpStatusCode.Forbidden) }
+            }
+        }
+
+        val sourceId = fakeSource.id
+        val seriesUrl = "https://example.com/series/3"
+        val chapterUrl = "https://example.com/chapter/3"
+        val pages = listOf("https://cdn.example.com/page1.jpg")
+
+        fakeSource.chapterContentResult = ChapterContent.Pages(pages)
+        insertSeries(sourceId, seriesUrl)
+        insertChapter(sourceId, chapterUrl, seriesUrl)
+
+        enqueueAndWait(sourceId, chapterUrl)
+
+        // Queue state must be updated to FAILED with error message
+        val failedCall = fakeDownloadRepository.updateQueueStateCalls
+            .firstOrNull { it.state == DownloadState.FAILED }
+        assertThat(failedCall).isNotNull()
+        assertThat(failedCall!!.errorMessage).contains("403")
+
+        // Chapter must NOT be marked as downloaded in the database
+        val entity = database.chapterDao().getByUrl(sourceId, chapterUrl)
+        assertThat(entity?.downloaded).isFalse()
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -401,7 +432,7 @@ private class TestWorkerFactory(
     private val chapterRepository: ChapterRepository,
     private val downloadRepository: DownloadRepository,
     private val store: DownloadStore,
-    private val client: HttpClient = HttpClient(MockEngine) {
+    var client: HttpClient = HttpClient(MockEngine) {
         engine {
             addHandler { respond(ByteArray(0), HttpStatusCode.OK) }
         }

@@ -30,7 +30,8 @@ class DownloadEnqueuerImplTest {
     fun setUp() {
         dao = FakeDownloadQueueDao()
         workManager = FakeWorkManagerHelper()
-        enqueuer = DownloadEnqueuerImpl(dao, workManager)
+        val scheduler = DownloadQueueScheduler(dao, workManager)
+        enqueuer = DownloadEnqueuerImpl(dao, scheduler)
     }
 
     @Test
@@ -117,7 +118,7 @@ class DownloadEnqueuerImplTest {
     }
 
     @Test
-    fun `enqueueBatch enqueues all chapters as a sequential chain`() = runTest {
+    fun `enqueueBatch enqueues all chapters and dispatches first to scheduler`() = runTest {
         val urls = listOf(
             "https://test.invalid/ch/1",
             "https://test.invalid/ch/2",
@@ -130,11 +131,10 @@ class DownloadEnqueuerImplTest {
         for (url in urls) {
             assertThat(dao.getState(1L, url)).isEqualTo(DownloadState.QUEUED.name)
         }
-        // A single chain call should have been made with all 3 requests
-        assertThat(workManager.enqueueChainCalls).hasSize(1)
-        assertThat(workManager.enqueueChainCalls.first().requests).hasSize(3)
-        // No individual enqueue calls should have been made
-        assertThat(workManager.enqueueCalls).isEmpty()
+        // WorkManager should NOT have received a chain; sequential single-dispatch via scheduler
+        assertThat(workManager.enqueueChainCalls).isEmpty()
+        assertThat(workManager.enqueueCalls).hasSize(1)
+        assertThat(workManager.enqueueCalls.first().workName).contains("1-")
     }
 
     @Test
@@ -156,9 +156,13 @@ class DownloadEnqueuerImplTest {
 
         enqueuer.enqueueBatch(sourceId = 1L, chapterUrls = urls)
 
-        // Only chapters 1 and 3 should be in the chain
-        assertThat(workManager.enqueueChainCalls).hasSize(1)
-        assertThat(workManager.enqueueChainCalls.first().requests).hasSize(2)
+        // Chapters 1 and 3 were inserted as QUEUED, chapter 2 remains QUEUED
+        assertThat(dao.getState(1L, "https://test.invalid/ch/1")).isEqualTo(DownloadState.QUEUED.name)
+        assertThat(dao.getState(1L, "https://test.invalid/ch/2")).isEqualTo(DownloadState.QUEUED.name)
+        assertThat(dao.getState(1L, "https://test.invalid/ch/3")).isEqualTo(DownloadState.QUEUED.name)
+
+        assertThat(workManager.enqueueChainCalls).isEmpty()
+        assertThat(workManager.enqueueCalls).hasSize(1)
     }
 
     @Test
