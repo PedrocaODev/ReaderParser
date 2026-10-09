@@ -22,6 +22,7 @@ import dagger.assisted.AssistedInject
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsBytes
+import kotlinx.coroutines.CancellationException
 import java.util.concurrent.TimeUnit
 
 /**
@@ -74,7 +75,11 @@ class ChapterDownloadWorker @AssistedInject constructor(
                     downloads.writeNovel(chapter, content.html)
                 }
                 is ChapterContent.Pages -> downloads.writeManhwa(chapter, content.imageUrls, { url ->
-                    client.get(url).bodyAsBytes()
+                    val response = client.get(url)
+                    check(response.status.value in 200..299) {
+                        "Failed to download image from $url: HTTP ${response.status.value}"
+                    }
+                    response.bodyAsBytes()
                 }) { pagesDownloaded, totalPages ->
                     downloadRepository.updateQueueState(
                         sourceId, chapterUrl, DownloadState.RUNNING,
@@ -83,11 +88,16 @@ class ChapterDownloadWorker @AssistedInject constructor(
                 }
             }
 
+            if (isStopped) return Result.failure()
+
             chapterRepository.markDownloaded(chapter, true)
             downloadRepository.updateQueueState(sourceId, chapterUrl, DownloadState.COMPLETED, 1f)
 
             Result.success()
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
+            if (isStopped) return Result.failure()
             Log.e(TAG, "doWork failed for sourceId=$sourceId url=$chapterUrl", e)
             downloadRepository.updateQueueState(
                 sourceId = sourceId,
