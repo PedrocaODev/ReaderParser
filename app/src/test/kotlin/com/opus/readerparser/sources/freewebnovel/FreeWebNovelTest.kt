@@ -461,7 +461,169 @@ class FreeWebNovelTest {
                         headers = headersOf("Content-Type", "application/json; charset=UTF-8"),
                     )
                     "https://freewebnovel.com/novel/test-pagination?ajax=chapters&page=2&pageSize=200" -> respond(
-                        content = "{}",
+                        content = "not-json",
+                        status = HttpStatusCode.OK,
+                        headers = headersOf("Content-Type", "application/json; charset=UTF-8"),
+                    )
+                    else -> error("Unexpected request: ${request.url}")
+                }
+            }
+        )
+
+        try {
+            source.getChapterList(series)
+            throw AssertionError("Expected IllegalStateException")
+        } catch (e: IllegalStateException) {
+            assertTrue(e.message!!.contains("Failed to load continuation page 2 of 2"))
+        }
+
+        assertEquals(
+            listOf(
+                "https://freewebnovel.com/novel/test-pagination?ajax=chapters&page=1&pageSize=200",
+                "https://freewebnovel.com/novel/test-pagination?ajax=chapters&page=2&pageSize=200",
+            ),
+            requestedUrls,
+        )
+    }
+
+    @Test
+    fun `getChapterList throws when continuation page request fails with 500`() = runTest {
+        val page1Json = """{"code":200,"html":"<li><span class=\"glyphicon glyphicon-book right-5\"><\/span><a href=\"\/novel\/test-pagination\/chapter-1\" title=\"Chapter 1: One\" class=\"con\">Chapter 1: One<\/a><\/li>","page":1,"pageSize":200,"totalPage":2,"totalChapters":2}"""
+
+        val series = Series(
+            sourceId = computeSourceId("FreeWebNovel", "en", ContentType.NOVEL),
+            url = "https://freewebnovel.com/novel/test-pagination",
+            title = "Test Pagination",
+            type = ContentType.NOVEL,
+        )
+        val source = FreeWebNovel(
+            mockHttpClient { request ->
+                when (request.url.toString()) {
+                    "https://freewebnovel.com/novel/test-pagination?ajax=chapters&page=1&pageSize=200" -> respond(
+                        content = page1Json,
+                        status = HttpStatusCode.OK,
+                        headers = headersOf("Content-Type", "application/json; charset=UTF-8"),
+                    )
+                    "https://freewebnovel.com/novel/test-pagination?ajax=chapters&page=2&pageSize=200" -> respond(
+                        content = "Server error",
+                        status = HttpStatusCode.InternalServerError,
+                    )
+                    else -> error("Unexpected request: ${request.url}")
+                }
+            }
+        )
+
+        try {
+            source.getChapterList(series)
+            throw AssertionError("Expected IllegalStateException")
+        } catch (e: IllegalStateException) {
+            assertTrue(e.message!!.contains("Failed to load continuation page 2 of 2"))
+        }
+    }
+
+    @Test
+    fun `getChapterList throws when continuation page has blank html`() = runTest {
+        val page1Json = """{"code":200,"html":"<li><span class=\"glyphicon glyphicon-book right-5\"><\/span><a href=\"\/novel\/test-pagination\/chapter-1\" title=\"Chapter 1: One\" class=\"con\">Chapter 1: One<\/a><\/li>","page":1,"pageSize":200,"totalPage":2,"totalChapters":2}"""
+        val page2Json = """{"code":200,"html":"   ","page":2,"pageSize":200,"totalPage":2,"totalChapters":2}"""
+
+        val series = Series(
+            sourceId = computeSourceId("FreeWebNovel", "en", ContentType.NOVEL),
+            url = "https://freewebnovel.com/novel/test-pagination",
+            title = "Test Pagination",
+            type = ContentType.NOVEL,
+        )
+        val source = FreeWebNovel(
+            mockHttpClient { request ->
+                when (request.url.toString()) {
+                    "https://freewebnovel.com/novel/test-pagination?ajax=chapters&page=1&pageSize=200" -> respond(
+                        content = page1Json,
+                        status = HttpStatusCode.OK,
+                        headers = headersOf("Content-Type", "application/json; charset=UTF-8"),
+                    )
+                    "https://freewebnovel.com/novel/test-pagination?ajax=chapters&page=2&pageSize=200" -> respond(
+                        content = page2Json,
+                        status = HttpStatusCode.OK,
+                        headers = headersOf("Content-Type", "application/json; charset=UTF-8"),
+                    )
+                    else -> error("Unexpected request: ${request.url}")
+                }
+            }
+        )
+
+        try {
+            source.getChapterList(series)
+            throw AssertionError("Expected IllegalStateException")
+        } catch (e: IllegalStateException) {
+            assertTrue(e.message!!.contains("had blank HTML"))
+        }
+    }
+
+    @Test
+    fun `getChapterList throws when continuation page contains no new chapters`() = runTest {
+        val page1Json = """{"code":200,"html":"<li><span class=\"glyphicon glyphicon-book right-5\"><\/span><a href=\"\/novel\/test-pagination\/chapter-1\" title=\"Chapter 1: One\" class=\"con\">Chapter 1: One<\/a><\/li>","page":1,"pageSize":200,"totalPage":2,"totalChapters":2}"""
+        val page2Json = """{"code":200,"html":"<li><span class=\"glyphicon glyphicon-book right-5\"><\/span><a href=\"\/novel\/test-pagination\/chapter-1\" title=\"Chapter 1: One\" class=\"con\">Chapter 1: One<\/a><\/li>","page":2,"pageSize":200,"totalPage":2,"totalChapters":2}"""
+
+        val series = Series(
+            sourceId = computeSourceId("FreeWebNovel", "en", ContentType.NOVEL),
+            url = "https://freewebnovel.com/novel/test-pagination",
+            title = "Test Pagination",
+            type = ContentType.NOVEL,
+        )
+        val source = FreeWebNovel(
+            mockHttpClient { request ->
+                when (request.url.toString()) {
+                    "https://freewebnovel.com/novel/test-pagination?ajax=chapters&page=1&pageSize=200" -> respond(
+                        content = page1Json,
+                        status = HttpStatusCode.OK,
+                        headers = headersOf("Content-Type", "application/json; charset=UTF-8"),
+                    )
+                    "https://freewebnovel.com/novel/test-pagination?ajax=chapters&page=2&pageSize=200" -> respond(
+                        content = page2Json,
+                        status = HttpStatusCode.OK,
+                        headers = headersOf("Content-Type", "application/json; charset=UTF-8"),
+                    )
+                    else -> error("Unexpected request: ${request.url}")
+                }
+            }
+        )
+
+        try {
+            source.getChapterList(series)
+            throw AssertionError("Expected IllegalStateException")
+        } catch (e: IllegalStateException) {
+            assertTrue(e.message!!.contains("contained no new chapters"))
+        }
+    }
+
+    @Test
+    fun `getChapterList returns all chapters once across multiple valid ajax pages`() = runTest {
+        val page1Json = """{"code":200,"html":"<li><span class=\"glyphicon glyphicon-book right-5\"><\/span><a href=\"\/novel\/test-pagination\/chapter-1\" title=\"Chapter 1: One\" class=\"con\">Chapter 1: One<\/a><\/li>","page":1,"pageSize":200,"totalPage":3,"totalChapters":3}"""
+        val page2Json = """{"code":200,"html":"<li><span class=\"glyphicon glyphicon-book right-5\"><\/span><a href=\"\/novel\/test-pagination\/chapter-1\" title=\"Chapter 1: One (dup)\" class=\"con\">Chapter 1: One (dup)<\/a><\/li><li><span class=\"glyphicon glyphicon-book right-5\"><\/span><a href=\"\/novel\/test-pagination\/chapter-2\" title=\"Chapter 2: Two\" class=\"con\">Chapter 2: Two<\/a><\/li>","page":2,"pageSize":200,"totalPage":3,"totalChapters":3}"""
+        val page3Json = """{"code":200,"html":"<li><span class=\"glyphicon glyphicon-book right-5\"><\/span><a href=\"\/novel\/test-pagination\/chapter-3\" title=\"Chapter 3: Three\" class=\"con\">Chapter 3: Three<\/a><\/li>","page":3,"pageSize":200,"totalPage":3,"totalChapters":3}"""
+
+        val requestedUrls = mutableListOf<String>()
+        val series = Series(
+            sourceId = computeSourceId("FreeWebNovel", "en", ContentType.NOVEL),
+            url = "https://freewebnovel.com/novel/test-pagination",
+            title = "Test Pagination",
+            type = ContentType.NOVEL,
+        )
+        val source = FreeWebNovel(
+            mockHttpClient { request ->
+                requestedUrls += request.url.toString()
+                when (request.url.toString()) {
+                    "https://freewebnovel.com/novel/test-pagination?ajax=chapters&page=1&pageSize=200" -> respond(
+                        content = page1Json,
+                        status = HttpStatusCode.OK,
+                        headers = headersOf("Content-Type", "application/json; charset=UTF-8"),
+                    )
+                    "https://freewebnovel.com/novel/test-pagination?ajax=chapters&page=2&pageSize=200" -> respond(
+                        content = page2Json,
+                        status = HttpStatusCode.OK,
+                        headers = headersOf("Content-Type", "application/json; charset=UTF-8"),
+                    )
+                    "https://freewebnovel.com/novel/test-pagination?ajax=chapters&page=3&pageSize=200" -> respond(
+                        content = page3Json,
                         status = HttpStatusCode.OK,
                         headers = headersOf("Content-Type", "application/json; charset=UTF-8"),
                     )
@@ -472,14 +634,20 @@ class FreeWebNovelTest {
 
         val chapters = source.getChapterList(series)
 
+        assertEquals(3, chapters.size)
+        assertEquals(
+            listOf("Chapter 1: One", "Chapter 2: Two", "Chapter 3: Three"),
+            chapters.map { it.name },
+        )
+        assertEquals(3, chapters.map { it.url }.toSet().size)
         assertEquals(
             listOf(
                 "https://freewebnovel.com/novel/test-pagination?ajax=chapters&page=1&pageSize=200",
                 "https://freewebnovel.com/novel/test-pagination?ajax=chapters&page=2&pageSize=200",
+                "https://freewebnovel.com/novel/test-pagination?ajax=chapters&page=3&pageSize=200",
             ),
             requestedUrls,
         )
-        assertEquals(listOf("Chapter 1: One", "Chapter 2: Two"), chapters.map { it.name })
     }
 
     @Test
