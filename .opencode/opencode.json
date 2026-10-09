@@ -59,7 +59,12 @@
       "git push --force*":                  "deny",
       "git push -f *":                      "deny",
 
-      "openspec *":                         "allow",
+      "akashic inspect docs":              "allow",
+      "akashic inspect docs *":            "allow",
+      "akashic lint docs":                 "allow",
+      "akashic lint docs *":               "allow",
+      "akashic query docs":                "allow",
+      "akashic query docs *":              "allow",
       "rtk *":                              "allow",
 
       "./gradlew *":                        "allow",
@@ -168,7 +173,7 @@
     },
     "oracle": {
       "permission": {
-        "skill": { "*": "deny", "simplify": "allow", "android-skill-router": "allow", "openspec-propose": "allow", "openspec-apply-change": "allow", "openspec-archive-change": "allow", "openspec-explore": "allow", "trace-matrix": "allow" }
+        "skill": { "*": "deny", "simplify": "allow", "android-skill-router": "allow", "grill-with-docs": "allow", "to-spec": "allow", "to-tickets": "allow", "implement": "allow", "trace-matrix": "allow" }
       }
     },
     "designer": {

@@ -1,10 +1,8 @@
-# UI rules
+# Presentation rules
 
-- Material 3 only. No Material 2 imports.
-- Every screen = four files: `*Screen.kt`, `*Content.kt`, `*ViewModel.kt`, `*UiState.kt`.
-- `*Screen` wires the ViewModel and collects effects. Never previewed.
-- `*Content` is stateless. Always has a `@Preview`.
-- Collect state with `collectAsStateWithLifecycle()`. Never `collectAsState`.
-- Navigation goes through `Effect`, never `UiState`.
-- Hardcoded colors and dp values belong in `ui/theme/`, nowhere else.
-- Hoist anything used in 2+ screens into `ui/components/`.
+Read [Presentation rules](../../../../../../../../docs/concepts/presentation.md) before changes in this area.
+
+- Use Material 3, lifecycle-aware collection, one UiState, actions, and effect-based navigation.
+- Each new screen has Screen/Content/ViewModel/UiState files. Preview stateless Content, never Screen.
+- Keep colors/dp tokens in ui/theme and components shared by two or more screens in ui/components.
+- Read the Reader/capability specs before changing content/progress behavior.

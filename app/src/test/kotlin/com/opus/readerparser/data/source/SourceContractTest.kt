@@ -15,7 +15,7 @@ import org.junit.Test
 /**
  * Compile-time contract verification for the [Source] interface.
  * Creating a minimal concrete implementation proves that the interface
- * signatures match the architecture.md §3.3 specification.
+ * signatures match the docs/architecture.md#source-interface specification.
  */
 class SourceContractTest {
 

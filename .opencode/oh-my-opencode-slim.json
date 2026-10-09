@@ -2,11 +2,11 @@
   "$schema": "https://unpkg.com/oh-my-opencode-slim@latest/oh-my-opencode-slim.schema.json",
   "agents": {
     "orchestrator": {
-      "skills": ["*", "clonedeps", "codemap", "deepwork", "android-skill-router", "openspec-propose", "openspec-apply-change", "openspec-archive-change", "openspec-explore", "trace-matrix", "babysit-pr"],
+      "skills": ["*", "clonedeps", "deepwork", "android-skill-router", "grill-with-docs", "to-spec", "to-tickets", "implement", "trace-matrix", "babysit-pr"],
       "mcps": []
     },
     "oracle": {
-      "skills": ["simplify", "android-skill-router", "openspec-propose", "openspec-apply-change", "openspec-archive-change", "openspec-explore", "trace-matrix"],
+      "skills": ["simplify", "android-skill-router", "grill-with-docs", "to-spec", "to-tickets", "implement", "trace-matrix"],
       "mcps": []
     },
     "designer": {
