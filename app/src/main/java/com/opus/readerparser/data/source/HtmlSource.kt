@@ -7,8 +7,12 @@ import com.opus.readerparser.domain.model.FilterList
 import com.opus.readerparser.domain.model.Series
 import com.opus.readerparser.domain.model.SeriesPage
 import io.ktor.client.HttpClient
+import io.ktor.client.plugins.ClientRequestException
+import io.ktor.client.plugins.ResponseException
+import io.ktor.client.plugins.ServerResponseException
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
+import io.ktor.http.isSuccess
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
@@ -48,8 +52,18 @@ abstract class HtmlSource(
      * Override to add per-source headers (e.g., User-Agent for Cloudflare bypass).
      * Favor overriding this over [fetchDoc] — the base class handles Jsoup parsing.
      */
-    protected open suspend fun fetchDocBody(url: String): String =
-        client.get(url).bodyAsText()
+    protected open suspend fun fetchDocBody(url: String): String {
+        val response = client.get(url)
+        val bodyText = response.bodyAsText()
+        if (!response.status.isSuccess()) {
+            throw when (response.status.value) {
+                in 400..499 -> ClientRequestException(response, bodyText)
+                in 500..599 -> ServerResponseException(response, bodyText)
+                else -> ResponseException(response, bodyText)
+            }
+        }
+        return bodyText
+    }
 
     /**
      * Fetches [url] via Ktor and parses the response body as a Jsoup [Document].
