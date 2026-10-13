@@ -121,6 +121,30 @@ class SeriesViewModel @Inject constructor(
                     _effects.send(SeriesEffect.ShowError(e.message ?: "Failed to update chapter"))
                 }
             }
+            is SeriesAction.MarkPreviousRead -> viewModelScope.launch {
+                val series = _state.value.series ?: stubSeries
+                try {
+                    chapterRepository.markPreviousAsRead(series, action.chapter.number)
+                } catch (e: Exception) {
+                    _effects.send(SeriesEffect.ShowError(e.message ?: "Failed to mark previous chapters"))
+                }
+            }
+            is SeriesAction.MarkAllRead -> viewModelScope.launch {
+                val series = _state.value.series ?: stubSeries
+                try {
+                    chapterRepository.markAllRead(series, true)
+                } catch (e: Exception) {
+                    _effects.send(SeriesEffect.ShowError(e.message ?: "Failed to mark all as read"))
+                }
+            }
+            is SeriesAction.MarkAllUnread -> viewModelScope.launch {
+                val series = _state.value.series ?: stubSeries
+                try {
+                    chapterRepository.markAllRead(series, false)
+                } catch (e: Exception) {
+                    _effects.send(SeriesEffect.ShowError(e.message ?: "Failed to mark all as unread"))
+                }
+            }
         }
     }
 

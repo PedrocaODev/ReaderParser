@@ -384,4 +384,99 @@ class SeriesViewModelTest {
             assertThat(effect.message).isEqualTo("Database error")
         }
     }
+
+    @Test
+    fun `MarkPreviousRead calls chapterRepository markPreviousAsRead with correct series and chapter number`() = runTest {
+        val targetChapter = chapter.copy(number = 5f)
+        vm.onAction(SeriesAction.MarkPreviousRead(targetChapter))
+
+        assertThat(chapterRepo.markPreviousAsReadCalls).containsExactly(series to 5f)
+    }
+
+    @Test
+    fun `MarkAllRead calls chapterRepository markAllRead with read true`() = runTest {
+        vm.onAction(SeriesAction.MarkAllRead)
+
+        assertThat(chapterRepo.markAllReadCalls).containsExactly(series to true)
+    }
+
+    @Test
+    fun `MarkAllUnread calls chapterRepository markAllRead with read false`() = runTest {
+        vm.onAction(SeriesAction.MarkAllUnread)
+
+        assertThat(chapterRepo.markAllReadCalls).containsExactly(series to false)
+    }
+
+    @Test
+    fun `MarkPreviousRead emits ShowError effect on repository failure`() = runTest {
+        val targetChapter = chapter.copy(number = 5f)
+        val baseRepo = FakeChapterRepository()
+        val failingRepo = object : ChapterRepository by baseRepo {
+            override suspend fun markPreviousAsRead(series: Series, targetChapterNumber: Float) {
+                throw RuntimeException("Database error")
+            }
+        }
+        val failingVm = SeriesViewModel(
+            savedState = SavedStateHandle(
+                mapOf("sourceId" to series.sourceId, "seriesUrl" to series.url)
+            ),
+            seriesRepository = seriesRepo,
+            chapterRepository = failingRepo,
+            downloadEnqueuer = downloadEnqueuer,
+        )
+
+        failingVm.effects.test {
+            failingVm.onAction(SeriesAction.MarkPreviousRead(targetChapter))
+            val effect = awaitItem() as SeriesEffect.ShowError
+            assertThat(effect.message).isEqualTo("Database error")
+        }
+    }
+
+    @Test
+    fun `MarkAllRead emits ShowError effect on repository failure`() = runTest {
+        val baseRepo = FakeChapterRepository()
+        val failingRepo = object : ChapterRepository by baseRepo {
+            override suspend fun markAllRead(series: Series, read: Boolean) {
+                throw RuntimeException("Database error")
+            }
+        }
+        val failingVm = SeriesViewModel(
+            savedState = SavedStateHandle(
+                mapOf("sourceId" to series.sourceId, "seriesUrl" to series.url)
+            ),
+            seriesRepository = seriesRepo,
+            chapterRepository = failingRepo,
+            downloadEnqueuer = downloadEnqueuer,
+        )
+
+        failingVm.effects.test {
+            failingVm.onAction(SeriesAction.MarkAllRead)
+            val effect = awaitItem() as SeriesEffect.ShowError
+            assertThat(effect.message).isEqualTo("Database error")
+        }
+    }
+
+    @Test
+    fun `MarkAllUnread emits ShowError effect on repository failure`() = runTest {
+        val baseRepo = FakeChapterRepository()
+        val failingRepo = object : ChapterRepository by baseRepo {
+            override suspend fun markAllRead(series: Series, read: Boolean) {
+                throw RuntimeException("Database error")
+            }
+        }
+        val failingVm = SeriesViewModel(
+            savedState = SavedStateHandle(
+                mapOf("sourceId" to series.sourceId, "seriesUrl" to series.url)
+            ),
+            seriesRepository = seriesRepo,
+            chapterRepository = failingRepo,
+            downloadEnqueuer = downloadEnqueuer,
+        )
+
+        failingVm.effects.test {
+            failingVm.onAction(SeriesAction.MarkAllUnread)
+            val effect = awaitItem() as SeriesEffect.ShowError
+            assertThat(effect.message).isEqualTo("Database error")
+        }
+    }
 }

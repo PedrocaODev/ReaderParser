@@ -1,6 +1,9 @@
 package com.opus.readerparser.ui.series
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,17 +25,21 @@ import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -64,7 +71,7 @@ import com.opus.readerparser.ui.theme.ReaderParserTheme
 
 private val CoverWidth = 120.dp
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun SeriesContent(
     state: SeriesUiState,
@@ -72,6 +79,8 @@ fun SeriesContent(
     snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
 ) {
     var descriptionExpanded by remember { mutableStateOf(false) }
+    var menuExpanded by remember { mutableStateOf(false) }
+    var selectedChapterForSheet by remember { mutableStateOf<ChapterWithState?>(null) }
 
     Scaffold(
         topBar = {
@@ -80,6 +89,30 @@ fun SeriesContent(
                 actions = {
                     IconButton(onClick = { onAction(SeriesAction.Refresh) }) {
                         Icon(Icons.Filled.Refresh, contentDescription = "Refresh")
+                    }
+                    Box {
+                        IconButton(onClick = { menuExpanded = true }) {
+                            Icon(Icons.Filled.MoreVert, contentDescription = "More actions")
+                        }
+                        DropdownMenu(
+                            expanded = menuExpanded,
+                            onDismissRequest = { menuExpanded = false },
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Mark all as read") },
+                                onClick = {
+                                    menuExpanded = false
+                                    onAction(SeriesAction.MarkAllRead)
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Mark all as unread") },
+                                onClick = {
+                                    menuExpanded = false
+                                    onAction(SeriesAction.MarkAllUnread)
+                                },
+                            )
+                        }
                     }
                 },
             )
@@ -234,11 +267,51 @@ fun SeriesContent(
                             ChapterRow(
                                 chapterWithState = cws,
                                 onClick = { onAction(SeriesAction.OpenChapter(cws.chapter)) },
+                                onLongClick = { selectedChapterForSheet = cws },
                                 onToggleRead = { onAction(SeriesAction.ToggleChapterRead(cws.chapter)) },
                             )
                         }
                     }
                 }
+            }
+        }
+    }
+
+    val currentSelectedChapter = selectedChapterForSheet?.let { cur ->
+        state.chapters.find { it.chapter.url == cur.chapter.url } ?: cur
+    }
+
+    if (currentSelectedChapter != null) {
+        ModalBottomSheet(
+            onDismissRequest = { selectedChapterForSheet = null },
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 24.dp),
+            ) {
+                Text(
+                    text = if (currentSelectedChapter.read) "Mark as unread" else "Mark as read",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            onAction(SeriesAction.ToggleChapterRead(currentSelectedChapter.chapter))
+                            selectedChapterForSheet = null
+                        }
+                        .padding(horizontal = 24.dp, vertical = 16.dp),
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                Text(
+                    text = "Mark previous chapters as read",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            onAction(SeriesAction.MarkPreviousRead(currentSelectedChapter.chapter))
+                            selectedChapterForSheet = null
+                        }
+                        .padding(horizontal = 24.dp, vertical = 16.dp),
+                    style = MaterialTheme.typography.bodyLarge,
+                )
             }
         }
     }
@@ -323,18 +396,22 @@ private fun RangePickerDialog(
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 private fun ChapterRow(
     chapterWithState: ChapterWithState,
     onClick: () -> Unit,
+    onLongClick: () -> Unit = {},
     onToggleRead: () -> Unit = {},
 ) {
     Card(
-        onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick,
+            ),
     ) {
         Row(
             modifier = Modifier.padding(12.dp),

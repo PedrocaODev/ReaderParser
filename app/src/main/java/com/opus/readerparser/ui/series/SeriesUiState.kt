@@ -23,6 +23,9 @@ sealed interface SeriesAction {
     data object DismissRangePicker : SeriesAction
     data class DownloadRange(val startIndex: Int, val endIndex: Int) : SeriesAction
     data class ToggleChapterRead(val chapter: Chapter) : SeriesAction
+    data class MarkPreviousRead(val chapter: Chapter) : SeriesAction
+    data object MarkAllRead : SeriesAction
+    data object MarkAllUnread : SeriesAction
 }
 
 sealed interface SeriesEffect {
