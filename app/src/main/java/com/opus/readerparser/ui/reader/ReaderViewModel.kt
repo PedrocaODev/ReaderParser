@@ -93,7 +93,7 @@ class ReaderViewModel @Inject constructor(
             is ReaderAction.SetPage -> {
                 val pages = _state.value.pages
                 _state.update { it.copy(currentPage = action.page) }
-                if (action.page == pages.lastIndex) {
+                if (pages.isNotEmpty() && action.page == pages.lastIndex) {
                     markReadIfLoaded()
                 }
             }
@@ -150,7 +150,7 @@ class ReaderViewModel @Inject constructor(
         try {
             chapterRepository.setProgress(chapter, progress)
             lastPersistedProgress = progress
-            if (progress > 0.98f) {
+            if (progress >= 0.90f) {
                 chapterRepository.markRead(chapter, true)
             }
         } catch (e: Exception) {
@@ -165,7 +165,7 @@ class ReaderViewModel @Inject constructor(
         viewModelScope.launch(NonCancellable) {
             try {
                 chapterRepository.setProgress(chapter, progress)
-                if (progress > 0.98f) {
+                if (progress >= 0.90f) {
                     chapterRepository.markRead(chapter, true)
                 }
             } catch (e: Exception) {
@@ -241,7 +241,6 @@ class ReaderViewModel @Inject constructor(
     private suspend fun processLoadedContent(content: ChapterContent, chapter: Chapter) {
         when {
             routeContentType == ContentType.NOVEL && content is ChapterContent.Text -> {
-                chapterRepository.markRead(chapter, true)
                 val chapters = loadSeriesChapters()
                 val idx = chapters.indexOfFirst { it.chapter.url == chapter.url }
                 val progress = chapters.getOrNull(idx)?.progress ?: 0f

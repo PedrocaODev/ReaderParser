@@ -70,6 +70,14 @@ class ChapterRepositoryImpl @Inject constructor(
         chapterDao.markRead(chapter.sourceId, chapter.url, read)
     }
 
+    override suspend fun markPreviousAsRead(series: Series, targetChapterNumber: Float) {
+        chapterDao.markPreviousAsRead(series.sourceId, series.url, targetChapterNumber)
+    }
+
+    override suspend fun markAllRead(series: Series, read: Boolean) {
+        chapterDao.markAllRead(series.sourceId, series.url, read)
+    }
+
     override suspend fun setProgress(chapter: Chapter, progress: Float) {
         chapterDao.setProgress(chapter.sourceId, chapter.url, progress)
     }

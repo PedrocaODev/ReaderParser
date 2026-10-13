@@ -53,8 +53,14 @@ interface ChapterDao {
         upsertAll(merged)
     }
 
-    @Query("UPDATE chapters SET read = :read WHERE sourceId = :sourceId AND url = :url")
+    @Query("UPDATE chapters SET read = :read, progress = CASE WHEN :read THEN progress ELSE 0.0 END WHERE sourceId = :sourceId AND url = :url")
     suspend fun markRead(sourceId: Long, url: String, read: Boolean)
+
+    @Query("UPDATE chapters SET read = 1 WHERE sourceId = :sourceId AND seriesUrl = :seriesUrl AND number <= :maxChapterNumber")
+    suspend fun markPreviousAsRead(sourceId: Long, seriesUrl: String, maxChapterNumber: Float)
+
+    @Query("UPDATE chapters SET read = :read, progress = CASE WHEN :read THEN progress ELSE 0.0 END WHERE sourceId = :sourceId AND seriesUrl = :seriesUrl")
+    suspend fun markAllRead(sourceId: Long, seriesUrl: String, read: Boolean)
 
     @Query("UPDATE chapters SET progress = :progress WHERE sourceId = :sourceId AND url = :url")
     suspend fun setProgress(sourceId: Long, url: String, progress: Float)
