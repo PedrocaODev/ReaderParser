@@ -28,6 +28,8 @@ class FakeChapterRepository : ChapterRepository {
     val refreshChaptersCalls: MutableList<Series> = mutableListOf()
     val getContentCalls: MutableList<Chapter> = mutableListOf()
     val markReadCalls: MutableList<Pair<Chapter, Boolean>> = mutableListOf()
+    val markPreviousAsReadCalls: MutableList<Pair<Series, Float>> = mutableListOf()
+    val markAllReadCalls: MutableList<Pair<Series, Boolean>> = mutableListOf()
     val setProgressCalls: MutableList<Pair<Chapter, Float>> = mutableListOf()
     val markDownloadedCalls: MutableList<Pair<Chapter, Boolean>> = mutableListOf()
 
@@ -54,7 +56,45 @@ class FakeChapterRepository : ChapterRepository {
 
     override suspend fun markRead(chapter: Chapter, read: Boolean) {
         markReadCalls.add(chapter to read)
-        updateChapterState(chapter) { it.copy(read = read) }
+        updateChapterState(chapter) {
+            it.copy(
+                read = read,
+                progress = if (read) it.progress else 0.0f
+            )
+        }
+    }
+
+    override suspend fun markPreviousAsRead(series: Series, targetChapterNumber: Float) {
+        markPreviousAsReadCalls.add(series to targetChapterNumber)
+        val current = _chapterStates.value.toMutableMap()
+        val key = series.url
+        val list = current[key]?.map { chapterWithState ->
+            if (chapterWithState.chapter.number <= targetChapterNumber) {
+                chapterWithState.copy(read = true)
+            } else {
+                chapterWithState
+            }
+        }
+        if (list != null) {
+            current[key] = list
+            _chapterStates.value = current
+        }
+    }
+
+    override suspend fun markAllRead(series: Series, read: Boolean) {
+        markAllReadCalls.add(series to read)
+        val current = _chapterStates.value.toMutableMap()
+        val key = series.url
+        val list = current[key]?.map { chapterWithState ->
+            chapterWithState.copy(
+                read = read,
+                progress = if (read) chapterWithState.progress else 0.0f
+            )
+        }
+        if (list != null) {
+            current[key] = list
+            _chapterStates.value = current
+        }
     }
 
     override suspend fun setProgress(chapter: Chapter, progress: Float) {
