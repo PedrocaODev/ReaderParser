@@ -112,6 +112,15 @@ class SeriesViewModel @Inject constructor(
                     _effects.send(SeriesEffect.ShowError(e.message ?: "Failed to queue downloads"))
                 }
             }
+            is SeriesAction.ToggleChapterRead -> viewModelScope.launch {
+                val current = _state.value.chapters.find { it.chapter.url == action.chapter.url }
+                val newRead = !(current?.read ?: false)
+                try {
+                    chapterRepository.markRead(action.chapter, newRead)
+                } catch (e: Exception) {
+                    _effects.send(SeriesEffect.ShowError(e.message ?: "Failed to update chapter"))
+                }
+            }
         }
     }
 

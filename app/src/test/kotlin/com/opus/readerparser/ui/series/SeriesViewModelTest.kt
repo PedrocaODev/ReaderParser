@@ -3,6 +3,8 @@ package com.opus.readerparser.ui.series
 import androidx.lifecycle.SavedStateHandle
 import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
+import com.opus.readerparser.domain.ChapterRepository
+import com.opus.readerparser.domain.model.Chapter
 import com.opus.readerparser.domain.model.ChapterWithState
 import com.opus.readerparser.domain.model.ContentType
 import com.opus.readerparser.domain.model.Series
@@ -303,6 +305,83 @@ class SeriesViewModelTest {
         viewModel.effects.test {
             val effect = awaitItem() as SeriesEffect.ShowError
             assertThat(effect.message).isEqualTo("Remote refresh failed")
+        }
+    }
+
+    @Test
+    fun `ToggleChapterRead flips unread chapter to read in repository`() = runTest {
+        val testChapter = chapter
+        chapterRepo.setChapters(
+            series.url,
+            listOf(
+                ChapterWithState(
+                    chapter = testChapter,
+                    read = false,
+                    downloaded = false,
+                    progress = 0f,
+                )
+            ),
+        )
+
+        vm.onAction(SeriesAction.ToggleChapterRead(testChapter))
+
+        assertThat(chapterRepo.markReadCalls).containsExactly(testChapter to true)
+    }
+
+    @Test
+    fun `ToggleChapterRead flips read chapter to unread in repository`() = runTest {
+        val testChapter = chapter
+        chapterRepo.setChapters(
+            series.url,
+            listOf(
+                ChapterWithState(
+                    chapter = testChapter,
+                    read = true,
+                    downloaded = false,
+                    progress = 1f,
+                )
+            ),
+        )
+
+        vm.onAction(SeriesAction.ToggleChapterRead(testChapter))
+
+        assertThat(chapterRepo.markReadCalls).containsExactly(testChapter to false)
+    }
+
+    @Test
+    fun `ToggleChapterRead emits ShowError effect on repository failure`() = runTest {
+        val testChapter = chapter
+        val baseRepo = FakeChapterRepository()
+        val failingRepo = object : ChapterRepository by baseRepo {
+            override suspend fun markRead(chapter: Chapter, read: Boolean) {
+                throw RuntimeException("Database error")
+            }
+        }
+        baseRepo.setChapters(
+            series.url,
+            listOf(
+                ChapterWithState(
+                    chapter = testChapter,
+                    read = false,
+                    downloaded = false,
+                    progress = 0f,
+                )
+            ),
+        )
+        val failingVm = SeriesViewModel(
+            savedState = SavedStateHandle(
+                mapOf("sourceId" to series.sourceId, "seriesUrl" to series.url)
+            ),
+            seriesRepository = seriesRepo,
+            chapterRepository = failingRepo,
+            downloadEnqueuer = downloadEnqueuer,
+        )
+
+        failingVm.onAction(SeriesAction.ToggleChapterRead(testChapter))
+
+        failingVm.effects.test {
+            val effect = awaitItem() as SeriesEffect.ShowError
+            assertThat(effect.message).isEqualTo("Database error")
         }
     }
 }

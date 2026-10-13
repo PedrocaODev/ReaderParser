@@ -1,5 +1,6 @@
 package com.opus.readerparser.ui.series
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,15 +11,19 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -229,6 +234,7 @@ fun SeriesContent(
                             ChapterRow(
                                 chapterWithState = cws,
                                 onClick = { onAction(SeriesAction.OpenChapter(cws.chapter)) },
+                                onToggleRead = { onAction(SeriesAction.ToggleChapterRead(cws.chapter)) },
                             )
                         }
                     }
@@ -322,6 +328,7 @@ private fun RangePickerDialog(
 private fun ChapterRow(
     chapterWithState: ChapterWithState,
     onClick: () -> Unit,
+    onToggleRead: () -> Unit = {},
 ) {
     Card(
         onClick = onClick,
@@ -333,6 +340,35 @@ private fun ChapterRow(
             modifier = Modifier.padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            when {
+                chapterWithState.read -> {
+                    Icon(
+                        imageVector = Icons.Filled.CheckCircle,
+                        contentDescription = "Read",
+                        modifier = Modifier
+                            .size(16.dp)
+                            .testTag("read_indicator"),
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                }
+                chapterWithState.progress > 0f -> {
+                    Text(
+                        text = "${(chapterWithState.progress * 100).toInt()}%",
+                        modifier = Modifier.testTag("progress_indicator"),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.secondary,
+                    )
+                }
+                else -> {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .background(color = MaterialTheme.colorScheme.primary, shape = CircleShape)
+                            .testTag("unread_indicator"),
+                    )
+                }
+            }
+            Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = chapterWithState.chapter.name,
@@ -350,6 +386,15 @@ private fun ChapterRow(
                         color = MaterialTheme.colorScheme.primary,
                     )
                 }
+            }
+            IconButton(
+                onClick = onToggleRead,
+                modifier = Modifier.testTag("toggle_read_button"),
+            ) {
+                Icon(
+                    imageVector = if (chapterWithState.read) Icons.Filled.CheckCircle else Icons.Outlined.CheckCircle,
+                    contentDescription = if (chapterWithState.read) "Mark as unread" else "Mark as read",
+                )
             }
         }
     }
