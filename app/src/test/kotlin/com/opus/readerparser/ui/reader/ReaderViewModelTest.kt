@@ -60,7 +60,7 @@ class ReaderViewModelTest {
         assertThat(state.isLoading).isFalse()
         assertThat(state.chapter).isEqualTo(chapter)
         assertThat(state.seriesChapters.map { it.chapter }).containsExactly(chapter)
-        assertThat(repo.markReadCalls).containsExactly(chapter to true)
+        assertThat(repo.markReadCalls).isEmpty()
     }
 
     @Test
@@ -174,7 +174,7 @@ class ReaderViewModelTest {
     }
 
     @Test
-    fun `init marks text chapter as read immediately`() = runTest {
+    fun `opening a novel chapter does not mark it as read`() = runTest {
         val series = TestFixtures.testSeries(type = ContentType.NOVEL)
         val chapter = testChapter(series)
         val (_, repo) = createViewModel(
@@ -186,7 +186,7 @@ class ReaderViewModelTest {
 
         advanceUntilIdle()
 
-        assertThat(repo.markReadCalls).containsExactly(chapter to true)
+        assertThat(repo.markReadCalls).isEmpty()
     }
 
     @Test
@@ -324,6 +324,30 @@ class ReaderViewModelTest {
 
         assertThat(vm.state.value.currentPage).isEqualTo(pages.lastIndex)
         assertThat(repo.markReadCalls).containsExactly(chapter to true)
+    }
+
+    @Test
+    fun `SetPage before last page does not mark chapter as read`() = runTest {
+        val series = TestFixtures.testSeries(type = ContentType.MANHWA)
+        val chapter = testChapter(series)
+        val pages = listOf(
+            "https://cdn.invalid/p1.jpg",
+            "https://cdn.invalid/p2.jpg",
+            "https://cdn.invalid/p3.jpg",
+        )
+        val (vm, repo) = createViewModel(
+            series = series,
+            chapter = chapter,
+            contentType = ContentType.MANHWA,
+            contentResult = ChapterContent.Pages(pages),
+        )
+
+        advanceUntilIdle()
+        vm.onAction(ReaderAction.SetPage(1))
+        advanceUntilIdle()
+
+        assertThat(vm.state.value.currentPage).isEqualTo(1)
+        assertThat(repo.markReadCalls).isEmpty()
     }
 
     @Test
@@ -726,6 +750,87 @@ class ReaderViewModelTest {
         vm.onAction(ReaderAction.NextChapter)
         runCurrent()
         assertThat(repo.setProgressCalls).containsExactly(c1 to 0.6f, c1 to 0.8f).inOrder()
+    }
+
+    @Test
+    fun `setting progress below 90 percent saves progress without marking read`() = runTest {
+        val series = TestFixtures.testSeries(type = ContentType.NOVEL)
+        val chapter = testChapter(series)
+        val (vm, repo) = createViewModel(
+            series = series,
+            chapter = chapter,
+            contentType = ContentType.NOVEL,
+            contentResult = ChapterContent.Text("<p>Chapter body</p>"),
+        )
+        advanceUntilIdle()
+
+        vm.onAction(ReaderAction.SetProgress(0.89f))
+        advanceTimeBy(300)
+        runCurrent()
+
+        assertThat(repo.setProgressCalls).contains(chapter to 0.89f)
+        assertThat(repo.markReadCalls).isEmpty()
+    }
+
+    @Test
+    fun `setting progress at or above 90 percent marks chapter as read`() = runTest {
+        val series = TestFixtures.testSeries(type = ContentType.NOVEL)
+        val chapter = testChapter(series)
+        val (vm, repo) = createViewModel(
+            series = series,
+            chapter = chapter,
+            contentType = ContentType.NOVEL,
+            contentResult = ChapterContent.Text("<p>Chapter body</p>"),
+        )
+        advanceUntilIdle()
+
+        vm.onAction(ReaderAction.SetProgress(0.90f))
+        advanceTimeBy(300)
+        runCurrent()
+
+        assertThat(repo.setProgressCalls).contains(chapter to 0.90f)
+        assertThat(repo.markReadCalls).containsExactly(chapter to true)
+    }
+
+    @Test
+    fun `flushProgress at or above 90 percent marks chapter as read`() = runTest {
+        val series = TestFixtures.testSeries(type = ContentType.NOVEL)
+        val chapter = testChapter(series)
+        val (vm, repo) = createViewModel(
+            series = series,
+            chapter = chapter,
+            contentType = ContentType.NOVEL,
+            contentResult = ChapterContent.Text("<p>Chapter body</p>"),
+        )
+        advanceUntilIdle()
+
+        vm.onAction(ReaderAction.SetProgress(0.95f))
+        vm.onAction(ReaderAction.FlushProgress)
+        runCurrent()
+
+        assertThat(repo.setProgressCalls).contains(chapter to 0.95f)
+        assertThat(repo.markReadCalls).containsExactly(chapter to true)
+    }
+
+    @Test
+    fun `manhwa scrolling at or above 90 percent marks chapter as read`() = runTest {
+        val series = TestFixtures.testSeries(type = ContentType.MANHWA)
+        val chapter = testChapter(series)
+        val pages = listOf("https://cdn.invalid/p1.jpg", "https://cdn.invalid/p2.jpg")
+        val (vm, repo) = createViewModel(
+            series = series,
+            chapter = chapter,
+            contentType = ContentType.MANHWA,
+            contentResult = ChapterContent.Pages(pages),
+        )
+        advanceUntilIdle()
+
+        vm.onAction(ReaderAction.SetProgress(0.91f))
+        advanceTimeBy(300)
+        runCurrent()
+
+        assertThat(repo.setProgressCalls).contains(chapter to 0.91f)
+        assertThat(repo.markReadCalls).containsExactly(chapter to true)
     }
 
     @Test
