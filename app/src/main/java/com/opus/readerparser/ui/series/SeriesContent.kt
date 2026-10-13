@@ -26,13 +26,17 @@ import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
@@ -245,6 +249,22 @@ fun SeriesContent(
                             }
                         }
 
+                        // Reading progress card
+                        if (state.resumeState !is ReadingResumeState.None) {
+                            item {
+                                ReadingProgressCard(
+                                    resumeState = state.resumeState,
+                                    readCount = state.readChapterCount,
+                                    totalCount = state.totalChapterCount,
+                                    onAction = onAction,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                                        .testTag("reading_progress_card"),
+                                )
+                            }
+                        }
+
                         // Download unread button
                         item {
                             TextButton(
@@ -327,6 +347,92 @@ fun SeriesContent(
         )
     }
 }
+
+@Composable
+private fun ReadingProgressCard(
+    resumeState: ReadingResumeState,
+    readCount: Int,
+    totalCount: Int,
+    onAction: (SeriesAction) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val title: String
+    val subtitle: String
+    val buttonLabel: String
+    val icon = when (resumeState) {
+        is ReadingResumeState.Start -> {
+            title = "Start reading: ${resumeState.targetChapter.name}"
+            subtitle = "Begin reading from Chapter ${formatChapterNumber(resumeState.targetChapter.number)}"
+            buttonLabel = "Start reading"
+            Icons.Filled.PlayArrow
+        }
+        is ReadingResumeState.Resume -> {
+            title = "Reading: ${resumeState.targetChapter.name} (${resumeState.percent}%)"
+            subtitle = "In-progress chapter"
+            buttonLabel = "Resume"
+            Icons.Filled.PlayArrow
+        }
+        is ReadingResumeState.Continue -> {
+            title = resumeState.targetChapter.name
+            subtitle = "Last completed: Chapter ${formatChapterNumber(resumeState.lastCompletedNumber)}"
+            buttonLabel = if (resumeState.targetChapter.number > 0f) {
+                "Continue Ch. ${formatChapterNumber(resumeState.targetChapter.number)}"
+            } else {
+                "Continue"
+            }
+            Icons.Filled.PlayArrow
+        }
+        is ReadingResumeState.Completed -> {
+            title = "All chapters completed"
+            subtitle = "Completed all $totalCount chapters"
+            buttonLabel = "Re-read from beginning"
+            Icons.Filled.Replay
+        }
+        is ReadingResumeState.None -> return
+    }
+
+    ElevatedCard(modifier = modifier) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+        ) {
+            Text(
+                text = "Read: $readCount / $totalCount chapters",
+                style = MaterialTheme.typography.labelMedium,
+                modifier = Modifier.testTag("read_progress_count"),
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Button(
+                onClick = { onAction(SeriesAction.ResumeReading) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("resume_reading_button"),
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(text = buttonLabel)
+            }
+        }
+    }
+}
+
+private fun formatChapterNumber(number: Float): String =
+    if (number % 1f == 0f) number.toInt().toString() else number.toString()
 
 @Composable
 private fun RangePickerDialog(

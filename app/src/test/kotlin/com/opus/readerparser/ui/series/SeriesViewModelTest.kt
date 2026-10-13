@@ -479,4 +479,141 @@ class SeriesViewModelTest {
             assertThat(effect.message).isEqualTo("Database error")
         }
     }
+
+    // -----------------------------------------------------------------
+    // Reading Progress & Resume Reading
+    // -----------------------------------------------------------------
+
+    @Test
+    fun `resumeState is Start with chapter 1 when all chapters unread`() = runTest {
+        val ch1 = ChapterWithState(
+            chapter = chapter.copy(url = "https://test.invalid/chapter/1", number = 1f, name = "Chapter 1"),
+            read = false,
+            downloaded = false,
+            progress = 0f,
+        )
+        val ch2 = ChapterWithState(
+            chapter = chapter.copy(url = "https://test.invalid/chapter/2", number = 2f, name = "Chapter 2"),
+            read = false,
+            downloaded = false,
+            progress = 0f,
+        )
+        chapterRepo.setChapters(series.url, listOf(ch1, ch2))
+
+        val resumeState = vm.state.value.resumeState
+        assertThat(resumeState).isInstanceOf(ReadingResumeState.Start::class.java)
+        val start = resumeState as ReadingResumeState.Start
+        assertThat(start.targetChapter.number).isEqualTo(1f)
+        assertThat(vm.state.value.readChapterCount).isEqualTo(0)
+        assertThat(vm.state.value.totalChapterCount).isEqualTo(2)
+    }
+
+    @Test
+    fun `resumeState is Resume when a chapter has progress greater than 0 and read is false`() = runTest {
+        val ch1 = ChapterWithState(
+            chapter = chapter.copy(url = "https://test.invalid/chapter/1", number = 1f, name = "Chapter 1"),
+            read = false,
+            downloaded = false,
+            progress = 0.45f,
+        )
+        val ch2 = ChapterWithState(
+            chapter = chapter.copy(url = "https://test.invalid/chapter/2", number = 2f, name = "Chapter 2"),
+            read = false,
+            downloaded = false,
+            progress = 0f,
+        )
+        chapterRepo.setChapters(series.url, listOf(ch1, ch2))
+
+        val resumeState = vm.state.value.resumeState
+        assertThat(resumeState).isInstanceOf(ReadingResumeState.Resume::class.java)
+        val resume = resumeState as ReadingResumeState.Resume
+        assertThat(resume.targetChapter.number).isEqualTo(1f)
+        assertThat(resume.percent).isEqualTo(45)
+    }
+
+    @Test
+    fun `resumeState is Continue pointing to next unread ascending chapter after completed chapter`() = runTest {
+        val ch1 = ChapterWithState(
+            chapter = chapter.copy(url = "https://test.invalid/chapter/1", number = 1f, name = "Chapter 1"),
+            read = true,
+            downloaded = false,
+            progress = 1f,
+        )
+        val ch2 = ChapterWithState(
+            chapter = chapter.copy(url = "https://test.invalid/chapter/2", number = 2f, name = "Chapter 2"),
+            read = false,
+            downloaded = false,
+            progress = 0f,
+        )
+        val ch3 = ChapterWithState(
+            chapter = chapter.copy(url = "https://test.invalid/chapter/3", number = 3f, name = "Chapter 3"),
+            read = false,
+            downloaded = false,
+            progress = 0f,
+        )
+        chapterRepo.setChapters(series.url, listOf(ch1, ch2, ch3))
+
+        val resumeState = vm.state.value.resumeState
+        assertThat(resumeState).isInstanceOf(ReadingResumeState.Continue::class.java)
+        val continueState = resumeState as ReadingResumeState.Continue
+        assertThat(continueState.targetChapter.number).isEqualTo(2f)
+        assertThat(continueState.lastCompletedNumber).isEqualTo(1f)
+    }
+
+    @Test
+    fun `resumeState is Completed with re-read action when all chapters read`() = runTest {
+        val ch1 = ChapterWithState(
+            chapter = chapter.copy(url = "https://test.invalid/chapter/1", number = 1f, name = "Chapter 1"),
+            read = true,
+            downloaded = false,
+            progress = 1f,
+        )
+        val ch2 = ChapterWithState(
+            chapter = chapter.copy(url = "https://test.invalid/chapter/2", number = 2f, name = "Chapter 2"),
+            read = true,
+            downloaded = false,
+            progress = 1f,
+        )
+        chapterRepo.setChapters(series.url, listOf(ch1, ch2))
+
+        val resumeState = vm.state.value.resumeState
+        assertThat(resumeState).isInstanceOf(ReadingResumeState.Completed::class.java)
+        val completed = resumeState as ReadingResumeState.Completed
+        assertThat(completed.firstChapter.number).isEqualTo(1f)
+        assertThat(vm.state.value.readChapterCount).isEqualTo(2)
+        assertThat(vm.state.value.totalChapterCount).isEqualTo(2)
+    }
+
+    @Test
+    fun `ResumeReading emits NavigateToReader effect with the intended target chapter`() = runTest {
+        val ch1 = ChapterWithState(
+            chapter = chapter.copy(url = "https://test.invalid/chapter/1", number = 1f, name = "Chapter 1"),
+            read = true,
+            downloaded = false,
+            progress = 1f,
+        )
+        val ch2 = ChapterWithState(
+            chapter = chapter.copy(url = "https://test.invalid/chapter/2", number = 2f, name = "Chapter 2"),
+            read = false,
+            downloaded = false,
+            progress = 0f,
+        )
+        chapterRepo.setChapters(series.url, listOf(ch1, ch2))
+
+        vm.effects.test {
+            vm.onAction(SeriesAction.ResumeReading)
+            val effect = awaitItem() as SeriesEffect.NavigateToReader
+            assertThat(effect.chapter.number).isEqualTo(2f)
+            assertThat(effect.type).isEqualTo(series.type)
+        }
+    }
+
+    @Test
+    fun `resumeState is None when chapters list is empty`() = runTest {
+        chapterRepo.setChapters(series.url, emptyList())
+
+        assertThat(vm.state.value.resumeState).isEqualTo(ReadingResumeState.None)
+        assertThat(vm.state.value.readChapterCount).isEqualTo(0)
+        assertThat(vm.state.value.totalChapterCount).isEqualTo(0)
+    }
 }

@@ -73,6 +73,17 @@ class SeriesViewModel @Inject constructor(
                 val type = _state.value.series?.type ?: return@launch
                 _effects.send(SeriesEffect.NavigateToReader(action.chapter, type))
             }
+            is SeriesAction.ResumeReading -> viewModelScope.launch {
+                val type = _state.value.series?.type ?: stubSeries.type
+                val targetChapter = when (val resume = _state.value.resumeState) {
+                    is ReadingResumeState.Start -> resume.targetChapter
+                    is ReadingResumeState.Resume -> resume.targetChapter
+                    is ReadingResumeState.Continue -> resume.targetChapter
+                    is ReadingResumeState.Completed -> resume.firstChapter
+                    is ReadingResumeState.None -> return@launch
+                }
+                _effects.send(SeriesEffect.NavigateToReader(targetChapter, type))
+            }
             is SeriesAction.DownloadUnread -> viewModelScope.launch {
                 val unreadChapters = _state.value.chapters
                     .filter { !it.read }
