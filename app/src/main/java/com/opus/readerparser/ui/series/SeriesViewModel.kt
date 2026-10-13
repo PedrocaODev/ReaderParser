@@ -49,6 +49,7 @@ class SeriesViewModel @Inject constructor(
 
     init {
         observe()
+        loadPersistedSeries()
         refresh()
     }
 
@@ -71,6 +72,17 @@ class SeriesViewModel @Inject constructor(
             is SeriesAction.OpenChapter -> viewModelScope.launch {
                 val type = _state.value.series?.type ?: return@launch
                 _effects.send(SeriesEffect.NavigateToReader(action.chapter, type))
+            }
+            is SeriesAction.ResumeReading -> viewModelScope.launch {
+                val type = _state.value.series?.type ?: stubSeries.type
+                val targetChapter = when (val resume = _state.value.resumeState) {
+                    is ReadingResumeState.Start -> resume.targetChapter
+                    is ReadingResumeState.Resume -> resume.targetChapter
+                    is ReadingResumeState.Continue -> resume.targetChapter
+                    is ReadingResumeState.Completed -> resume.firstChapter
+                    is ReadingResumeState.None -> return@launch
+                }
+                _effects.send(SeriesEffect.NavigateToReader(targetChapter, type))
             }
             is SeriesAction.DownloadUnread -> viewModelScope.launch {
                 val unreadChapters = _state.value.chapters
@@ -111,6 +123,39 @@ class SeriesViewModel @Inject constructor(
                     _effects.send(SeriesEffect.ShowError(e.message ?: "Failed to queue downloads"))
                 }
             }
+            is SeriesAction.ToggleChapterRead -> viewModelScope.launch {
+                val current = _state.value.chapters.find { it.chapter.url == action.chapter.url }
+                val newRead = !(current?.read ?: false)
+                try {
+                    chapterRepository.markRead(action.chapter, newRead)
+                } catch (e: Exception) {
+                    _effects.send(SeriesEffect.ShowError(e.message ?: "Failed to update chapter"))
+                }
+            }
+            is SeriesAction.MarkPreviousRead -> viewModelScope.launch {
+                val series = _state.value.series ?: stubSeries
+                try {
+                    chapterRepository.markPreviousAsRead(series, action.chapter.number)
+                } catch (e: Exception) {
+                    _effects.send(SeriesEffect.ShowError(e.message ?: "Failed to mark previous chapters"))
+                }
+            }
+            is SeriesAction.MarkAllRead -> viewModelScope.launch {
+                val series = _state.value.series ?: stubSeries
+                try {
+                    chapterRepository.markAllRead(series, true)
+                } catch (e: Exception) {
+                    _effects.send(SeriesEffect.ShowError(e.message ?: "Failed to mark all as read"))
+                }
+            }
+            is SeriesAction.MarkAllUnread -> viewModelScope.launch {
+                val series = _state.value.series ?: stubSeries
+                try {
+                    chapterRepository.markAllRead(series, false)
+                } catch (e: Exception) {
+                    _effects.send(SeriesEffect.ShowError(e.message ?: "Failed to mark all as unread"))
+                }
+            }
         }
     }
 
@@ -126,6 +171,20 @@ class SeriesViewModel @Inject constructor(
         }
     }
 
+    private fun loadPersistedSeries() {
+        viewModelScope.launch {
+            val persisted = seriesRepository.getPersistedSeries(sourceId, seriesUrl) ?: return@launch
+            val inLibrary = seriesRepository.isInLibrary(sourceId, seriesUrl)
+            _state.update { current ->
+                if (current.series == null) {
+                    current.copy(series = persisted, inLibrary = inLibrary)
+                } else {
+                    current
+                }
+            }
+        }
+    }
+
     private fun refresh() {
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true, error = null) }
@@ -135,7 +194,20 @@ class SeriesViewModel @Inject constructor(
                 val inLibrary = seriesRepository.isInLibrary(updated.sourceId, updated.url)
                 _state.update { it.copy(series = updated, inLibrary = inLibrary, isLoading = false) }
             } catch (e: Exception) {
-                _state.update { it.copy(isLoading = false, error = e.message ?: "Failed to load series") }
+                val fallbackSeries = _state.value.series ?: seriesRepository.getPersistedSeries(sourceId, seriesUrl)
+                val inLibrary = if (fallbackSeries != null) {
+                    seriesRepository.isInLibrary(sourceId, seriesUrl)
+                } else {
+                    _state.value.inLibrary
+                }
+                _state.update {
+                    it.copy(
+                        series = fallbackSeries ?: it.series,
+                        inLibrary = inLibrary,
+                        isLoading = false,
+                        error = e.message ?: "Failed to load series",
+                    )
+                }
                 _effects.send(SeriesEffect.ShowError(e.message ?: "Failed to load series"))
             }
         }

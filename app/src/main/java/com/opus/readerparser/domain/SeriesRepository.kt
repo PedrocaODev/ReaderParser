@@ -16,6 +16,7 @@ interface SeriesRepository {
     suspend fun searchLibrary(query: String): LibrarySearchResult
 
     suspend fun refreshDetails(series: Series): Series
+    suspend fun getPersistedSeries(sourceId: Long, url: String): Series?
 
     /**
      * Marks the given series as saved in the user's library.

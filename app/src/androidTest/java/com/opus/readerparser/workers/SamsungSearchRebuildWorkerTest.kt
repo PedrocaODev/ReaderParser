@@ -50,6 +50,8 @@ class SamsungSearchRebuildWorkerTest {
 
         override suspend fun getLibraryIndexableSeries(sourceId: Long, url: String): SeriesEntity? = null
 
+        override suspend fun getLibrarySeries(): List<SeriesEntity> = emptyList()
+
         // --- unused DAO methods ---
         override fun observeIndexableSeries(): Flow<List<SeriesEntity>> = emptyFlow()
         override fun observeLibrary(): Flow<List<SeriesEntity>> = emptyFlow()

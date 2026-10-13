@@ -1,5 +1,9 @@
 package com.opus.readerparser.ui.series
 
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,24 +14,36 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Replay
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -59,7 +75,7 @@ import com.opus.readerparser.ui.theme.ReaderParserTheme
 
 private val CoverWidth = 120.dp
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun SeriesContent(
     state: SeriesUiState,
@@ -67,6 +83,8 @@ fun SeriesContent(
     snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
 ) {
     var descriptionExpanded by remember { mutableStateOf(false) }
+    var menuExpanded by remember { mutableStateOf(false) }
+    var selectedChapterForSheet by remember { mutableStateOf<ChapterWithState?>(null) }
 
     Scaffold(
         topBar = {
@@ -75,6 +93,30 @@ fun SeriesContent(
                 actions = {
                     IconButton(onClick = { onAction(SeriesAction.Refresh) }) {
                         Icon(Icons.Filled.Refresh, contentDescription = "Refresh")
+                    }
+                    Box {
+                        IconButton(onClick = { menuExpanded = true }) {
+                            Icon(Icons.Filled.MoreVert, contentDescription = "More actions")
+                        }
+                        DropdownMenu(
+                            expanded = menuExpanded,
+                            onDismissRequest = { menuExpanded = false },
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Mark all as read") },
+                                onClick = {
+                                    menuExpanded = false
+                                    onAction(SeriesAction.MarkAllRead)
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Mark all as unread") },
+                                onClick = {
+                                    menuExpanded = false
+                                    onAction(SeriesAction.MarkAllUnread)
+                                },
+                            )
+                        }
                     }
                 },
             )
@@ -207,6 +249,22 @@ fun SeriesContent(
                             }
                         }
 
+                        // Reading progress card
+                        if (state.resumeState !is ReadingResumeState.None) {
+                            item {
+                                ReadingProgressCard(
+                                    resumeState = state.resumeState,
+                                    readCount = state.readChapterCount,
+                                    totalCount = state.totalChapterCount,
+                                    onAction = onAction,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                                        .testTag("reading_progress_card"),
+                                )
+                            }
+                        }
+
                         // Download unread button
                         item {
                             TextButton(
@@ -229,10 +287,51 @@ fun SeriesContent(
                             ChapterRow(
                                 chapterWithState = cws,
                                 onClick = { onAction(SeriesAction.OpenChapter(cws.chapter)) },
+                                onLongClick = { selectedChapterForSheet = cws },
+                                onToggleRead = { onAction(SeriesAction.ToggleChapterRead(cws.chapter)) },
                             )
                         }
                     }
                 }
+            }
+        }
+    }
+
+    val currentSelectedChapter = selectedChapterForSheet?.let { cur ->
+        state.chapters.find { it.chapter.url == cur.chapter.url } ?: cur
+    }
+
+    if (currentSelectedChapter != null) {
+        ModalBottomSheet(
+            onDismissRequest = { selectedChapterForSheet = null },
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 24.dp),
+            ) {
+                Text(
+                    text = if (currentSelectedChapter.read) "Mark as unread" else "Mark as read",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            onAction(SeriesAction.ToggleChapterRead(currentSelectedChapter.chapter))
+                            selectedChapterForSheet = null
+                        }
+                        .padding(horizontal = 24.dp, vertical = 16.dp),
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                Text(
+                    text = "Mark previous chapters as read",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            onAction(SeriesAction.MarkPreviousRead(currentSelectedChapter.chapter))
+                            selectedChapterForSheet = null
+                        }
+                        .padding(horizontal = 24.dp, vertical = 16.dp),
+                    style = MaterialTheme.typography.bodyLarge,
+                )
             }
         }
     }
@@ -248,6 +347,92 @@ fun SeriesContent(
         )
     }
 }
+
+@Composable
+private fun ReadingProgressCard(
+    resumeState: ReadingResumeState,
+    readCount: Int,
+    totalCount: Int,
+    onAction: (SeriesAction) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val title: String
+    val subtitle: String
+    val buttonLabel: String
+    val icon = when (resumeState) {
+        is ReadingResumeState.Start -> {
+            title = "Start reading: ${resumeState.targetChapter.name}"
+            subtitle = "Begin reading from Chapter ${formatChapterNumber(resumeState.targetChapter.number)}"
+            buttonLabel = "Start reading"
+            Icons.Filled.PlayArrow
+        }
+        is ReadingResumeState.Resume -> {
+            title = "Reading: ${resumeState.targetChapter.name} (${resumeState.percent}%)"
+            subtitle = "In-progress chapter"
+            buttonLabel = "Resume"
+            Icons.Filled.PlayArrow
+        }
+        is ReadingResumeState.Continue -> {
+            title = resumeState.targetChapter.name
+            subtitle = "Last completed: Chapter ${formatChapterNumber(resumeState.lastCompletedNumber)}"
+            buttonLabel = if (resumeState.targetChapter.number > 0f) {
+                "Continue Ch. ${formatChapterNumber(resumeState.targetChapter.number)}"
+            } else {
+                "Continue"
+            }
+            Icons.Filled.PlayArrow
+        }
+        is ReadingResumeState.Completed -> {
+            title = "All chapters completed"
+            subtitle = "Completed all $totalCount chapters"
+            buttonLabel = "Re-read from beginning"
+            Icons.Filled.Replay
+        }
+        is ReadingResumeState.None -> return
+    }
+
+    ElevatedCard(modifier = modifier) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+        ) {
+            Text(
+                text = "Read: $readCount / $totalCount chapters",
+                style = MaterialTheme.typography.labelMedium,
+                modifier = Modifier.testTag("read_progress_count"),
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Button(
+                onClick = { onAction(SeriesAction.ResumeReading) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("resume_reading_button"),
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(text = buttonLabel)
+            }
+        }
+    }
+}
+
+private fun formatChapterNumber(number: Float): String =
+    if (number % 1f == 0f) number.toInt().toString() else number.toString()
 
 @Composable
 private fun RangePickerDialog(
@@ -317,22 +502,56 @@ private fun RangePickerDialog(
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 private fun ChapterRow(
     chapterWithState: ChapterWithState,
     onClick: () -> Unit,
+    onLongClick: () -> Unit = {},
+    onToggleRead: () -> Unit = {},
 ) {
     Card(
-        onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick,
+            ),
     ) {
         Row(
             modifier = Modifier.padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            when {
+                chapterWithState.read -> {
+                    Icon(
+                        imageVector = Icons.Filled.CheckCircle,
+                        contentDescription = "Read",
+                        modifier = Modifier
+                            .size(16.dp)
+                            .testTag("read_indicator"),
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                }
+                chapterWithState.progress > 0f -> {
+                    Text(
+                        text = "${(chapterWithState.progress * 100).toInt()}%",
+                        modifier = Modifier.testTag("progress_indicator"),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.secondary,
+                    )
+                }
+                else -> {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .background(color = MaterialTheme.colorScheme.primary, shape = CircleShape)
+                            .testTag("unread_indicator"),
+                    )
+                }
+            }
+            Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = chapterWithState.chapter.name,
@@ -350,6 +569,15 @@ private fun ChapterRow(
                         color = MaterialTheme.colorScheme.primary,
                     )
                 }
+            }
+            IconButton(
+                onClick = onToggleRead,
+                modifier = Modifier.testTag("toggle_read_button"),
+            ) {
+                Icon(
+                    imageVector = if (chapterWithState.read) Icons.Filled.CheckCircle else Icons.Outlined.CheckCircle,
+                    contentDescription = if (chapterWithState.read) "Mark as unread" else "Mark as read",
+                )
             }
         }
     }

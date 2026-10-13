@@ -1,8 +1,10 @@
 package com.opus.readerparser.ui.reader
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -26,6 +28,17 @@ fun ReaderScreen(
     var showChapterList by rememberSaveable { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
 
+    BackHandler {
+        viewModel.flushProgress()
+        onBack()
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            viewModel.flushProgress()
+        }
+    }
+
     LaunchedEffect(Unit) {
         viewModel.effects.collect { effect ->
             when (effect) {
@@ -45,7 +58,10 @@ fun ReaderScreen(
         state = state,
         isDarkTheme = isDarkTheme,
         onAction = viewModel::onAction,
-        onBack = onBack,
+        onBack = {
+            viewModel.flushProgress()
+            onBack()
+        },
         snackbarHostState = snackbarHostState,
     )
 

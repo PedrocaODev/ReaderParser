@@ -32,6 +32,7 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideHttpClient(@ApplicationContext context: Context, json: Json): HttpClient = HttpClient(OkHttp) {
+        expectSuccess = true
         engine {
             config {
                 connectTimeout(15, TimeUnit.SECONDS)

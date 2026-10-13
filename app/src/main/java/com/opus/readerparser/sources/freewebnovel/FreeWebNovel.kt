@@ -258,9 +258,13 @@ class FreeWebNovel(
 
     private suspend fun fetchChapterListAjax(seriesUrl: String, page: Int): ChapterListAjaxResponse? {
         val ajaxUrl = "$seriesUrl?ajax=chapters&page=$page&pageSize=$chapterListAjaxPageSize"
-        val responseBody = client.get(ajaxUrl) {
+        val response = client.get(ajaxUrl) {
             header("X-Requested-With", "XMLHttpRequest")
-        }.bodyAsText()
+        }
+        check(response.status.value in 200..299) {
+            "Failed to fetch chapter list ajax: HTTP ${response.status.value}"
+        }
+        val responseBody = response.bodyAsText()
         return decodeChapterListAjaxResponse(responseBody)
     }
 
@@ -273,11 +277,15 @@ class FreeWebNovel(
 
         for (page in 2..page1.totalPage.coerceAtLeast(1)) {
             val ajaxResponse = fetchOptionalChapterListAjax(series.url, page)
-                ?: break
-            if (ajaxResponse.html.isBlank()) break
+                ?: throw IllegalStateException("Failed to load continuation page $page of ${page1.totalPage} for ${series.url}")
+            check(ajaxResponse.html.isNotBlank()) {
+                "Continuation page $page of ${page1.totalPage} had blank HTML for ${series.url}"
+            }
             val beforeCount = allChapters.size
             appendAjaxChapters(series, ajaxResponse.html, allChapters, seenUrls)
-            if (allChapters.size == beforeCount) break
+            check(allChapters.size > beforeCount) {
+                "Continuation page $page of ${page1.totalPage} contained no new chapters for ${series.url}"
+            }
         }
 
         return allChapters

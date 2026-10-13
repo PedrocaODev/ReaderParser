@@ -31,7 +31,9 @@ class FakeSeriesRepository : SeriesRepository {
     var searchLibraryResult: LibrarySearchResult = LibrarySearchResult.Success(emptyList())
     var searchLibraryHandler: suspend (String) -> LibrarySearchResult = { searchLibraryResult }
     var refreshDetailsResult: (Series) -> Series = { it }
+    var refreshDetailsHandler: suspend (Series) -> Series = { refreshDetailsResult(it) }
     var isInLibraryResult: (Long, String) -> Boolean = { _, _ -> false }
+    var getPersistedSeriesResult: (Long, String) -> Series? = { _, _ -> null }
 
     // -- call recording --
     val fetchPopularCalls: MutableList<Pair<Long, Int>> = mutableListOf()
@@ -39,6 +41,7 @@ class FakeSeriesRepository : SeriesRepository {
     val searchCalls: MutableList<SearchCall> = mutableListOf()
     val searchLibraryCalls: MutableList<String> = mutableListOf()
     val refreshDetailsCalls: MutableList<Series> = mutableListOf()
+    val getPersistedSeriesCalls: MutableList<Pair<Long, String>> = mutableListOf()
     val addToLibraryCalls: MutableList<Series> = mutableListOf()
     val removeFromLibraryCalls: MutableList<Series> = mutableListOf()
     val isInLibraryCalls: MutableList<Pair<Long, String>> = mutableListOf()
@@ -82,13 +85,18 @@ class FakeSeriesRepository : SeriesRepository {
 
     override suspend fun refreshDetails(series: Series): Series {
         refreshDetailsCalls.add(series)
-        return refreshDetailsResult(series).also { refreshed ->
+        return refreshDetailsHandler(series).also { refreshed ->
             if (refreshed.title.isNotBlank()) {
                 _library.value = _library.value.map { existing ->
                     if (existing.sourceId == refreshed.sourceId && existing.url == refreshed.url) refreshed else existing
                 }
             }
         }
+    }
+
+    override suspend fun getPersistedSeries(sourceId: Long, url: String): Series? {
+        getPersistedSeriesCalls.add(sourceId to url)
+        return getPersistedSeriesResult(sourceId, url)
     }
 
     override suspend fun addToLibrary(series: Series) {

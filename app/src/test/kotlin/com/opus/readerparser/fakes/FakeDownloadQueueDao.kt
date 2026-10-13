@@ -103,4 +103,10 @@ class FakeDownloadQueueDao : DownloadQueueDao {
         store.value.find {
             it.sourceId == sourceId && it.chapterUrl == chapterUrl
         }?.state
+
+    override suspend fun getRunning(): DownloadQueueEntity? =
+        store.value.find { it.state == "RUNNING" }
+
+    override suspend fun getNextQueued(): DownloadQueueEntity? =
+        store.value.find { it.state == "QUEUED" }
 }

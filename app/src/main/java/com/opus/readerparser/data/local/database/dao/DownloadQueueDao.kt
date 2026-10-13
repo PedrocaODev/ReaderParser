@@ -60,4 +60,10 @@ interface DownloadQueueDao {
 
     @Query("SELECT state FROM download_queue WHERE sourceId = :sourceId AND chapterUrl = :chapterUrl")
     suspend fun getState(sourceId: Long, chapterUrl: String): String?
+
+    @Query("SELECT * FROM download_queue WHERE state = 'RUNNING' LIMIT 1")
+    suspend fun getRunning(): DownloadQueueEntity?
+
+    @Query("SELECT * FROM download_queue WHERE state = 'QUEUED' ORDER BY rowid ASC LIMIT 1")
+    suspend fun getNextQueued(): DownloadQueueEntity?
 }

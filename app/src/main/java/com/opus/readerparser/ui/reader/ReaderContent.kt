@@ -20,6 +20,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
@@ -43,11 +45,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -56,6 +57,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
@@ -67,6 +69,8 @@ import coil3.SingletonImageLoader
 import coil3.compose.AsyncImage
 import coil3.compose.LocalPlatformContext
 import com.opus.readerparser.domain.model.ContentType
+import com.opus.readerparser.domain.model.ManhwaLayout
+import com.opus.readerparser.domain.model.ManhwaZoom
 import com.opus.readerparser.ui.theme.BackgroundDark
 import com.opus.readerparser.ui.theme.BackgroundLight
 import com.opus.readerparser.ui.theme.OnBackgroundDark
@@ -74,20 +78,28 @@ import com.opus.readerparser.ui.theme.OnBackgroundLight
 import com.opus.readerparser.ui.theme.PrimaryDark
 import com.opus.readerparser.ui.theme.PrimaryLight
 import com.opus.readerparser.ui.theme.ReaderParserTheme
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
-import kotlinx.coroutines.launch
 import kotlin.math.abs
 
 private fun Color.toHexString(): String =
     String.format("#%06X", this.toArgb() and 0xFFFFFF)
 
-private fun buildNovelHtml(html: String, isDarkTheme: Boolean): String {
+private fun buildNovelHtml(
+    html: String,
+    isDarkTheme: Boolean,
+    novelFontSize: Int,
+    novelFontFamily: String,
+): String {
     val bgColor = if (isDarkTheme) BackgroundDark.toHexString() else BackgroundLight.toHexString()
     val textColor = if (isDarkTheme) OnBackgroundDark.toHexString() else OnBackgroundLight.toHexString()
     val linkColor = if (isDarkTheme) PrimaryDark.toHexString() else PrimaryLight.toHexString()
+    val fontFamilyCss = when (novelFontFamily.lowercase()) {
+        "sans-serif", "sans" -> "sans-serif"
+        "monospace", "mono" -> "monospace"
+        "serif" -> "serif"
+        else -> "Georgia, serif"
+    }
 
     return """
         <html>
@@ -97,8 +109,8 @@ private fun buildNovelHtml(html: String, isDarkTheme: Boolean): String {
             body {
                 background-color: $bgColor;
                 color: $textColor;
-                font-family: Georgia, serif;
-                font-size: 16px;
+                font-family: $fontFamilyCss;
+                font-size: ${novelFontSize}px;
                 line-height: 1.6;
                 padding: 16px;
                 margin: 0;
@@ -164,6 +176,8 @@ fun ReaderContent(
                     NovelWebView(
                         html = state.html,
                         isDarkTheme = isDarkTheme,
+                        novelFontSize = state.settings.novelFontSize,
+                        novelFontFamily = state.settings.novelFontFamily,
                         progress = state.progress,
                         onProgressChanged = { progress ->
                             onAction(ReaderAction.SetProgress(progress))
@@ -174,10 +188,12 @@ fun ReaderContent(
                     )
                 }
                 state.contentType == ContentType.MANHWA && state.pages.isNotEmpty() -> {
-                    key(state.chapter?.url) {
+                    key(state.chapter?.url, state.settings.manhwaLayout) {
                         ManhwaPageList(
                             pages = state.pages,
                             currentPage = state.currentPage,
+                            layout = state.settings.manhwaLayout,
+                            zoom = state.settings.manhwaZoom,
                             onPageChanged = { page -> onAction(ReaderAction.SetPage(page)) },
                             imageLoader = imageLoader,
                             modifier = Modifier.fillMaxSize(),
@@ -296,17 +312,18 @@ fun ReaderContent(
 private fun NovelWebView(
     html: String,
     isDarkTheme: Boolean,
+    novelFontSize: Int,
+    novelFontFamily: String,
     progress: Float,
     onProgressChanged: (Float) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val styledHtml = remember(html, isDarkTheme) { buildNovelHtml(html, isDarkTheme) }
+    val styledHtml = remember(html, isDarkTheme, novelFontSize, novelFontFamily) {
+        buildNovelHtml(html, isDarkTheme, novelFontSize, novelFontFamily)
+    }
     var lastLoadedHtml by remember { mutableStateOf("") }
-    var pendingProgress by remember { mutableFloatStateOf(-1f) }
     var restoreProgress by remember { mutableFloatStateOf(-1f) }
-    var progressDebounceJob by remember { mutableStateOf<Job?>(null) }
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
 
     AndroidView(
@@ -341,12 +358,7 @@ private fun NovelWebView(
                         0f
                     }
                     val clamped = currentProgress.coerceIn(0f, 1f)
-                    pendingProgress = clamped
-                    progressDebounceJob?.cancel()
-                    progressDebounceJob = scope.launch {
-                        delay(300)
-                        onProgressChanged(clamped)
-                    }
+                    onProgressChanged(clamped)
                 }
             }
         },
@@ -354,9 +366,6 @@ private fun NovelWebView(
             if (styledHtml != lastLoadedHtml) {
                 lastLoadedHtml = styledHtml
                 restoreProgress = progress
-                pendingProgress = -1f
-                progressDebounceJob?.cancel()
-                progressDebounceJob = null
                 webView.loadDataWithBaseURL(
                     "https://app.local",
                     styledHtml,
@@ -371,7 +380,6 @@ private fun NovelWebView(
 
     DisposableEffect(Unit) {
         onDispose {
-            progressDebounceJob?.cancel()
             webViewRef?.apply {
                 stopLoading()
                 destroy()
@@ -385,53 +393,97 @@ private fun NovelWebView(
 private fun ManhwaPageList(
     pages: List<String>,
     currentPage: Int,
+    layout: ManhwaLayout,
+    zoom: ManhwaZoom,
     onPageChanged: (Int) -> Unit,
     imageLoader: ImageLoader? = null,
     modifier: Modifier = Modifier,
 ) {
-    val listState = rememberLazyListState(
-        initialFirstVisibleItemIndex = currentPage.coerceIn(0, pages.lastIndex),
-    )
-
-    LaunchedEffect(listState) {
-        snapshotFlow {
-            val layoutInfo = listState.layoutInfo
-            val items = layoutInfo.visibleItemsInfo
-            if (items.isEmpty()) return@snapshotFlow null
-            val viewportCenter =
-                (layoutInfo.viewportStartOffset + layoutInfo.viewportEndOffset) / 2
-            items.minBy {
-                abs(it.offset + it.size / 2 - viewportCenter)
-            }.index
-        }
-            .filterNotNull()
-            .distinctUntilChanged()
-            .collect { page -> onPageChanged(page) }
+    val contentScale = when (zoom) {
+        ManhwaZoom.FIT_WIDTH -> ContentScale.FillWidth
+        ManhwaZoom.FIT_HEIGHT -> ContentScale.Fit
+        ManhwaZoom.ORIGINAL -> ContentScale.Inside
     }
-
     val placeholderPainter = ColorPainter(MaterialTheme.colorScheme.surfaceVariant)
     val errorPainter = ColorPainter(MaterialTheme.colorScheme.errorContainer)
 
-    LazyColumn(
-        state = listState,
-        modifier = modifier.testTag("pages_list"),
-    ) {
-        itemsIndexed(
-            items = pages,
-            key = { index, pageUrl -> "$index-$pageUrl" },
-        ) { index, pageUrl ->
-            AsyncImage(
-                model = pageUrl,
-                contentDescription = "Page ${index + 1}",
-                imageLoader = imageLoader
-                    ?: SingletonImageLoader.get(LocalPlatformContext.current),
-                contentScale = androidx.compose.ui.layout.ContentScale.FillWidth,
-                placeholder = placeholderPainter,
-                error = errorPainter,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 150.dp),
+    when (layout) {
+        ManhwaLayout.WEBTOON -> {
+            val listState = rememberLazyListState(
+                initialFirstVisibleItemIndex = currentPage.coerceIn(0, pages.lastIndex),
             )
+
+            LaunchedEffect(listState) {
+                snapshotFlow {
+                    val layoutInfo = listState.layoutInfo
+                    val items = layoutInfo.visibleItemsInfo
+                    if (items.isEmpty()) return@snapshotFlow null
+                    val viewportCenter =
+                        (layoutInfo.viewportStartOffset + layoutInfo.viewportEndOffset) / 2
+                    items.minBy {
+                        abs(it.offset + it.size / 2 - viewportCenter)
+                    }.index
+                }
+                    .filterNotNull()
+                    .distinctUntilChanged()
+                    .collect { page -> onPageChanged(page) }
+            }
+
+            LazyColumn(
+                state = listState,
+                modifier = modifier.testTag("pages_list"),
+            ) {
+                itemsIndexed(
+                    items = pages,
+                    key = { index, pageUrl -> "$index-$pageUrl" },
+                ) { index, pageUrl ->
+                    AsyncImage(
+                        model = pageUrl,
+                        contentDescription = "Page ${index + 1}",
+                        imageLoader = imageLoader
+                            ?: SingletonImageLoader.get(LocalPlatformContext.current),
+                        contentScale = contentScale,
+                        placeholder = placeholderPainter,
+                        error = errorPainter,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 150.dp),
+                    )
+                }
+            }
+        }
+        ManhwaLayout.PAGED_LTR, ManhwaLayout.PAGED_RTL -> {
+            val pagerState = rememberPagerState(
+                initialPage = currentPage.coerceIn(0, pages.lastIndex),
+            ) { pages.size }
+
+            LaunchedEffect(pagerState) {
+                snapshotFlow { pagerState.currentPage }
+                    .distinctUntilChanged()
+                    .collect { page -> onPageChanged(page) }
+            }
+
+            HorizontalPager(
+                state = pagerState,
+                reverseLayout = (layout == ManhwaLayout.PAGED_RTL),
+                modifier = modifier.testTag("pages_list"),
+            ) { pageIndex ->
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    AsyncImage(
+                        model = pages[pageIndex],
+                        contentDescription = "Page ${pageIndex + 1}",
+                        imageLoader = imageLoader
+                            ?: SingletonImageLoader.get(LocalPlatformContext.current),
+                        contentScale = contentScale,
+                        placeholder = placeholderPainter,
+                        error = errorPainter,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+            }
         }
     }
 }

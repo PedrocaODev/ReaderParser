@@ -19,6 +19,7 @@ class DownloadRepositoryImpl @Inject constructor(
     private val downloadStore: DownloadStore,
     private val chapterRepository: ChapterRepository,
     private val workManager: WorkManagerHelper,
+    private val scheduler: DownloadQueueScheduler,
 ) : DownloadRepository {
 
     override fun observeQueue(): Flow<List<DownloadItem>> =
@@ -26,10 +27,18 @@ class DownloadRepositoryImpl @Inject constructor(
 
     override suspend fun cancel(sourceId: Long, chapterUrl: String) {
         dao.delete(sourceId, chapterUrl)
+        workManager.cancelAllWorkByTag("download-$sourceId-${hashUrl(chapterUrl)}")
+        scheduler.onChapterCancelled(sourceId, chapterUrl)
+        scheduler.scheduleNext()
     }
 
     override suspend fun retry(sourceId: Long, chapterUrl: String) {
-        dao.updateState(sourceId, chapterUrl, DownloadState.QUEUED.name, 0f)
+        val existingState = dao.getState(sourceId, chapterUrl)
+        if (existingState == DownloadState.QUEUED.name || existingState == DownloadState.RUNNING.name) {
+            return
+        }
+        dao.updateStateWithError(sourceId, chapterUrl, DownloadState.QUEUED.name, 0f, null)
+        scheduler.scheduleNext()
     }
 
     override suspend fun updateQueueState(
@@ -40,6 +49,10 @@ class DownloadRepositoryImpl @Inject constructor(
         errorMessage: String?,
     ) {
         dao.updateStateWithError(sourceId, chapterUrl, state.name, progress, errorMessage)
+        if (state == DownloadState.COMPLETED || state == DownloadState.FAILED) {
+            scheduler.onChapterFinished(sourceId, chapterUrl)
+            scheduler.scheduleNext()
+        }
     }
 
     override suspend fun cancelBatch(sourceId: Long, chapterUrls: Set<String>) {
@@ -49,11 +62,13 @@ class DownloadRepositoryImpl @Inject constructor(
             for (chapterUrl in chapterUrls) {
                 val tag = "download-$sourceId-${hashUrl(chapterUrl)}"
                 workManager.cancelAllWorkByTag(tag)
+                scheduler.onChapterCancelled(sourceId, chapterUrl)
             }
             // Also cancel the batch chain if one exists
             val sortedUrls = chapterUrls.sorted()
             val batchWorkName = "batch-$sourceId-${hashUrl(sortedUrls.joinToString(","))}"
             workManager.cancelAllWorkByTag(batchWorkName)
+            scheduler.scheduleNext()
         }
     }
 

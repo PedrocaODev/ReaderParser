@@ -5,14 +5,22 @@ import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import com.opus.readerparser.domain.SettingsRepository
+import com.opus.readerparser.domain.model.AppSettings
 import com.opus.readerparser.ui.navigation.AppNavGraph
 import com.opus.readerparser.ui.navigation.Destinations
 import com.opus.readerparser.ui.theme.ReaderParserTheme
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    @Inject
+    lateinit var settingsRepository: SettingsRepository
 
     private var navController: NavController? = null
     private var pendingDeepLink: Uri? = null
@@ -33,7 +41,9 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            ReaderParserTheme {
+            val settings by settingsRepository.observeSettings()
+                .collectAsStateWithLifecycle(initialValue = AppSettings())
+            ReaderParserTheme(appTheme = settings.theme) {
                 AppNavGraph(onNavGraphReady = { controller ->
                     navController = controller
                     // Process any pending deep link once the nav graph is ready

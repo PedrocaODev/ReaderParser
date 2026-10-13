@@ -293,8 +293,10 @@ class BrowseViewModel @Inject constructor(
                 }
                 if (id != requestId) return@launch
                 _state.update { current ->
+                    val combined = if (request.reset) result.series else current.series + result.series
+                    val deduplicated = combined.distinctBy { it.sourceId to it.url }
                     current.copy(
-                        series = if (request.reset) result.series else current.series + result.series,
+                        series = deduplicated,
                         hasNextPage = result.hasNextPage,
                         currentPage = request.page,
                         isLoading = false,

@@ -5,6 +5,7 @@ import android.util.Log
 import com.opus.readerparser.data.local.database.dao.SeriesDao
 import com.opus.readerparser.data.local.database.entities.SeriesEntity
 import com.opus.readerparser.data.local.database.mappers.GenreJson
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.catch
@@ -23,10 +24,17 @@ import javax.inject.Singleton
  */
 @OptIn(kotlinx.coroutines.FlowPreview::class)
 @Singleton
-class SearchIndexSyncer @Inject constructor(
+class SearchIndexSyncer(
     private val seriesDao: SeriesDao,
     private val client: SamsungSearchClient,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
+
+    @Inject
+    constructor(
+        seriesDao: SeriesDao,
+        client: SamsungSearchClient,
+    ) : this(seriesDao, client, Dispatchers.IO)
 
     private var observationJob: kotlinx.coroutines.Job? = null
 
@@ -84,7 +92,7 @@ class SearchIndexSyncer @Inject constructor(
     }
 
     private suspend fun rebuildFromSeries(series: List<SeriesEntity>): Boolean {
-        return withContext(Dispatchers.IO) {
+        return withContext(ioDispatcher) {
             if (!client.isAvailable()) {
                 Log.d(TAG, "Samsung Search unavailable — skipping rebuild")
                 return@withContext false

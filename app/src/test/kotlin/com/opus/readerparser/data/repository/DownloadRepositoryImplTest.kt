@@ -8,6 +8,7 @@ import com.opus.readerparser.fakes.FakeChapterRepository
 import com.opus.readerparser.fakes.FakeDownloadQueueDao
 import com.opus.readerparser.fakes.FakeDownloadStore
 import com.opus.readerparser.fakes.FakeWorkManagerHelper
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Before
 import org.junit.Test
@@ -33,7 +34,8 @@ class DownloadRepositoryImplTest {
         downloadStore = FakeDownloadStore()
         chapterRepo = FakeChapterRepository()
         workManager = FakeWorkManagerHelper()
-        repository = DownloadRepositoryImpl(dao, downloadStore, chapterRepo, workManager)
+        val scheduler = DownloadQueueScheduler(dao, workManager)
+        repository = DownloadRepositoryImpl(dao, downloadStore, chapterRepo, workManager, scheduler)
     }
 
     // -----------------------------------------------------------------
@@ -163,18 +165,129 @@ class DownloadRepositoryImplTest {
         assertThat(dao.getState(1L, "https://test.invalid/ch/1")).isNull()
     }
 
+    @Test
+    fun `cancel removes queue entry, cancels WorkManager tag, and schedules next queued item`() = runTest {
+        dao.upsert(
+            DownloadQueueEntity(sourceId = 1L, chapterUrl = "https://test.invalid/ch/1", state = DownloadState.RUNNING.name),
+        )
+        dao.upsert(
+            DownloadQueueEntity(sourceId = 1L, chapterUrl = "https://test.invalid/ch/2", state = DownloadState.QUEUED.name),
+        )
+
+        repository.cancel(1L, "https://test.invalid/ch/1")
+
+        assertThat(dao.getState(1L, "https://test.invalid/ch/1")).isNull()
+        val expectedTag = "download-1-${hashUrl("https://test.invalid/ch/1")}"
+        assertThat(workManager.cancelCalls).contains(expectedTag)
+        // Next queued item (ch/2) should now be scheduled
+        assertThat(workManager.enqueueCalls).hasSize(1)
+        assertThat(workManager.enqueueCalls.first().workName).contains(hashUrl("https://test.invalid/ch/2"))
+    }
+
     // -----------------------------------------------------------------
     // retry
     // -----------------------------------------------------------------
 
     @Test
-    fun `retry resets item to QUEUED state with zero progress`() = runTest {
+    fun `retry resets item to QUEUED state with zero progress and schedules work`() = runTest {
         dao.upsert(
-            DownloadQueueEntity(sourceId = 1L, chapterUrl = "https://test.invalid/ch/1", state = DownloadState.FAILED.name, progress = 0.5f),
+            DownloadQueueEntity(
+                sourceId = 1L,
+                chapterUrl = "https://test.invalid/ch/1",
+                state = DownloadState.FAILED.name,
+                progress = 0.5f,
+                errorMessage = "Network timeout",
+            ),
         )
 
         repository.retry(1L, "https://test.invalid/ch/1")
 
         assertThat(dao.getState(1L, "https://test.invalid/ch/1")).isEqualTo(DownloadState.QUEUED.name)
+        val details = dao.observeAll().first().first { it.chapterUrl == "https://test.invalid/ch/1" }
+        assertThat(details.progress).isEqualTo(0f)
+        assertThat(details.errorMessage).isNull()
+        assertThat(workManager.enqueueCalls).hasSize(1)
+    }
+
+    @Test
+    fun `retry is a no-op when chapter is already QUEUED`() = runTest {
+        dao.upsert(
+            DownloadQueueEntity(
+                sourceId = 1L,
+                chapterUrl = "https://test.invalid/ch/1",
+                state = DownloadState.QUEUED.name,
+            ),
+        )
+
+        repository.retry(1L, "https://test.invalid/ch/1")
+
+        assertThat(workManager.enqueueCalls).isEmpty()
+    }
+
+    @Test
+    fun `retry is a no-op when chapter is already RUNNING`() = runTest {
+        dao.upsert(
+            DownloadQueueEntity(
+                sourceId = 1L,
+                chapterUrl = "https://test.invalid/ch/1",
+                state = DownloadState.RUNNING.name,
+            ),
+        )
+
+        repository.retry(1L, "https://test.invalid/ch/1")
+
+        assertThat(workManager.enqueueCalls).isEmpty()
+    }
+
+    // -----------------------------------------------------------------
+    // updateQueueState / batch continuation
+    // -----------------------------------------------------------------
+
+    @Test
+    fun `updateQueueState with COMPLETED schedules next queued chapter`() = runTest {
+        dao.upsert(
+            DownloadQueueEntity(sourceId = 1L, chapterUrl = "https://test.invalid/ch/1", state = DownloadState.RUNNING.name),
+        )
+        dao.upsert(
+            DownloadQueueEntity(sourceId = 1L, chapterUrl = "https://test.invalid/ch/2", state = DownloadState.QUEUED.name),
+        )
+
+        repository.updateQueueState(1L, "https://test.invalid/ch/1", DownloadState.COMPLETED, 1f)
+
+        assertThat(dao.getState(1L, "https://test.invalid/ch/1")).isEqualTo(DownloadState.COMPLETED.name)
+        // Chapter 2 should now be scheduled
+        assertThat(workManager.enqueueCalls).hasSize(1)
+        assertThat(workManager.enqueueCalls.first().workName).contains(hashUrl("https://test.invalid/ch/2"))
+    }
+
+    @Test
+    fun `updateQueueState with FAILED resiliently continues batch by scheduling next chapter`() = runTest {
+        dao.upsert(
+            DownloadQueueEntity(sourceId = 1L, chapterUrl = "https://test.invalid/ch/1", state = DownloadState.RUNNING.name),
+        )
+        dao.upsert(
+            DownloadQueueEntity(sourceId = 1L, chapterUrl = "https://test.invalid/ch/2", state = DownloadState.QUEUED.name),
+        )
+
+        repository.updateQueueState(1L, "https://test.invalid/ch/1", DownloadState.FAILED, 0f, "HTTP 403")
+
+        assertThat(dao.getState(1L, "https://test.invalid/ch/1")).isEqualTo(DownloadState.FAILED.name)
+        // Next chapter should still be scheduled despite chapter 1 failing!
+        assertThat(workManager.enqueueCalls).hasSize(1)
+        assertThat(workManager.enqueueCalls.first().workName).contains(hashUrl("https://test.invalid/ch/2"))
+    }
+
+    @Test
+    fun `updateQueueState with RUNNING does not schedule next chapter`() = runTest {
+        dao.upsert(
+            DownloadQueueEntity(sourceId = 1L, chapterUrl = "https://test.invalid/ch/1", state = DownloadState.RUNNING.name),
+        )
+        dao.upsert(
+            DownloadQueueEntity(sourceId = 1L, chapterUrl = "https://test.invalid/ch/2", state = DownloadState.QUEUED.name),
+        )
+
+        repository.updateQueueState(1L, "https://test.invalid/ch/1", DownloadState.RUNNING, 0.5f)
+
+        assertThat(workManager.enqueueCalls).isEmpty()
     }
 }

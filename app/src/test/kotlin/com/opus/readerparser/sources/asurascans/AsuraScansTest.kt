@@ -1,6 +1,7 @@
 package com.opus.readerparser.sources.asurascans
 
 import com.opus.readerparser.core.util.computeSourceId
+import com.opus.readerparser.domain.model.Chapter
 import com.opus.readerparser.domain.model.ChapterContent
 import com.opus.readerparser.domain.model.ContentType
 import com.opus.readerparser.domain.model.FilterList
@@ -9,6 +10,10 @@ import com.opus.readerparser.domain.model.SeriesStatus
 import com.opus.readerparser.testutil.mockHttpClient
 import com.opus.readerparser.testutil.readFixture
 import com.opus.readerparser.testutil.respondHtml
+import io.ktor.client.engine.mock.respond
+import io.ktor.http.HttpStatusCode
+import io.ktor.http.headersOf
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -434,6 +439,301 @@ class AsuraScansTest {
         assertTrue("Pages should contain CDN URLs", pages.all { it.contains("cdn.asurascans.com") })
         assertTrue(pages[0].contains("c4aabc.webp"))
         assertTrue(pages[4].contains("a509c9.webp"))
+    }
+
+    @Test
+    fun `getChapterContent for fractional chapter does not request integer api and parses html`() = runTest {
+        val chapterHtml = """
+            <html><body>
+              <div data-page="1"><img src="https://cdn.asurascans.com/page1.webp"/></div>
+              <div data-page="2"><img src="https://cdn.asurascans.com/page2.webp"/></div>
+            </body></html>
+        """.trimIndent()
+        val requestedUrls = mutableListOf<String>()
+        val source = AsuraScans(
+            mockHttpClient { request ->
+                requestedUrls += request.url.toString()
+                when (request.url.toString()) {
+                    "https://asurascans.com/comics/eternally-regressing-knight-b6e039fe/chapter/12.5" -> respondHtml(chapterHtml)
+                    else -> error("Unexpected request: ${request.url}")
+                }
+            }
+        )
+
+        val chapter = Chapter(
+            seriesUrl = "https://asurascans.com/comics/eternally-regressing-knight-b6e039fe",
+            sourceId = source.id,
+            url = "https://asurascans.com/comics/eternally-regressing-knight-b6e039fe/chapter/12.5",
+            name = "Chapter 12.5",
+            number = 12.5f,
+        )
+
+        val content = source.getChapterContent(chapter)
+
+        assertTrue(content is ChapterContent.Pages)
+        assertEquals(
+            listOf("https://cdn.asurascans.com/page1.webp", "https://cdn.asurascans.com/page2.webp"),
+            (content as ChapterContent.Pages).imageUrls,
+        )
+        assertFalse(
+            "Must not request integer chapter-12 API endpoint",
+            requestedUrls.any { it.contains("chapter-12") || it.contains("api.asurascans.com") },
+        )
+        assertEquals(
+            listOf("https://asurascans.com/comics/eternally-regressing-knight-b6e039fe/chapter/12.5"),
+            requestedUrls,
+        )
+    }
+
+    @Test
+    fun `getChapterContent for integer chapter requests api endpoint`() = runTest {
+        val apiJson = """
+            {
+              "data": {
+                "chapter": {
+                  "pages": [
+                    {"url": "https://cdn.asurascans.com/api-page1.webp"},
+                    {"url": "https://cdn.asurascans.com/api-page2.webp"}
+                  ]
+                }
+              }
+            }
+        """.trimIndent()
+        val requestedUrls = mutableListOf<String>()
+        val source = AsuraScans(
+            mockHttpClient { request ->
+                requestedUrls += request.url.toString()
+                when (request.url.toString()) {
+                    "https://api.asurascans.com/api/series/eternally-regressing-knight/chapters/chapter-1" -> respond(
+                        content = apiJson,
+                        status = HttpStatusCode.OK,
+                        headers = headersOf("Content-Type", "application/json"),
+                    )
+                    else -> error("Unexpected request: ${request.url}")
+                }
+            }
+        )
+
+        val chapter = Chapter(
+            seriesUrl = "https://asurascans.com/comics/eternally-regressing-knight-b6e039fe",
+            sourceId = source.id,
+            url = "https://asurascans.com/comics/eternally-regressing-knight-b6e039fe/chapter/1",
+            name = "Chapter 1",
+            number = 1f,
+        )
+
+        val content = source.getChapterContent(chapter)
+
+        assertTrue(content is ChapterContent.Pages)
+        assertEquals(
+            listOf("https://cdn.asurascans.com/api-page1.webp", "https://cdn.asurascans.com/api-page2.webp"),
+            (content as ChapterContent.Pages).imageUrls,
+        )
+        assertEquals(
+            listOf("https://api.asurascans.com/api/series/eternally-regressing-knight/chapters/chapter-1"),
+            requestedUrls,
+        )
+    }
+
+    @Test
+    fun `getChapterContent falls back to html when api returns empty pages`() = runTest {
+        val apiEmptyJson = """{"data":{"chapter":{"pages":[]}}}"""
+        val chapterHtml = """
+            <html><body>
+              <div data-page="1"><img src="https://cdn.asurascans.com/fallback-page1.webp"/></div>
+            </body></html>
+        """.trimIndent()
+        val source = AsuraScans(
+            mockHttpClient { request ->
+                when (request.url.toString()) {
+                    "https://api.asurascans.com/api/series/eternally-regressing-knight/chapters/chapter-1" -> respond(
+                        content = apiEmptyJson,
+                        status = HttpStatusCode.OK,
+                        headers = headersOf("Content-Type", "application/json"),
+                    )
+                    "https://asurascans.com/comics/eternally-regressing-knight-b6e039fe/chapter/1" -> respondHtml(chapterHtml)
+                    else -> error("Unexpected request: ${request.url}")
+                }
+            }
+        )
+
+        val chapter = Chapter(
+            seriesUrl = "https://asurascans.com/comics/eternally-regressing-knight-b6e039fe",
+            sourceId = source.id,
+            url = "https://asurascans.com/comics/eternally-regressing-knight-b6e039fe/chapter/1",
+            name = "Chapter 1",
+            number = 1f,
+        )
+
+        val content = source.getChapterContent(chapter)
+
+        assertTrue(content is ChapterContent.Pages)
+        assertEquals(
+            listOf("https://cdn.asurascans.com/fallback-page1.webp"),
+            (content as ChapterContent.Pages).imageUrls,
+        )
+    }
+
+    @Test
+    fun `getChapterContent throws when api empty and html fallback has zero pages`() = runTest {
+        val apiEmptyJson = """{"data":{"chapter":{"pages":[]}}}"""
+        val chapterEmptyHtml = """<html><body><p>No pages here</p></body></html>"""
+        val source = AsuraScans(
+            mockHttpClient { request ->
+                when (request.url.toString()) {
+                    "https://api.asurascans.com/api/series/eternally-regressing-knight/chapters/chapter-1" -> respond(
+                        content = apiEmptyJson,
+                        status = HttpStatusCode.OK,
+                        headers = headersOf("Content-Type", "application/json"),
+                    )
+                    "https://asurascans.com/comics/eternally-regressing-knight-b6e039fe/chapter/1" -> respondHtml(chapterEmptyHtml)
+                    else -> error("Unexpected request: ${request.url}")
+                }
+            }
+        )
+
+        val chapter = Chapter(
+            seriesUrl = "https://asurascans.com/comics/eternally-regressing-knight-b6e039fe",
+            sourceId = source.id,
+            url = "https://asurascans.com/comics/eternally-regressing-knight-b6e039fe/chapter/1",
+            name = "Chapter 1",
+            number = 1f,
+        )
+
+        try {
+            source.getChapterContent(chapter)
+            throw AssertionError("Expected IllegalStateException")
+        } catch (e: IllegalStateException) {
+            assertEquals(
+                "No pages found for chapter: https://asurascans.com/comics/eternally-regressing-knight-b6e039fe/chapter/1",
+                e.message,
+            )
+        }
+    }
+
+    @Test
+    fun `getChapterContent throws when api fails with 500 and html fallback has zero pages`() = runTest {
+        val chapterEmptyHtml = """<html><body><p>No pages here</p></body></html>"""
+        val source = AsuraScans(
+            mockHttpClient { request ->
+                when (request.url.toString()) {
+                    "https://api.asurascans.com/api/series/eternally-regressing-knight/chapters/chapter-1" -> respond(
+                        content = "Internal Server Error",
+                        status = HttpStatusCode.InternalServerError,
+                    )
+                    "https://asurascans.com/comics/eternally-regressing-knight-b6e039fe/chapter/1" -> respondHtml(chapterEmptyHtml)
+                    else -> error("Unexpected request: ${request.url}")
+                }
+            }
+        )
+
+        val chapter = Chapter(
+            seriesUrl = "https://asurascans.com/comics/eternally-regressing-knight-b6e039fe",
+            sourceId = source.id,
+            url = "https://asurascans.com/comics/eternally-regressing-knight-b6e039fe/chapter/1",
+            name = "Chapter 1",
+            number = 1f,
+        )
+
+        try {
+            source.getChapterContent(chapter)
+            throw AssertionError("Expected IllegalStateException")
+        } catch (e: IllegalStateException) {
+            assertEquals(
+                "No pages found for chapter: https://asurascans.com/comics/eternally-regressing-knight-b6e039fe/chapter/1",
+                e.message,
+            )
+        }
+    }
+
+    @Test
+    fun `getChapterContent throws when api throws exception and html fallback has zero pages`() = runTest {
+        val chapterEmptyHtml = """<html><body><p>No pages here</p></body></html>"""
+        val source = AsuraScans(
+            mockHttpClient { request ->
+                when (request.url.toString()) {
+                    "https://api.asurascans.com/api/series/eternally-regressing-knight/chapters/chapter-1" -> throw java.io.IOException("Network down")
+                    "https://asurascans.com/comics/eternally-regressing-knight-b6e039fe/chapter/1" -> respondHtml(chapterEmptyHtml)
+                    else -> error("Unexpected request: ${request.url}")
+                }
+            }
+        )
+
+        val chapter = Chapter(
+            seriesUrl = "https://asurascans.com/comics/eternally-regressing-knight-b6e039fe",
+            sourceId = source.id,
+            url = "https://asurascans.com/comics/eternally-regressing-knight-b6e039fe/chapter/1",
+            name = "Chapter 1",
+            number = 1f,
+        )
+
+        try {
+            source.getChapterContent(chapter)
+            throw AssertionError("Expected IllegalStateException")
+        } catch (e: IllegalStateException) {
+            assertEquals(
+                "No pages found for chapter: https://asurascans.com/comics/eternally-regressing-knight-b6e039fe/chapter/1",
+                e.message,
+            )
+        }
+    }
+
+    @Test
+    fun `getChapterContent throws when fractional chapter has zero pages in html`() = runTest {
+        val chapterEmptyHtml = """<html><body><p>No pages here</p></body></html>"""
+        val source = AsuraScans(
+            mockHttpClient { request ->
+                when (request.url.toString()) {
+                    "https://asurascans.com/comics/eternally-regressing-knight-b6e039fe/chapter/12.5" -> respondHtml(chapterEmptyHtml)
+                    else -> error("Unexpected request: ${request.url}")
+                }
+            }
+        )
+
+        val chapter = Chapter(
+            seriesUrl = "https://asurascans.com/comics/eternally-regressing-knight-b6e039fe",
+            sourceId = source.id,
+            url = "https://asurascans.com/comics/eternally-regressing-knight-b6e039fe/chapter/12.5",
+            name = "Chapter 12.5",
+            number = 12.5f,
+        )
+
+        try {
+            source.getChapterContent(chapter)
+            throw AssertionError("Expected IllegalStateException")
+        } catch (e: IllegalStateException) {
+            assertEquals(
+                "No pages found for chapter: https://asurascans.com/comics/eternally-regressing-knight-b6e039fe/chapter/12.5",
+                e.message,
+            )
+        }
+    }
+
+    @Test
+    fun `getChapterContent rethrows CancellationException from api request`() = runTest {
+        val source = AsuraScans(
+            mockHttpClient { request ->
+                if (request.url.toString().contains("api.asurascans.com")) {
+                    throw CancellationException("API cancelled")
+                }
+                respondHtml("<html></html>")
+            }
+        )
+
+        val chapter = Chapter(
+            seriesUrl = "https://asurascans.com/comics/eternally-regressing-knight-b6e039fe",
+            sourceId = source.id,
+            url = "https://asurascans.com/comics/eternally-regressing-knight-b6e039fe/chapter/1",
+            name = "Chapter 1",
+            number = 1f,
+        )
+
+        try {
+            source.getChapterContent(chapter)
+            throw AssertionError("Expected CancellationException")
+        } catch (e: CancellationException) {
+            assertEquals("API cancelled", e.message)
+        }
     }
 
     // =========================================================================

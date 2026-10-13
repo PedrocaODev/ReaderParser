@@ -58,7 +58,34 @@ class ChapterRepositoryImplTest {
 
         override suspend fun markRead(sourceId: Long, url: String, read: Boolean) {
             val idx = store.indexOfFirst { it.sourceId == sourceId && it.url == url }
-            if (idx >= 0) store[idx] = store[idx].copy(read = read)
+            if (idx >= 0) {
+                val current = store[idx]
+                store[idx] = current.copy(
+                    read = read,
+                    progress = if (read) current.progress else 0.0f
+                )
+            }
+        }
+
+        override suspend fun markPreviousAsRead(sourceId: Long, seriesUrl: String, maxChapterNumber: Float) {
+            store.indices.forEach { idx ->
+                val ch = store[idx]
+                if (ch.sourceId == sourceId && ch.seriesUrl == seriesUrl && ch.number <= maxChapterNumber) {
+                    store[idx] = ch.copy(read = true)
+                }
+            }
+        }
+
+        override suspend fun markAllRead(sourceId: Long, seriesUrl: String, read: Boolean) {
+            store.indices.forEach { idx ->
+                val ch = store[idx]
+                if (ch.sourceId == sourceId && ch.seriesUrl == seriesUrl) {
+                    store[idx] = ch.copy(
+                        read = read,
+                        progress = if (read) ch.progress else 0.0f
+                    )
+                }
+            }
         }
 
         override suspend fun setProgress(sourceId: Long, url: String, progress: Float) {
@@ -74,6 +101,11 @@ class ChapterRepositoryImplTest {
         override suspend fun getChaptersForSeries(sourceId: Long, seriesUrl: String): List<ChapterEntity> =
             store.filter { it.sourceId == sourceId && it.seriesUrl == seriesUrl }
                 .sortedBy { it.number }
+
+        override suspend fun deleteChapters(chapters: List<ChapterEntity>) {
+            val toDeleteKeys = chapters.map { it.sourceId to it.url }.toSet()
+            store.removeAll { (it.sourceId to it.url) in toDeleteKeys }
+        }
 
         override suspend fun deleteBySeries(sourceId: Long, seriesUrl: String) {
             store.removeAll { it.sourceId == sourceId && it.seriesUrl == seriesUrl }
@@ -333,6 +365,113 @@ class ChapterRepositoryImplTest {
         assertEquals(false, stored.read)
     }
 
+    @Test
+    fun `markRead with true preserves existing progress`() = runTest {
+        fakeDao.upsertAll(listOf(testChapter.toEntity().copy(read = false, progress = 0.5f)))
+
+        repository.markRead(testChapter, read = true)
+
+        val stored = fakeDao.getByUrl(testChapter.sourceId, testChapter.url)!!
+        assertEquals(true, stored.read)
+        assertEquals(0.5f, stored.progress, 0.001f)
+    }
+
+    @Test
+    fun `markRead with false resets progress to 0`() = runTest {
+        fakeDao.upsertAll(listOf(testChapter.toEntity().copy(read = true, progress = 0.8f)))
+
+        repository.markRead(testChapter, read = false)
+
+        val stored = fakeDao.getByUrl(testChapter.sourceId, testChapter.url)!!
+        assertEquals(false, stored.read)
+        assertEquals(0f, stored.progress, 0.001f)
+    }
+
+    // -----------------------------------------------------------------
+    // markPreviousAsRead
+    // -----------------------------------------------------------------
+
+    @Test
+    fun `markPreviousAsRead marks chapters with number up to targetChapterNumber as read`() = runTest {
+        val ch1 = testChapter.copy(url = "https://test.invalid/chapter/1", number = 1f).toEntity().copy(read = false)
+        val ch2 = testChapter.copy(url = "https://test.invalid/chapter/2", number = 2f).toEntity().copy(read = false)
+        val ch3 = testChapter.copy(url = "https://test.invalid/chapter/3", number = 3f).toEntity().copy(read = false)
+        val otherSeriesChapter = testChapter.copy(
+            url = "https://test.invalid/chapter/other",
+            seriesUrl = "https://test.invalid/series/other",
+            number = 1f,
+        ).toEntity().copy(read = false)
+
+        fakeDao.upsertAll(listOf(ch1, ch2, ch3, otherSeriesChapter))
+
+        repository.markPreviousAsRead(testSeries, targetChapterNumber = 2f)
+
+        val stored1 = fakeDao.getByUrl(testSeries.sourceId, ch1.url)!!
+        val stored2 = fakeDao.getByUrl(testSeries.sourceId, ch2.url)!!
+        val stored3 = fakeDao.getByUrl(testSeries.sourceId, ch3.url)!!
+        val storedOther = fakeDao.getByUrl(testSeries.sourceId, otherSeriesChapter.url)!!
+
+        assertEquals(true, stored1.read)
+        assertEquals(true, stored2.read)
+        assertEquals(false, stored3.read)
+        assertEquals(false, storedOther.read)
+    }
+
+    // -----------------------------------------------------------------
+    // markAllRead
+    // -----------------------------------------------------------------
+
+    @Test
+    fun `markAllRead with true marks all chapters as read and leaves other series untouched`() = runTest {
+        val ch1 = testChapter.copy(url = "https://test.invalid/chapter/1", number = 1f).toEntity().copy(read = false, progress = 0.3f)
+        val ch2 = testChapter.copy(url = "https://test.invalid/chapter/2", number = 2f).toEntity().copy(read = false, progress = 0.6f)
+        val otherSeriesChapter = testChapter.copy(
+            url = "https://test.invalid/chapter/other",
+            seriesUrl = "https://test.invalid/series/other",
+            number = 1f,
+        ).toEntity().copy(read = false)
+
+        fakeDao.upsertAll(listOf(ch1, ch2, otherSeriesChapter))
+
+        repository.markAllRead(testSeries, read = true)
+
+        val stored1 = fakeDao.getByUrl(testSeries.sourceId, ch1.url)!!
+        val stored2 = fakeDao.getByUrl(testSeries.sourceId, ch2.url)!!
+        val storedOther = fakeDao.getByUrl(testSeries.sourceId, otherSeriesChapter.url)!!
+
+        assertEquals(true, stored1.read)
+        assertEquals(0.3f, stored1.progress, 0.001f)
+        assertEquals(true, stored2.read)
+        assertEquals(0.6f, stored2.progress, 0.001f)
+        assertEquals(false, storedOther.read)
+    }
+
+    @Test
+    fun `markAllRead with false marks all chapters as unread, resets progress to 0, and leaves other series untouched`() = runTest {
+        val ch1 = testChapter.copy(url = "https://test.invalid/chapter/1", number = 1f).toEntity().copy(read = true, progress = 0.5f)
+        val ch2 = testChapter.copy(url = "https://test.invalid/chapter/2", number = 2f).toEntity().copy(read = true, progress = 1.0f)
+        val otherSeriesChapter = testChapter.copy(
+            url = "https://test.invalid/chapter/other",
+            seriesUrl = "https://test.invalid/series/other",
+            number = 1f,
+        ).toEntity().copy(read = true, progress = 0.7f)
+
+        fakeDao.upsertAll(listOf(ch1, ch2, otherSeriesChapter))
+
+        repository.markAllRead(testSeries, read = false)
+
+        val stored1 = fakeDao.getByUrl(testSeries.sourceId, ch1.url)!!
+        val stored2 = fakeDao.getByUrl(testSeries.sourceId, ch2.url)!!
+        val storedOther = fakeDao.getByUrl(testSeries.sourceId, otherSeriesChapter.url)!!
+
+        assertEquals(false, stored1.read)
+        assertEquals(0f, stored1.progress, 0.001f)
+        assertEquals(false, stored2.read)
+        assertEquals(0f, stored2.progress, 0.001f)
+        assertEquals(true, storedOther.read)
+        assertEquals(0.7f, storedOther.progress, 0.001f)
+    }
+
     // -----------------------------------------------------------------
     // setProgress
     // -----------------------------------------------------------------
@@ -524,5 +663,36 @@ class ChapterRepositoryImplTest {
         val stored2 = fakeDao.getByUrl(testSeries.sourceId, ch2.url)
         assertNotNull(stored1)
         assertNull(stored2)
+    }
+
+    @Test
+    fun `refreshChapters atomically updates existing, removes stale, and inserts new chapters`() = runTest {
+        val existingChapter = testChapter.copy(url = "https://test.invalid/chapter/1", number = 1f)
+        val staleChapter = testChapter.copy(url = "https://test.invalid/chapter/stale", number = 2f)
+        val newChapter = testChapter.copy(url = "https://test.invalid/chapter/new", number = 3f)
+
+        fakeDao.upsertAll(
+            listOf(
+                existingChapter.toEntity().copy(read = true, progress = 0.5f, downloaded = true),
+                staleChapter.toEntity(),
+            ),
+        )
+
+        fakeSource.chapterListResult = listOf(existingChapter, newChapter)
+
+        repository.refreshChapters(testSeries)
+
+        val storedExisting = fakeDao.getByUrl(testSeries.sourceId, existingChapter.url)!!
+        assertEquals(true, storedExisting.read)
+        assertEquals(0.5f, storedExisting.progress, 0.001f)
+        assertEquals(true, storedExisting.downloaded)
+
+        val storedNew = fakeDao.getByUrl(testSeries.sourceId, newChapter.url)!!
+        assertEquals(false, storedNew.read)
+        assertEquals(0f, storedNew.progress, 0.001f)
+        assertEquals(false, storedNew.downloaded)
+
+        val storedStale = fakeDao.getByUrl(testSeries.sourceId, staleChapter.url)
+        assertNull(storedStale)
     }
 }

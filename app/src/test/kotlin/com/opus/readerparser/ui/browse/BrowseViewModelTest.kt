@@ -582,4 +582,76 @@ class BrowseViewModelTest {
             assertThat(awaitItem()).isEqualTo(BrowseEffect.NavigateToSeries(series))
         }
     }
+
+    @Test
+    fun `LoadMore deduplicates existing and new pages by sourceId and url preserving first-seen order`() = runTest {
+        sourceRepo.sourceList = listOf(source1)
+        val seriesA = TestFixtures.testSeries(sourceId = source1.id, title = "A", url = "https://test.invalid/a")
+        val seriesB1 = TestFixtures.testSeries(sourceId = source1.id, title = "B-page1", url = "https://test.invalid/b")
+        val seriesB2 = TestFixtures.testSeries(sourceId = source1.id, title = "B-page2", url = "https://test.invalid/b")
+        val seriesC = TestFixtures.testSeries(sourceId = source1.id, title = "C", url = "https://test.invalid/c")
+
+        seriesRepo.fetchPopularHandler = { _, page ->
+            when (page) {
+                1 -> SeriesPage(listOf(seriesA, seriesB1), hasNextPage = true)
+                2 -> SeriesPage(listOf(seriesB2, seriesC), hasNextPage = false)
+                else -> error("unexpected page $page")
+            }
+        }
+
+        val vm = buildVm()
+        advanceUntilIdle()
+
+        assertThat(vm.state.value.series).containsExactly(seriesA, seriesB1).inOrder()
+
+        vm.onAction(BrowseAction.LoadMore)
+        advanceUntilIdle()
+
+        assertThat(vm.state.value.series).containsExactly(seriesA, seriesB1, seriesC).inOrder()
+    }
+
+    @Test
+    fun `LoadMore preserves distinct items with identical URLs across different sources`() = runTest {
+        sourceRepo.sourceList = listOf(source1)
+        val url = "https://test.invalid/shared"
+        val itemSource1 = TestFixtures.testSeries(sourceId = source1.id, title = "Source 1 Item", url = url)
+        val itemSource2 = TestFixtures.testSeries(sourceId = source2.id, title = "Source 2 Item", url = url)
+
+        seriesRepo.fetchPopularHandler = { _, page ->
+            when (page) {
+                1 -> SeriesPage(listOf(itemSource1), hasNextPage = true)
+                2 -> SeriesPage(listOf(itemSource2), hasNextPage = false)
+                else -> error("unexpected page $page")
+            }
+        }
+
+        val vm = buildVm()
+        advanceUntilIdle()
+
+        vm.onAction(BrowseAction.LoadMore)
+        advanceUntilIdle()
+
+        assertThat(vm.state.value.series).containsExactly(itemSource1, itemSource2).inOrder()
+    }
+
+    @Test
+    fun `Reset or Search preserves first-seen order and deduplicates within-page duplicates if any`() = runTest {
+        sourceRepo.sourceList = listOf(source1)
+        val series1First = TestFixtures.testSeries(sourceId = source1.id, title = "Item 1 First", url = "https://test.invalid/1")
+        val series2 = TestFixtures.testSeries(sourceId = source1.id, title = "Item 2", url = "https://test.invalid/2")
+        val series1Dup = TestFixtures.testSeries(sourceId = source1.id, title = "Item 1 Dup", url = "https://test.invalid/1")
+
+        seriesRepo.searchHandler = { _, _, _, _ ->
+            SeriesPage(listOf(series1First, series2, series1Dup), hasNextPage = false)
+        }
+
+        val vm = buildVm()
+        advanceUntilIdle()
+
+        vm.onAction(BrowseAction.SetSearchQuery("test"))
+        vm.onAction(BrowseAction.Search)
+        advanceUntilIdle()
+
+        assertThat(vm.state.value.series).containsExactly(series1First, series2).inOrder()
+    }
 }

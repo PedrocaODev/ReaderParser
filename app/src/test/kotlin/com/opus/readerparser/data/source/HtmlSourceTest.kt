@@ -9,6 +9,9 @@ import com.opus.readerparser.domain.model.SeriesPage
 import com.opus.readerparser.testutil.mockHttpClient
 import com.opus.readerparser.testutil.respondHtml
 import io.ktor.client.HttpClient
+import io.ktor.client.plugins.ClientRequestException
+import io.ktor.client.plugins.ServerResponseException
+import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.test.runTest
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
@@ -547,5 +550,102 @@ class HtmlSourceTest {
         val client = mockHttpClient { respondHtml("<html></html>") }
         val source: Source = TestNovelSource(client) // compiles = implements Source
         assertNotNull(source.id)
+    }
+
+    // -----------------------------------------------------------------
+    // HTTP status validation
+    // -----------------------------------------------------------------
+
+    @Test
+    fun `403 response throws ClientRequestException`() = runTest {
+        val client = mockHttpClient {
+            respondHtml("Forbidden", HttpStatusCode.Forbidden)
+        }
+        val source = TestNovelSource(client)
+
+        try {
+            source.getPopular(1)
+            throw AssertionError("Expected ClientRequestException")
+        } catch (e: ClientRequestException) {
+            assertEquals(HttpStatusCode.Forbidden, e.response.status)
+        }
+    }
+
+    @Test
+    fun `503 response throws ServerResponseException`() = runTest {
+        val client = mockHttpClient {
+            respondHtml("Service Unavailable", HttpStatusCode.ServiceUnavailable)
+        }
+        val source = TestNovelSource(client)
+
+        try {
+            source.getPopular(1)
+            throw AssertionError("Expected ServerResponseException")
+        } catch (e: ServerResponseException) {
+            assertEquals(HttpStatusCode.ServiceUnavailable, e.response.status)
+        }
+    }
+
+    @Test
+    fun `getChapterList throws ClientRequestException on 404 response`() = runTest {
+        val client = mockHttpClient {
+            respondHtml("Not Found", HttpStatusCode.NotFound)
+        }
+        val source = TestNovelSource(client)
+        val series = Series(
+            sourceId = source.id,
+            url = "https://test.invalid/series/1",
+            title = "Test",
+            type = ContentType.NOVEL,
+        )
+
+        try {
+            source.getChapterList(series)
+            throw AssertionError("Expected ClientRequestException")
+        } catch (e: ClientRequestException) {
+            assertEquals(HttpStatusCode.NotFound, e.response.status)
+        }
+    }
+
+    @Test
+    fun `getPopular throws ServerResponseException on 500 response`() = runTest {
+        val client = mockHttpClient {
+            respondHtml("Internal Server Error", HttpStatusCode.InternalServerError)
+        }
+        val source = TestNovelSource(client)
+
+        try {
+            source.getPopular(1)
+            throw AssertionError("Expected ServerResponseException")
+        } catch (e: ServerResponseException) {
+            assertEquals(HttpStatusCode.InternalServerError, e.response.status)
+        }
+    }
+
+    @Test
+    fun `successful 200 response succeeds normally`() = runTest {
+        val html = """
+            <html>
+              <body>
+                <ul class="chapters">
+                  <li><a href="/series/1/ch/1">Chapter 1</a></li>
+                </ul>
+              </body>
+            </html>
+        """.trimIndent()
+        val client = mockHttpClient {
+            respondHtml(html, HttpStatusCode.OK)
+        }
+        val source = TestNovelSource(client)
+        val series = Series(
+            sourceId = source.id,
+            url = "https://test.invalid/series/1",
+            title = "Test",
+            type = ContentType.NOVEL,
+        )
+
+        val chapters = source.getChapterList(series)
+        assertEquals(1, chapters.size)
+        assertEquals("Chapter 1", chapters[0].name)
     }
 }
