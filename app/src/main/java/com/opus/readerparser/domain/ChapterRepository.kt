@@ -25,8 +25,8 @@ interface ChapterRepository {
     suspend fun getContent(chapter: Chapter, forceNetwork: Boolean = false): ChapterContent
 
     suspend fun markRead(chapter: Chapter, read: Boolean)
-    suspend fun markPreviousAsRead(series: Series, targetChapterNumber: Float)
-    suspend fun markAllRead(series: Series, read: Boolean)
+    suspend fun markPreviousAsRead(series: Series, targetChapterNumber: Float) {}
+    suspend fun markAllRead(series: Series, read: Boolean) {}
     suspend fun setProgress(chapter: Chapter, progress: Float)
     suspend fun markDownloaded(chapter: Chapter, downloaded: Boolean)
 }
