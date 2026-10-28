@@ -1,0 +1,3332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ReaderParser — Design System & Interactive Novel Reader Prototype</title>
+  <style>
+    /* =====================================================================
+       CSS DESIGN TOKENS & ROOT VARIABLES (DEFAULT: WARM_DARK)
+       ===================================================================== */
+    :root {
+      /* Theme Tokens: WARM_DARK (Default Primary Target) */
+      --theme-name: "WARM_DARK";
+      --bg: #181614;
+      --surface: #211E1B;
+      --surface-container: #2A2521;
+      --surface-container-high: #352F2A;
+      --on-bg: #E6DFD5;
+      --on-surface: #E6DFD5;
+      --on-surface-var: #A89F93;
+      --outline: #4D453E;
+      --outline-variant: #3A342E;
+
+      --primary: #D98A4E;
+      --on-primary: #2B1708;
+      --primary-container: #4A2E16;
+      --on-primary-container: #FFDCC4;
+
+      --secondary: #7A9A8B;
+      --on-secondary: #12261D;
+      --secondary-container: #263D33;
+      --on-secondary-container: #BCE0CF;
+
+      --tertiary: #C89B68;
+      --error: #E06C75;
+      --success: #6CB687;
+
+      /* Reader Typography Custom Properties */
+      --novel-font-family: Georgia, Cambria, "Times New Roman", serif;
+      --novel-font-size: 18px;
+      --novel-line-height: 1.6;
+      --novel-para-spacing: 14px;
+      --novel-horiz-padding: 20px;
+
+      /* UI Dimensions */
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 16px;
+      --radius-xl: 24px;
+      --radius-full: 9999px;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.25);
+      --shadow-md: 0 4px 12px rgba(0,0,0,0.35);
+      --shadow-lg: 0 8px 24px rgba(0,0,0,0.5);
+      --transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    /* THEME PRESETS APPLIED TO BODY / ROOT */
+    body[data-theme="WARM_DARK"] {
+      --theme-name: "WARM_DARK";
+      --bg: #181614;
+      --surface: #211E1B;
+      --surface-container: #2A2521;
+      --surface-container-high: #352F2A;
+      --on-bg: #E6DFD5;
+      --on-surface: #E6DFD5;
+      --on-surface-var: #A89F93;
+      --outline: #4D453E;
+      --outline-variant: #3A342E;
+      --primary: #D98A4E;
+      --on-primary: #2B1708;
+      --primary-container: #4A2E16;
+      --on-primary-container: #FFDCC4;
+      --secondary: #7A9A8B;
+      --on-secondary: #12261D;
+      --secondary-container: #263D33;
+      --on-secondary-container: #BCE0CF;
+    }
+
+    body[data-theme="SEPIA"] {
+      --theme-name: "SEPIA";
+      --bg: #F4ECD8;
+      --surface: #EFE4C8;
+      --surface-container: #E4D5B7;
+      --surface-container-high: #DAC7A4;
+      --on-bg: #2C221E;
+      --on-surface: #2C221E;
+      --on-surface-var: #5C4B3B;
+      --outline: #BCAB94;
+      --outline-variant: #D1C2AC;
+      --primary: #8C5327;
+      --on-primary: #FFFFFF;
+      --primary-container: #F5D9C1;
+      --on-primary-container: #361B06;
+      --secondary: #4F6D5A;
+      --on-secondary: #FFFFFF;
+      --secondary-container: #CFE4D6;
+      --on-secondary-container: #14291C;
+    }
+
+    body[data-theme="LIGHT"] {
+      --theme-name: "LIGHT";
+      --bg: #FAF8F5;
+      --surface: #FFFFFF;
+      --surface-container: #F0ECE1;
+      --surface-container-high: #E6E1D4;
+      --on-bg: #1C1B1A;
+      --on-surface: #1C1B1A;
+      --on-surface-var: #605C56;
+      --outline: #C8C2B8;
+      --outline-variant: #DDD8CE;
+      --primary: #B86528;
+      --on-primary: #FFFFFF;
+      --primary-container: #FDE8D7;
+      --on-primary-container: #3D1C05;
+      --secondary: #536358;
+      --on-secondary: #FFFFFF;
+      --secondary-container: #D6E0D9;
+      --on-secondary-container: #101E15;
+    }
+
+    body[data-theme="DARK"] {
+      --theme-name: "DARK";
+      --bg: #121212;
+      --surface: #1E1E1E;
+      --surface-container: #282828;
+      --surface-container-high: #323232;
+      --on-bg: #E6E1E5;
+      --on-surface: #E6E1E5;
+      --on-surface-var: #938F99;
+      --outline: #49454E;
+      --outline-variant: #3A373E;
+      --primary: #D0BCFF;
+      --on-primary: #381E72;
+      --primary-container: #4F378A;
+      --on-primary-container: #E8DDFF;
+      --secondary: #CCC2DC;
+      --on-secondary: #332D41;
+      --secondary-container: #4A4458;
+      --on-secondary-container: #E8DEF8;
+    }
+
+    /* GLOBAL RESET & BASE STYLES */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--on-bg);
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+      line-height: 1.5;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      transition: background-color 0.25s ease, color 0.25s ease;
+      overflow-x: hidden;
+    }
+
+    /* TOP GLOBAL HEADER (SPEC & PROTOTYPE RUNNER BAR) */
+    .app-header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--outline-variant);
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .app-header-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-logo {
+      width: 36px;
+      height: 36px;
+      border-radius: var(--radius-md);
+      background: var(--primary);
+      color: var(--on-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 1.15rem;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .brand-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      color: var(--on-bg);
+    }
+
+    .brand-subtitle {
+      font-size: 0.78rem;
+      color: var(--on-surface-var);
+    }
+
+    .header-controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .theme-selector-group {
+      display: flex;
+      align-items: center;
+      background: var(--surface-container);
+      padding: 3px;
+      border-radius: var(--radius-full);
+      border: 1px solid var(--outline-variant);
+    }
+
+    .theme-btn {
+      border: none;
+      background: transparent;
+      color: var(--on-surface-var);
+      padding: 6px 14px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      border-radius: var(--radius-full);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: var(--transition);
+    }
+
+    .theme-btn:hover {
+      color: var(--on-bg);
+    }
+
+    .theme-btn.active {
+      background: var(--primary);
+      color: var(--on-primary);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .theme-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    .theme-dot.warm-dark { background: #D98A4E; }
+    .theme-dot.sepia { background: #8C5327; }
+    .theme-dot.light { background: #B86528; }
+    .theme-dot.dark { background: #D0BCFF; }
+
+    /* MAIN APP WORKSPACE CONTAINER */
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(380px, 440px) 1fr;
+      gap: 28px;
+      max-width: 1560px;
+      margin: 0 auto;
+      padding: 24px;
+      width: 100%;
+      flex: 1;
+    }
+
+    @media (max-width: 1024px) {
+      .workspace {
+        grid-template-columns: 1fr;
+        padding: 16px;
+        gap: 24px;
+      }
+    }
+
+    /* =====================================================================
+       DEVICE SIMULATOR (ANDROID CHROME & PHONE FRAME)
+       ===================================================================== */
+    .device-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .device-screen-nav {
+      display: flex;
+      align-items: center;
+      background: var(--surface-container);
+      border: 1px solid var(--outline-variant);
+      border-radius: var(--radius-full);
+      padding: 4px;
+      gap: 4px;
+      width: 100%;
+      justify-content: space-between;
+      overflow-x: auto;
+    }
+
+    .screen-jump-btn {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: var(--on-surface-var);
+      font-size: 0.78rem;
+      font-weight: 600;
+      padding: 6px 10px;
+      border-radius: var(--radius-full);
+      cursor: pointer;
+      white-space: nowrap;
+      text-align: center;
+      transition: var(--transition);
+    }
+
+    .screen-jump-btn:hover {
+      color: var(--on-bg);
+    }
+
+    .screen-jump-btn.active {
+      background: var(--surface-container-high);
+      color: var(--primary);
+    }
+
+    /* PHONE SHELL */
+    .phone-frame {
+      width: 100%;
+      max-width: 420px;
+      height: 840px;
+      background: var(--bg);
+      border-radius: 40px;
+      border: 8px solid #2B2824;
+      box-shadow: 0 16px 40px rgba(0,0,0,0.5), 0 0 0 1px var(--outline-variant);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      user-select: none;
+    }
+
+    /* Top Camera Hole / Island */
+    .phone-island {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 88px;
+      height: 18px;
+      background: #100F0E;
+      border-radius: var(--radius-full);
+      z-index: 50;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      padding-right: 12px;
+    }
+
+    .phone-camera-lens {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #1F1E1B;
+      border: 1px solid #333;
+    }
+
+    /* Android Status Bar */
+    .status-bar {
+      height: 38px;
+      padding: 6px 20px 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--on-surface-var);
+      z-index: 40;
+      background: transparent;
+    }
+
+    .status-icons {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .status-icon-svg {
+      width: 13px;
+      height: 13px;
+      fill: currentColor;
+    }
+
+    /* Phone Viewport Container */
+    .phone-viewport {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+      background: var(--bg);
+    }
+
+    /* Screen Views */
+    .screen-view {
+      flex: 1;
+      display: none;
+      flex-direction: column;
+      overflow-y: auto;
+      position: relative;
+    }
+
+    .screen-view.active {
+      display: flex;
+    }
+
+    /* Top App Bar inside Phone */
+    .phone-top-app-bar {
+      height: 56px;
+      padding: 0 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--surface);
+      border-bottom: 1px solid var(--outline-variant);
+      z-index: 30;
+      flex-shrink: 0;
+      transition: transform 0.2s ease, opacity 0.2s ease;
+    }
+
+    .phone-top-bar-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .phone-top-bar-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--on-surface);
+      letter-spacing: -0.01em;
+    }
+
+    .phone-icon-btn {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      border: none;
+      background: transparent;
+      color: var(--on-surface-var);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: var(--transition);
+    }
+
+    .phone-icon-btn:hover {
+      background: var(--surface-container);
+      color: var(--on-surface);
+    }
+
+    .phone-icon-btn svg {
+      width: 20px;
+      height: 20px;
+      fill: currentColor;
+    }
+
+    /* Bottom 3-Tab Navigation Bar */
+    .phone-bottom-nav {
+      height: 64px;
+      background: var(--surface);
+      border-top: 1px solid var(--outline-variant);
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      padding: 0 12px 6px;
+      z-index: 30;
+      flex-shrink: 0;
+      transition: transform 0.2s ease, opacity 0.2s ease;
+    }
+
+    .nav-destination-btn {
+      flex: 1;
+      border: none;
+      background: transparent;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      color: var(--on-surface-var);
+      cursor: pointer;
+      position: relative;
+      padding: 6px 0;
+      transition: var(--transition);
+    }
+
+    .nav-indicator {
+      width: 48px;
+      height: 26px;
+      border-radius: var(--radius-full);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: var(--transition);
+    }
+
+    .nav-destination-btn.active .nav-indicator {
+      background: var(--primary-container);
+      color: var(--on-primary-container);
+    }
+
+    .nav-destination-btn.active {
+      color: var(--primary);
+    }
+
+    .nav-label {
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+    }
+
+    /* Android Home Indicator Pill */
+    .home-indicator-bar {
+      height: 16px;
+      background: var(--surface);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .home-indicator-pill {
+      width: 100px;
+      height: 4px;
+      background: var(--outline);
+      border-radius: var(--radius-full);
+    }
+
+    /* =====================================================================
+       SCREEN 1: LIBRARY VIEW
+       ===================================================================== */
+    .library-content {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .chips-filter-row {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
+
+    .chip-filter {
+      padding: 6px 12px;
+      border-radius: var(--radius-full);
+      font-size: 0.78rem;
+      font-weight: 600;
+      background: var(--surface-container);
+      color: var(--on-surface-var);
+      border: 1px solid var(--outline-variant);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: var(--transition);
+    }
+
+    .chip-filter.active {
+      background: var(--primary-container);
+      color: var(--on-primary-container);
+      border-color: var(--primary);
+    }
+
+    .series-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 14px;
+    }
+
+    .series-card {
+      background: var(--surface);
+      border-radius: var(--radius-md);
+      border: 1px solid var(--outline-variant);
+      overflow: hidden;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      transition: var(--transition);
+    }
+
+    .series-card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+      border-color: var(--primary);
+    }
+
+    .series-cover-wrapper {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 2 / 3;
+      background: var(--surface-container);
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .cover-art-svg {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .series-badge-unread {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: var(--primary);
+      color: var(--on-primary);
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: var(--radius-full);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .series-card-body {
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .series-card-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--on-surface);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .series-card-meta {
+      font-size: 0.72rem;
+      color: var(--on-surface-var);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .mini-progress-bar {
+      width: 100%;
+      height: 4px;
+      background: var(--surface-container-high);
+      border-radius: var(--radius-full);
+      overflow: hidden;
+      margin-top: 4px;
+    }
+
+    .mini-progress-fill {
+      height: 100%;
+      background: var(--primary);
+      border-radius: var(--radius-full);
+    }
+
+    /* =====================================================================
+       SCREEN 2: BROWSE VIEW
+       ===================================================================== */
+    .browse-header-panel {
+      padding: 14px 16px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--outline-variant);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    /* Integrated Source Selector Pill */
+    .source-selector-pill {
+      align-self: flex-start;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--surface-container-high);
+      border: 1px solid var(--outline);
+      border-radius: var(--radius-full);
+      padding: 6px 14px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--on-surface);
+      cursor: pointer;
+      box-shadow: var(--shadow-sm);
+      transition: var(--transition);
+    }
+
+    .source-selector-pill:hover {
+      border-color: var(--primary);
+      background: var(--surface-container);
+    }
+
+    .source-pill-icon {
+      color: var(--primary);
+      display: flex;
+      align-items: center;
+    }
+
+    .source-pill-chevron {
+      color: var(--on-surface-var);
+      font-size: 0.7rem;
+    }
+
+    .search-input-box {
+      width: 100%;
+      background: var(--surface-container);
+      border: 1px solid var(--outline-variant);
+      border-radius: var(--radius-full);
+      padding: 8px 14px 8px 36px;
+      color: var(--on-bg);
+      font-size: 0.82rem;
+      outline: none;
+      position: relative;
+    }
+
+    .search-input-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .search-icon-inside {
+      position: absolute;
+      left: 12px;
+      color: var(--on-surface-var);
+      pointer-events: none;
+    }
+
+    /* Segmented Mode Tabs: Popular / Latest / Search */
+    .segmented-tabs-row {
+      display: flex;
+      background: var(--surface-container);
+      border-radius: var(--radius-full);
+      padding: 3px;
+      gap: 2px;
+      border: 1px solid var(--outline-variant);
+    }
+
+    .segmented-tab {
+      flex: 1;
+      text-align: center;
+      font-size: 0.78rem;
+      font-weight: 600;
+      padding: 6px 0;
+      border-radius: var(--radius-full);
+      border: none;
+      background: transparent;
+      color: var(--on-surface-var);
+      cursor: pointer;
+      transition: var(--transition);
+    }
+
+    .segmented-tab.active {
+      background: var(--surface-container-high);
+      color: var(--primary);
+      box-shadow: var(--shadow-sm);
+    }
+
+    /* =====================================================================
+       SCREEN 3: DOWNLOADS VIEW
+       ===================================================================== */
+    .downloads-content {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .storage-card {
+      background: var(--surface);
+      border-radius: var(--radius-md);
+      padding: 14px;
+      border: 1px solid var(--outline-variant);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .storage-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.8rem;
+      color: var(--on-surface-var);
+      font-weight: 600;
+    }
+
+    .storage-bar-track {
+      height: 8px;
+      background: var(--surface-container-high);
+      border-radius: var(--radius-full);
+      overflow: hidden;
+      display: flex;
+    }
+
+    .storage-bar-fill-novels {
+      background: var(--primary);
+      width: 25%;
+    }
+
+    .storage-bar-fill-manhwa {
+      background: var(--secondary);
+      width: 40%;
+    }
+
+    .download-item-card {
+      background: var(--surface);
+      border-radius: var(--radius-md);
+      border: 1px solid var(--outline-variant);
+      padding: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .download-item-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      flex: 1;
+    }
+
+    .download-item-title {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: var(--on-surface);
+    }
+
+    .download-item-meta {
+      font-size: 0.74rem;
+      color: var(--on-surface-var);
+    }
+
+    /* =====================================================================
+       SCREEN 4: SERIES DETAIL & CHAPTER ROWS
+       ===================================================================== */
+    .detail-view-scroll {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      padding: 16px;
+    }
+
+    .series-hero-card {
+      display: flex;
+      gap: 16px;
+      background: var(--surface);
+      border-radius: var(--radius-lg);
+      padding: 14px;
+      border: 1px solid var(--outline-variant);
+    }
+
+    .series-hero-cover {
+      width: 100px;
+      aspect-ratio: 2 / 3;
+      border-radius: var(--radius-md);
+      background: var(--surface-container);
+      overflow: hidden;
+      flex-shrink: 0;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .series-hero-info {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      flex: 1;
+    }
+
+    .series-hero-title {
+      font-size: 1.1rem;
+      font-weight: 800;
+      line-height: 1.25;
+      color: var(--on-surface);
+    }
+
+    .series-hero-author {
+      font-size: 0.78rem;
+      color: var(--primary);
+      font-weight: 600;
+    }
+
+    .series-genre-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-top: 2px;
+    }
+
+    .genre-tag {
+      font-size: 0.68rem;
+      padding: 2px 8px;
+      border-radius: var(--radius-full);
+      background: var(--surface-container);
+      color: var(--on-surface-var);
+      border: 1px solid var(--outline-variant);
+    }
+
+    .library-toggle-btn {
+      align-self: flex-start;
+      margin-top: 6px;
+      padding: 6px 14px;
+      border-radius: var(--radius-full);
+      border: 1px solid var(--primary);
+      background: var(--primary-container);
+      color: var(--on-primary-container);
+      font-size: 0.76rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: var(--transition);
+    }
+
+    /* READING PROGRESS HEADER CARD (PROMINENT CTA) */
+    .reading-progress-card {
+      background: linear-gradient(135deg, var(--surface-container) 0%, var(--surface-container-high) 100%);
+      border: 1.5px solid var(--primary);
+      border-radius: var(--radius-lg);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      box-shadow: var(--shadow-md);
+    }
+
+    .progress-card-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 10px;
+    }
+
+    .progress-card-subtitle {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--primary);
+      font-weight: 800;
+    }
+
+    .progress-card-headline {
+      font-size: 1.05rem;
+      font-weight: 800;
+      color: var(--on-surface);
+    }
+
+    .progress-card-cta-btn {
+      background: var(--primary);
+      color: var(--on-primary);
+      border: none;
+      border-radius: var(--radius-full);
+      padding: 10px 18px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      box-shadow: var(--shadow-sm);
+      transition: var(--transition);
+      width: 100%;
+    }
+
+    .progress-card-cta-btn:hover {
+      filter: brightness(1.1);
+      transform: translateY(-1px);
+    }
+
+    /* PROGRESSIVE CHAPTER LOADING SIMULATION INDICATOR */
+    .progressive-loading-banner {
+      background: var(--surface);
+      border: 1px solid var(--outline-variant);
+      border-radius: var(--radius-md);
+      padding: 10px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .progressive-loading-status-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.76rem;
+    }
+
+    .progressive-indicator-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--primary);
+      font-weight: 700;
+    }
+
+    .concurrency-badge {
+      background: var(--secondary-container);
+      color: var(--on-secondary-container);
+      font-size: 0.68rem;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: monospace;
+    }
+
+    .sim-progress-track {
+      width: 100%;
+      height: 6px;
+      background: var(--surface-container-high);
+      border-radius: var(--radius-full);
+      overflow: hidden;
+    }
+
+    .sim-progress-fill {
+      height: 100%;
+      background: var(--primary);
+      width: 14%;
+      border-radius: var(--radius-full);
+      transition: width 0.4s ease;
+    }
+
+    .sim-button-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 2px;
+    }
+
+    .sim-action-btn {
+      background: var(--surface-container);
+      border: 1px solid var(--outline);
+      color: var(--on-surface);
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: var(--radius-full);
+      cursor: pointer;
+      transition: var(--transition);
+    }
+
+    .sim-action-btn:hover {
+      background: var(--surface-container-high);
+      border-color: var(--primary);
+    }
+
+    /* CHAPTER LIST SECTION */
+    .chapter-section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 4px 2px;
+    }
+
+    .chapter-count-label {
+      font-size: 0.86rem;
+      font-weight: 700;
+      color: var(--on-surface);
+    }
+
+    .chapter-filter-chips {
+      display: flex;
+      gap: 6px;
+    }
+
+    .chapter-rows-container {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    /* CHAPTER ROW VISUAL STATES */
+    .chapter-row {
+      background: var(--surface);
+      border-radius: var(--radius-md);
+      border: 1px solid var(--outline-variant);
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      cursor: pointer;
+      transition: var(--transition);
+    }
+
+    .chapter-row:hover {
+      border-color: var(--primary);
+      background: var(--surface-container);
+    }
+
+    .chapter-row-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex: 1;
+      min-width: 0;
+    }
+
+    /* Unread dot: #D98A4E (Warm amber) */
+    .unread-amber-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--primary);
+      flex-shrink: 0;
+      box-shadow: 0 0 6px var(--primary);
+    }
+
+    /* Completed check icon */
+    .completed-check-icon {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--secondary-container);
+      color: var(--on-secondary-container);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.7rem;
+      font-weight: 800;
+      flex-shrink: 0;
+    }
+
+    /* Offline downloaded badge */
+    .downloaded-pin-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      background: var(--surface-container-high);
+      color: var(--secondary);
+      font-size: 0.68rem;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid var(--outline-variant);
+    }
+
+    .chapter-row-text {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      flex: 1;
+      min-width: 0;
+    }
+
+    /* UNREAD STATE: Full contrast #E6DFD5 title */
+    .chapter-row.state-unread .chapter-row-title {
+      color: var(--on-bg);
+      font-weight: 700;
+      font-size: 0.88rem;
+    }
+
+    /* IN-PROGRESS STATE: primary title + inline progress bar */
+    .chapter-row.state-in-progress {
+      border-color: var(--primary);
+      background: var(--surface-container);
+    }
+
+    .chapter-row.state-in-progress .chapter-row-title {
+      color: var(--on-bg);
+      font-weight: 800;
+      font-size: 0.88rem;
+    }
+
+    /* COMPLETED STATE: Muted secondary text #A89F93 */
+    .chapter-row.state-completed .chapter-row-title {
+      color: var(--on-surface-var);
+      font-weight: 500;
+      font-size: 0.88rem;
+    }
+
+    .chapter-row-title {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .chapter-row-subtitle {
+      font-size: 0.72rem;
+      color: var(--on-surface-var);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .chapter-row-progress-pill {
+      background: var(--primary-container);
+      color: var(--on-primary-container);
+      font-size: 0.68rem;
+      font-weight: 800;
+      padding: 1px 6px;
+      border-radius: var(--radius-full);
+    }
+
+    .chapter-row-progress-line {
+      width: 60px;
+      height: 4px;
+      background: var(--surface-container-high);
+      border-radius: var(--radius-full);
+      overflow: hidden;
+    }
+
+    .chapter-row-progress-line-fill {
+      height: 100%;
+      background: var(--primary);
+      width: 68%;
+    }
+
+    /* =====================================================================
+       SCREEN 5: NOVEL TEXT ENGINE (CONTINUOUS VERTICAL SCROLL LAZYCOLUMN)
+       ===================================================================== */
+    .reader-view-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      height: 100%;
+      background: var(--bg);
+    }
+
+    /* Live Scroll Tracker Bar (Sticky Top) */
+    .reader-scroll-header-tracker {
+      background: var(--surface);
+      border-bottom: 1px solid var(--outline-variant);
+      padding: 6px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.72rem;
+      color: var(--on-surface-var);
+      z-index: 20;
+    }
+
+    .reader-scroll-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 700;
+      color: var(--primary);
+    }
+
+    .reader-read-status-badge {
+      padding: 2px 8px;
+      border-radius: var(--radius-full);
+      font-weight: 800;
+      font-size: 0.68rem;
+      background: var(--surface-container-high);
+      color: var(--on-surface-var);
+      transition: var(--transition);
+    }
+
+    .reader-read-status-badge.read-done {
+      background: var(--secondary-container);
+      color: var(--on-secondary-container);
+    }
+
+    .restore-progress-btn {
+      background: var(--primary-container);
+      color: var(--on-primary-container);
+      border: 1px solid var(--primary);
+      border-radius: var(--radius-full);
+      padding: 3px 10px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: var(--transition);
+    }
+
+    .restore-progress-btn:hover {
+      filter: brightness(1.1);
+    }
+
+    /* Reader Prose Scrollable Canvas */
+    .novel-canvas {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px var(--novel-horiz-padding);
+      font-family: var(--novel-font-family);
+      font-size: var(--novel-font-size);
+      line-height: var(--novel-line-height);
+      color: var(--on-bg);
+      cursor: text;
+      scroll-behavior: smooth;
+    }
+
+    /* Structured NovelBlock Elements */
+    .novel-block-heading-1 {
+      font-size: 1.55em;
+      font-weight: 800;
+      margin-top: 1.2em;
+      margin-bottom: 0.4em;
+      color: var(--primary);
+      line-height: 1.25;
+      letter-spacing: -0.01em;
+      border-bottom: 2px solid var(--outline-variant);
+      padding-bottom: 0.3em;
+    }
+
+    .novel-block-heading-2 {
+      font-size: 1.2em;
+      font-weight: 700;
+      margin-top: 1.4em;
+      margin-bottom: 0.4em;
+      color: var(--on-surface);
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+
+    .novel-block-paragraph {
+      margin-bottom: var(--novel-para-spacing);
+      text-align: justify;
+      hyphens: auto;
+    }
+
+    .novel-block-paragraph strong {
+      font-weight: 700;
+      color: var(--on-surface);
+    }
+
+    .novel-block-paragraph em {
+      font-style: italic;
+      color: var(--on-surface);
+    }
+
+    .novel-block-paragraph s {
+      text-decoration: line-through;
+      color: var(--on-surface-var);
+    }
+
+    .novel-block-divider {
+      text-align: center;
+      margin: 1.8em 0;
+      letter-spacing: 0.5em;
+      color: var(--primary);
+      font-weight: 700;
+      font-size: 1.2em;
+      user-select: none;
+    }
+
+    .novel-chapter-end-card {
+      margin-top: 36px;
+      margin-bottom: 48px;
+      padding: 20px;
+      background: var(--surface);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--outline-variant);
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .novel-chapter-end-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--on-surface);
+    }
+
+    .next-chapter-action-btn {
+      background: var(--primary);
+      color: var(--on-primary);
+      border: none;
+      border-radius: var(--radius-full);
+      padding: 10px 24px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Immersive Reader Top/Bottom Overlay Chrome */
+    .reader-immersive-top-bar {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      background: var(--surface);
+      border-bottom: 1px solid var(--outline-variant);
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 35;
+      transform: translateY(0);
+      transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .reader-immersive-top-bar.hidden {
+      transform: translateY(-100%);
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .reader-immersive-bottom-bar {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: var(--surface);
+      border-top: 1px solid var(--outline-variant);
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      z-index: 35;
+      transform: translateY(0);
+      transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
+      box-shadow: var(--shadow-lg);
+    }
+
+    .reader-immersive-bottom-bar.hidden {
+      transform: translateY(100%);
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .reader-chapter-stepper-btn {
+      background: var(--surface-container);
+      border: 1px solid var(--outline-variant);
+      color: var(--on-surface);
+      padding: 6px 12px;
+      border-radius: var(--radius-full);
+      font-size: 0.75rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    /* Floating Aa Typography Button */
+    .floating-typography-btn {
+      position: absolute;
+      bottom: 80px;
+      right: 16px;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: var(--on-primary);
+      border: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+      font-weight: 800;
+      cursor: pointer;
+      box-shadow: var(--shadow-md);
+      z-index: 36;
+      transition: var(--transition);
+    }
+
+    .floating-typography-btn:hover {
+      transform: scale(1.08);
+    }
+
+    .floating-typography-btn.hidden {
+      opacity: 0;
+      pointer-events: none;
+      transform: scale(0.8);
+    }
+
+    /* =====================================================================
+       TYPOGRAPHY & SETTINGS DRAWER / MODAL
+       ===================================================================== */
+    .bottom-sheet-backdrop {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.6);
+      z-index: 60;
+      display: none;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+
+    .bottom-sheet-backdrop.open {
+      display: block;
+      opacity: 1;
+    }
+
+    .bottom-sheet-drawer {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: var(--surface);
+      border-top: 1px solid var(--outline);
+      border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+      padding: 18px 20px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      z-index: 61;
+      transform: translateY(100%);
+      transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: var(--shadow-lg);
+      max-height: 80%;
+      overflow-y: auto;
+    }
+
+    .bottom-sheet-drawer.open {
+      transform: translateY(0);
+    }
+
+    .drawer-handle {
+      width: 40px;
+      height: 4px;
+      background: var(--outline);
+      border-radius: var(--radius-full);
+      align-self: center;
+      margin-bottom: 4px;
+    }
+
+    .drawer-title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .drawer-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--on-surface);
+    }
+
+    .drawer-control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .drawer-label-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--on-surface);
+    }
+
+    .compose-key-badge {
+      font-family: monospace;
+      font-size: 0.7rem;
+      color: var(--primary);
+      background: var(--primary-container);
+      padding: 1px 6px;
+      border-radius: 4px;
+    }
+
+    .slider-range {
+      width: 100%;
+      accent-color: var(--primary);
+      cursor: pointer;
+    }
+
+    .font-family-button-group {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+    }
+
+    .font-family-btn {
+      padding: 8px 0;
+      text-align: center;
+      background: var(--surface-container);
+      border: 1px solid var(--outline-variant);
+      color: var(--on-surface-var);
+      border-radius: var(--radius-md);
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: var(--transition);
+    }
+
+    .font-family-btn.active {
+      background: var(--primary-container);
+      color: var(--on-primary-container);
+      border-color: var(--primary);
+    }
+
+    /* =====================================================================
+       DESIGN SYSTEM & CONTRAST INSPECTOR PANEL (RIGHT COLUMN)
+       ===================================================================== */
+    .inspector-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .inspector-card {
+      background: var(--surface);
+      border: 1px solid var(--outline-variant);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .card-header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--outline-variant);
+      padding-bottom: 12px;
+    }
+
+    .card-title {
+      font-size: 1.1rem;
+      font-weight: 800;
+      color: var(--on-surface);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card-subtitle {
+      font-size: 0.8rem;
+      color: var(--on-surface-var);
+    }
+
+    /* TOKEN SWATCHES GRID */
+    .swatches-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+      gap: 12px;
+    }
+
+    .swatch-item {
+      background: var(--surface-container);
+      border: 1px solid var(--outline-variant);
+      border-radius: var(--radius-md);
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .swatch-color-box {
+      width: 100%;
+      height: 44px;
+      border-radius: var(--radius-sm);
+      border: 1px solid rgba(255,255,255,0.1);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .swatch-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .swatch-token-name {
+      font-family: monospace;
+      font-size: 0.74rem;
+      font-weight: 700;
+      color: var(--on-surface);
+    }
+
+    .swatch-hex {
+      font-family: monospace;
+      font-size: 0.72rem;
+      color: var(--on-surface-var);
+    }
+
+    /* WCAG 2.1 CONTRAST TABLE */
+    .contrast-table-wrapper {
+      overflow-x: auto;
+    }
+
+    .contrast-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+    }
+
+    .contrast-table th,
+    .contrast-table td {
+      padding: 10px 12px;
+      text-align: left;
+      border-bottom: 1px solid var(--outline-variant);
+    }
+
+    .contrast-table th {
+      color: var(--on-surface-var);
+      font-weight: 700;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .contrast-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: var(--radius-full);
+      font-size: 0.72rem;
+      font-weight: 800;
+    }
+
+    .contrast-badge.pass-aaa {
+      background: #143521;
+      color: #6CB687;
+      border: 1px solid #285A39;
+    }
+
+    .contrast-badge.pass-aa {
+      background: #2E3314;
+      color: #CDD454;
+      border: 1px solid #4F5A23;
+    }
+
+    .contrast-badge.fail {
+      background: #3A171A;
+      color: #E06C75;
+      border: 1px solid #63262C;
+    }
+
+    /* CODE GENERATOR PREVIEW */
+    .code-preview-box {
+      background: #100F0E;
+      border: 1px solid var(--outline-variant);
+      border-radius: var(--radius-md);
+      padding: 14px;
+      color: #E6DFD5;
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 0.78rem;
+      line-height: 1.5;
+      overflow-x: auto;
+    }
+
+    .code-token-kw { color: #D98A4E; font-weight: 700; }
+    .code-token-prop { color: #7A9A8B; }
+    .code-token-val { color: #E5C07B; }
+    .code-token-str { color: #98C379; }
+
+    /* PROGRESSIVE ARCHITECTURE DIAGRAM BOX */
+    .arch-flow-diagram {
+      background: var(--surface-container);
+      border: 1px solid var(--outline-variant);
+      border-radius: var(--radius-md);
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      font-size: 0.8rem;
+    }
+
+    .arch-step-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+    }
+
+    .arch-step-num {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: var(--on-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 0.72rem;
+      flex-shrink: 0;
+    }
+
+    .arch-step-desc {
+      color: var(--on-surface);
+      line-height: 1.4;
+    }
+
+    .arch-step-desc code {
+      background: var(--surface-container-high);
+      padding: 1px 5px;
+      border-radius: 3px;
+      color: var(--primary);
+      font-size: 0.74rem;
+    }
+
+    /* TOAST NOTIFICATION */
+    .toast-msg {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: var(--surface-container-high);
+      color: var(--on-surface);
+      border: 1px solid var(--primary);
+      border-radius: var(--radius-full);
+      padding: 8px 18px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      box-shadow: var(--shadow-lg);
+      transform: translateY(100px);
+      opacity: 0;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .toast-msg.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  </style>
+</head>
+<body data-theme="WARM_DARK">
+
+  <!-- ===================================================================
+       TOP GLOBAL HEADER & THEME SWITCHER
+       =================================================================== -->
+  <header class="app-header">
+    <div class="app-header-brand">
+      <div class="brand-logo">R</div>
+      <div>
+        <div class="brand-title">ReaderParser Design Prototype</div>
+        <div class="brand-subtitle">Issue #71 · Warm Dark Theme, Native Novel Engine, Progressive Loading</div>
+      </div>
+    </div>
+
+    <div class="header-controls">
+      <!-- Live Theme Switcher Buttons -->
+      <div class="theme-selector-group">
+        <button class="theme-btn active" data-theme-target="WARM_DARK" onclick="setAppTheme('WARM_DARK')">
+          <span class="theme-dot warm-dark"></span> Warm Dark
+        </button>
+        <button class="theme-btn" data-theme-target="SEPIA" onclick="setAppTheme('SEPIA')">
+          <span class="theme-dot sepia"></span> Sepia
+        </button>
+        <button class="theme-btn" data-theme-target="LIGHT" onclick="setAppTheme('LIGHT')">
+          <span class="theme-dot light"></span> Light
+        </button>
+        <button class="theme-btn" data-theme-target="DARK" onclick="setAppTheme('DARK')">
+          <span class="theme-dot dark"></span> Dark
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===================================================================
+       MAIN WORKSPACE: DEVICE SIMULATOR + DESIGN SYSTEM INSPECTOR
+       =================================================================== -->
+  <main class="workspace">
+
+    <!-- LEFT COLUMN: INTERACTIVE DEVICE SIMULATOR -->
+    <div class="device-container">
+
+      <!-- View Selector Quick Switcher -->
+      <div class="device-screen-nav">
+        <button class="screen-jump-btn active" data-screen-btn="library" onclick="navigateToScreen('library')">Library</button>
+        <button class="screen-jump-btn" data-screen-btn="browse" onclick="navigateToScreen('browse')">Browse</button>
+        <button class="screen-jump-btn" data-screen-btn="downloads" onclick="navigateToScreen('downloads')">Downloads</button>
+        <button class="screen-jump-btn" data-screen-btn="detail" onclick="navigateToScreen('detail')">Series Detail</button>
+        <button class="screen-jump-btn" data-screen-btn="reader" onclick="navigateToScreen('reader')">Novel Reader</button>
+      </div>
+
+      <!-- PHONE HARDWARE FRAME -->
+      <div class="phone-frame" id="phoneSimulator">
+
+        <!-- Top Camera Island -->
+        <div class="phone-island">
+          <div class="phone-camera-lens"></div>
+        </div>
+
+        <!-- Android Status Bar -->
+        <div class="status-bar">
+          <span>09:41</span>
+          <div class="status-icons">
+            <svg class="status-icon-svg" viewBox="0 0 24 24"><path d="M12 4C7.31 4 3.07 5.9 0 8.98L12 21 24 8.98C20.93 5.9 16.69 4 12 4z"/></svg>
+            <svg class="status-icon-svg" viewBox="0 0 24 24"><path d="M2 22h20V2L2 22z"/></svg>
+            <svg class="status-icon-svg" viewBox="0 0 24 24"><path d="M15.67 4H14V2h-4v2H8.33C7.6 4 7 4.6 7 5.33v15.33C7 21.4 7.6 22 8.33 22h7.33c.74 0 1.34-.6 1.34-1.33V5.33C17 4.6 16.4 4 15.67 4z"/></svg>
+          </div>
+        </div>
+
+        <!-- Phone Top App Bar -->
+        <div class="phone-top-app-bar" id="phoneTopAppBar">
+          <div class="phone-top-bar-left">
+            <button class="phone-icon-btn" id="phoneBackBtn" style="display:none;" onclick="handleTopBarBack()">
+              <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+            </button>
+            <h1 class="phone-top-bar-title" id="phoneTopBarTitle">Library</h1>
+          </div>
+          <div class="phone-top-bar-right">
+            <button class="phone-icon-btn" id="phoneSettingsBtn" title="Open Settings" onclick="toggleSettingsModal()">
+              <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+            </button>
+            <button class="phone-icon-btn" id="phoneReaderAaBtn" style="display:none;" title="Reader Typography" onclick="toggleTypographySheet()">
+              <span style="font-family:serif;font-weight:700;font-size:1.1rem;">Aa</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Phone Screen Viewport -->
+        <div class="phone-viewport" id="phoneViewport">
+
+          <!-- ==============================================
+               SCREEN 1: LIBRARY
+               ============================================== -->
+          <div class="screen-view active" id="view-library">
+            <div class="library-content">
+              <div class="chips-filter-row">
+                <button class="chip-filter active">All (6)</button>
+                <button class="chip-filter">Reading (4)</button>
+                <button class="chip-filter">Downloaded (2)</button>
+                <button class="chip-filter">Completed (0)</button>
+              </div>
+
+              <div class="series-grid">
+                <!-- Series 1: Shadow Slave (Hero item) -->
+                <div class="series-card" onclick="openSeriesDetail('shadow-slave')">
+                  <div class="series-cover-wrapper">
+                    <!-- 2:3 Cover Art SVG -->
+                    <svg class="cover-art-svg" viewBox="0 0 120 180">
+                      <defs>
+                        <linearGradient id="covGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
+                          <stop offset="0%" stop-color="#2A2218"/>
+                          <stop offset="50%" stop-color="#181614"/>
+                          <stop offset="100%" stop-color="#3D2614"/>
+                        </linearGradient>
+                      </defs>
+                      <rect width="120" height="180" fill="url(#covGrad1)"/>
+                      <circle cx="60" cy="70" r="32" fill="#D98A4E" opacity="0.18"/>
+                      <path d="M60 45 L75 85 L45 85 Z" fill="#D98A4E" opacity="0.8"/>
+                      <text x="60" y="125" fill="#E6DFD5" font-size="11" font-weight="bold" text-anchor="middle" font-family="sans-serif">SHADOW SLAVE</text>
+                      <text x="60" y="140" fill="#A89F93" font-size="8" text-anchor="middle" font-family="sans-serif">Guiltythree</text>
+                    </svg>
+                    <span class="series-badge-unread">2 new</span>
+                  </div>
+                  <div class="series-card-body">
+                    <div class="series-card-title">Shadow Slave</div>
+                    <div class="series-card-meta">
+                      <span>Ch. 42 / 1,420</span>
+                      <span>·</span>
+                      <span style="color:var(--primary);font-weight:700;">68%</span>
+                    </div>
+                    <div class="mini-progress-bar">
+                      <div class="mini-progress-fill" style="width:68%;"></div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Series 2: Lord of the Mysteries -->
+                <div class="series-card" onclick="openSeriesDetail('lord-of-the-mysteries')">
+                  <div class="series-cover-wrapper">
+                    <svg class="cover-art-svg" viewBox="0 0 120 180">
+                      <defs>
+                        <linearGradient id="covGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
+                          <stop offset="0%" stop-color="#1B262C"/>
+                          <stop offset="100%" stop-color="#0F4C81"/>
+                        </linearGradient>
+                      </defs>
+                      <rect width="120" height="180" fill="url(#covGrad2)"/>
+                      <circle cx="60" cy="70" r="28" fill="#7A9A8B" opacity="0.4"/>
+                      <text x="60" y="125" fill="#E6DFD5" font-size="10" font-weight="bold" text-anchor="middle" font-family="sans-serif">LORD OF MYSTERIES</text>
+                      <text x="60" y="140" fill="#A89F93" font-size="8" text-anchor="middle" font-family="sans-serif">Cuttlefish</text>
+                    </svg>
+                  </div>
+                  <div class="series-card-body">
+                    <div class="series-card-title">Lord of the Mysteries</div>
+                    <div class="series-card-meta">
+                      <span>Ch. 120 / 1,432</span>
+                      <span>·</span>
+                      <span style="color:var(--primary);font-weight:700;">12%</span>
+                    </div>
+                    <div class="mini-progress-bar">
+                      <div class="mini-progress-fill" style="width:12%;"></div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Series 3: Solo Leveling: Ragnarok -->
+                <div class="series-card" onclick="openSeriesDetail('solo-leveling')">
+                  <div class="series-cover-wrapper">
+                    <svg class="cover-art-svg" viewBox="0 0 120 180">
+                      <rect width="120" height="180" fill="#1C1824"/>
+                      <path d="M40 90 L60 40 L80 90 Z" fill="#9D72FF" opacity="0.6"/>
+                      <text x="60" y="125" fill="#E6DFD5" font-size="9" font-weight="bold" text-anchor="middle" font-family="sans-serif">SOLO LEVELING: R</text>
+                      <text x="60" y="140" fill="#A89F93" font-size="8" text-anchor="middle" font-family="sans-serif">Daul</text>
+                    </svg>
+                    <span class="series-badge-unread">5 new</span>
+                  </div>
+                  <div class="series-card-body">
+                    <div class="series-card-title">Solo Leveling: Ragnarok</div>
+                    <div class="series-card-meta">
+                      <span class="downloaded-pin-badge">15 ch</span>
+                      <span>Ch. 15</span>
+                    </div>
+                    <div class="mini-progress-bar">
+                      <div class="mini-progress-fill" style="width:100%;"></div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Series 4: The Primal Hunter -->
+                <div class="series-card" onclick="openSeriesDetail('primal-hunter')">
+                  <div class="series-cover-wrapper">
+                    <svg class="cover-art-svg" viewBox="0 0 120 180">
+                      <rect width="120" height="180" fill="#18241D"/>
+                      <circle cx="60" cy="70" r="25" fill="#528265" opacity="0.6"/>
+                      <text x="60" y="125" fill="#E6DFD5" font-size="9" font-weight="bold" text-anchor="middle" font-family="sans-serif">PRIMAL HUNTER</text>
+                      <text x="60" y="140" fill="#A89F93" font-size="8" text-anchor="middle" font-family="sans-serif">Zogarth</text>
+                    </svg>
+                  </div>
+                  <div class="series-card-body">
+                    <div class="series-card-title">The Primal Hunter</div>
+                    <div class="series-card-meta">
+                      <span>Ch. 85 / 900</span>
+                      <span>·</span>
+                      <span style="color:var(--primary);font-weight:700;">9%</span>
+                    </div>
+                    <div class="mini-progress-bar">
+                      <div class="mini-progress-fill" style="width:9%;"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ==============================================
+               SCREEN 2: BROWSE
+               ============================================== -->
+          <div class="screen-view" id="view-browse">
+            <!-- Filter Header Panel with Integrated Source Selector Pill -->
+            <div class="browse-header-panel">
+              <!-- Source Selector Pill -->
+              <div class="source-selector-pill" onclick="cycleBrowseSource()" title="Click to cycle active source">
+                <span class="source-pill-icon">
+                  <svg style="width:16px;height:16px;" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+                </span>
+                <span id="activeBrowseSourceLabel">FreeWebNovel (EN) · Novel</span>
+                <span class="source-pill-chevron">▼</span>
+              </div>
+
+              <!-- Search Bar -->
+              <div class="search-input-wrapper">
+                <svg class="search-icon-inside" style="width:16px;height:16px;" viewBox="0 0 24 24"><path fill="currentColor" d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+                <input class="search-input-box" type="text" placeholder="Search series, authors, tags...">
+              </div>
+
+              <!-- Segmented Tabs: Popular / Latest / Search -->
+              <div class="segmented-tabs-row">
+                <button class="segmented-tab active" onclick="setBrowseTab(this, 'popular')">Popular</button>
+                <button class="segmented-tab" onclick="setBrowseTab(this, 'latest')">Latest</button>
+                <button class="segmented-tab" onclick="setBrowseTab(this, 'search')">Search</button>
+              </div>
+            </div>
+
+            <!-- Browse Grid (2:3 Aspect Ratio Cards) -->
+            <div class="library-content" style="padding-top:12px;">
+              <div class="series-grid" id="browseSeriesGrid">
+                <!-- Populated dynamically via JS based on active source -->
+              </div>
+            </div>
+          </div>
+
+          <!-- ==============================================
+               SCREEN 3: DOWNLOADS
+               ============================================== -->
+          <div class="screen-view" id="view-downloads">
+            <div class="downloads-content">
+              <!-- Storage Bar Card -->
+              <div class="storage-card">
+                <div class="storage-header">
+                  <span>Reader Storage</span>
+                  <span>42.8 MB / 64 GB</span>
+                </div>
+                <div class="storage-bar-track">
+                  <div class="storage-bar-fill-novels" title="Novels: 12.8 MB"></div>
+                  <div class="storage-bar-fill-manhwa" title="Manhwa Images: 30.0 MB"></div>
+                </div>
+                <div style="font-size:0.72rem;color:var(--on-surface-var);display:flex;gap:12px;">
+                  <span>■ Novels (12.8 MB)</span>
+                  <span style="color:var(--secondary);">■ Manhwa (30.0 MB)</span>
+                </div>
+              </div>
+
+              <!-- Download Queue Status Banner -->
+              <div class="progressive-loading-banner">
+                <div class="progressive-loading-status-row">
+                  <span style="font-weight:700;color:var(--success);">All downloads up to date</span>
+                  <span class="concurrency-badge">Workers: 0 Active</span>
+                </div>
+                <div style="font-size:0.74rem;color:var(--on-surface-var);">
+                  15 chapters saved for offline reading. Tap series to manage storage.
+                </div>
+              </div>
+
+              <!-- Downloaded Series Rows -->
+              <div class="download-item-card">
+                <div class="download-item-info">
+                  <div class="download-item-title">Shadow Slave</div>
+                  <div class="download-item-meta">Chapters 40, 41, 42, 43 · 4 cached</div>
+                </div>
+                <button class="sim-action-btn" onclick="showToast('Cleared cache for Shadow Slave')">Clear</button>
+              </div>
+
+              <div class="download-item-card">
+                <div class="download-item-info">
+                  <div class="download-item-title">Solo Leveling: Ragnarok</div>
+                  <div class="download-item-meta">Chapters 1–11 · 11 cached images</div>
+                </div>
+                <button class="sim-action-btn" onclick="showToast('Cleared cache for Solo Leveling')">Clear</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- ==============================================
+               SCREEN 4: SERIES DETAIL
+               ============================================== -->
+          <div class="screen-view" id="view-detail">
+            <div class="detail-view-scroll">
+
+              <!-- Series Hero Card -->
+              <div class="series-hero-card">
+                <div class="series-hero-cover">
+                  <svg class="cover-art-svg" viewBox="0 0 120 180">
+                    <rect width="120" height="180" fill="#2A2218"/>
+                    <circle cx="60" cy="70" r="32" fill="#D98A4E" opacity="0.2"/>
+                    <path d="M60 45 L75 85 L45 85 Z" fill="#D98A4E" opacity="0.8"/>
+                    <text x="60" y="125" fill="#E6DFD5" font-size="11" font-weight="bold" text-anchor="middle" font-family="sans-serif">SHADOW SLAVE</text>
+                    <text x="60" y="140" fill="#A89F93" font-size="8" text-anchor="middle" font-family="sans-serif">Guiltythree</text>
+                  </svg>
+                </div>
+                <div class="series-hero-info">
+                  <div class="series-hero-title">Shadow Slave</div>
+                  <div class="series-hero-author">Guiltythree · FreeWebNovel (EN)</div>
+                  <div class="series-genre-tags">
+                    <span class="genre-tag">Dark Fantasy</span>
+                    <span class="genre-tag">System</span>
+                    <span class="genre-tag">Mystery</span>
+                  </div>
+                  <button class="library-toggle-btn" id="libraryToggleBtn" onclick="toggleLibraryBookmark()">
+                    <span>✓ In Library</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- PROMINENT READING PROGRESS HEADER CARD -->
+              <div class="reading-progress-card">
+                <div class="progress-card-top">
+                  <div>
+                    <div class="progress-card-subtitle">Last Read Progress</div>
+                    <div class="progress-card-headline">Chapter 42: The Ember Archive</div>
+                  </div>
+                  <span class="chapter-row-progress-pill">68% Complete</span>
+                </div>
+
+                <!-- Primary CTA: Continue Reading -->
+                <button class="progress-card-cta-btn" onclick="openNovelReaderAtProgress(0.68)">
+                  <svg style="width:18px;height:18px;" viewBox="0 0 24 24"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
+                  <span>Continue Ch. 42 · 68%</span>
+                </button>
+              </div>
+
+              <!-- PROGRESSIVE CHAPTER LOADING SIMULATION INDICATOR -->
+              <div class="progressive-loading-banner">
+                <div class="progressive-loading-status-row">
+                  <span class="progressive-indicator-badge" id="progressiveLoadingBadge">
+                    <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--primary);"></span>
+                    <span id="progressiveStatusText">Loaded 200 / 1,420 chapters...</span>
+                  </span>
+                  <span class="concurrency-badge">Semaphore(4)</span>
+                </div>
+
+                <div class="sim-progress-track">
+                  <div class="sim-progress-fill" id="progressiveProgressBar" style="width: 14%;"></div>
+                </div>
+
+                <div class="sim-button-row">
+                  <button class="sim-action-btn" onclick="triggerProgressiveLoadSim()">Simulate Bounded Load (FreeWebNovel)</button>
+                  <button class="sim-action-btn" onclick="toggleSlugRotationDemo()">Simulate Slug Rotation</button>
+                </div>
+              </div>
+
+              <!-- CHAPTER LIST SECTION -->
+              <div class="chapter-section-header">
+                <span class="chapter-count-label" id="chapterTotalCountHeader">1,420 chapters</span>
+                <div class="chapter-filter-chips">
+                  <button class="chip-filter active" style="padding:3px 8px;font-size:0.7rem;">Asc</button>
+                  <button class="chip-filter" style="padding:3px 8px;font-size:0.7rem;">Unread</button>
+                </div>
+              </div>
+
+              <!-- DISTINCT CHAPTER ROW STATES -->
+              <div class="chapter-rows-container" id="chapterListContainer">
+
+                <!-- 1. UNREAD STATE: Full-contrast text + Warm amber unread dot -->
+                <div class="chapter-row state-unread" onclick="openNovelReaderAtChapter(44)">
+                  <div class="chapter-row-left">
+                    <span class="unread-amber-dot" title="Unread chapter (#D98A4E)"></span>
+                    <div class="chapter-row-text">
+                      <div class="chapter-row-title">Chapter 44: Whispers in the Gloom</div>
+                      <div class="chapter-row-subtitle">
+                        <span>Unread</span>
+                        <span>·</span>
+                        <span>Yesterday</span>
+                        <span class="concurrency-badge" style="font-size:0.65rem;">ch-44-a9f3b2</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 2. UNREAD + DOWNLOADED COMBINED STATE -->
+                <div class="chapter-row state-unread" onclick="openNovelReaderAtChapter(43)">
+                  <div class="chapter-row-left">
+                    <span class="unread-amber-dot"></span>
+                    <div class="chapter-row-text">
+                      <div class="chapter-row-title">Chapter 43: The First Seal</div>
+                      <div class="chapter-row-subtitle">
+                        <span class="downloaded-pin-badge">Downloaded</span>
+                        <span>Unread</span>
+                        <span>·</span>
+                        <span>2 days ago</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 3. IN-PROGRESS STATE: primary title + inline progress bar (68%) -->
+                <div class="chapter-row state-in-progress" onclick="openNovelReaderAtProgress(0.68)">
+                  <div class="chapter-row-left">
+                    <div class="unread-amber-dot" style="opacity:0.4;"></div>
+                    <div class="chapter-row-text">
+                      <div class="chapter-row-title">Chapter 42: The Ember Archive</div>
+                      <div class="chapter-row-subtitle">
+                        <span class="chapter-row-progress-pill">68%</span>
+                        <div class="chapter-row-progress-line">
+                          <div class="chapter-row-progress-line-fill"></div>
+                        </div>
+                        <span id="slugRotationSubtitleNote">Slug rotated: preserved via Ch #42.0</span>
+                      </div>
+                    </div>
+                  </div>
+                  <span class="downloaded-pin-badge">Downloaded</span>
+                </div>
+
+                <!-- 4. COMPLETED STATE: Muted secondary text #A89F93 + check icon -->
+                <div class="chapter-row state-completed" onclick="openNovelReaderAtChapter(41)">
+                  <div class="chapter-row-left">
+                    <span class="completed-check-icon" title="Completed">✓</span>
+                    <div class="chapter-row-text">
+                      <div class="chapter-row-title">Chapter 41: The Obsidian Vault</div>
+                      <div class="chapter-row-subtitle">
+                        <span class="downloaded-pin-badge">Downloaded</span>
+                        <span>Read</span>
+                        <span>·</span>
+                        <span>Oct 24</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 5. COMPLETED (OLDER) STATE -->
+                <div class="chapter-row state-completed" onclick="openNovelReaderAtChapter(40)">
+                  <div class="chapter-row-left">
+                    <span class="completed-check-icon">✓</span>
+                    <div class="chapter-row-text">
+                      <div class="chapter-row-title">Chapter 40: Descent into the Chasm</div>
+                      <div class="chapter-row-subtitle">
+                        <span class="downloaded-pin-badge">Downloaded</span>
+                        <span>Read</span>
+                        <span>·</span>
+                        <span>Oct 23</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+
+          <!-- ==============================================
+               SCREEN 5: NOVEL READER (NOVEL TEXT ENGINE)
+               ============================================== -->
+          <div class="screen-view" id="view-reader">
+            <div class="reader-view-container">
+
+              <!-- Reader Live Scroll Header Tracker (Sticky) -->
+              <div class="reader-scroll-header-tracker" id="readerScrollTracker">
+                <span class="reader-scroll-badge">
+                  <span>Scroll:</span>
+                  <span id="readerProgressPercentText">68%</span>
+                  <span id="readerProgressNormalizedText" style="font-family:monospace;font-size:0.7rem;opacity:0.8;">[0.68f]</span>
+                </span>
+                <span class="reader-read-status-badge" id="readerCompletionBadge">IN-PROGRESS</span>
+                <button class="restore-progress-btn" onclick="restoreReaderProgress(0.68)">Restore Progress (68%)</button>
+              </div>
+
+              <!-- Continuous Vertical Scroll Prose Canvas (NovelTextEngine) -->
+              <!-- Tap-to-toggle immersive chrome on click -->
+              <div class="novel-canvas" id="novelCanvas" onclick="handleReaderCanvasTap(event)">
+
+                <!-- Structured Heading 1 (NovelBlock.Heading level=1) -->
+                <h1 class="novel-block-heading-1">Chapter 42: The Ember Archive</h1>
+
+                <!-- Structured Heading 2 (NovelBlock.Heading level=2) -->
+                <h2 class="novel-block-heading-2">I. Beneath the Obsidian Vault</h2>
+
+                <!-- Structured Paragraphs (NovelBlock.Paragraph) with inline emphasis -->
+                <p class="novel-block-paragraph">
+                  The chill in the catacombs was not born of cold stone or winter draft, but of something far more ancient. Sunny leaned his shoulder against the rough granite wall, listening intently to the faint echoes reverberating from the deeper chambers of the Citadel. His shadow stretched long across the floor, twitching in sync with the distant flicker of an amber rune.
+                </p>
+
+                <p class="novel-block-paragraph">
+                  <strong>"Do not touch the perimeter,"</strong> Nephis had warned him before descending. Her voice still echoed in the quiet corners of his memory. Sunny had nodded at the time, but now that the black obsidian archway loomed directly ahead, curiosity gnawed at his composure like a starved scavenger.
+                </p>
+
+                <p class="novel-block-paragraph">
+                  He stepped forward, his boots making no sound against the dust. The stone beneath his feet was engraved with geometric lines—not decorative tracery, but binding conduits meant to restrain essence. <em>If these seals fail,</em> he reasoned grimly, <em>we will not need to worry about tomorrow’s sunrise.</em>
+                </p>
+
+                <p class="novel-block-paragraph">
+                  The air grew heavier with each stride. A scent reminiscent of scorched ozone and dried sage tickled his nostrils. He glanced at the runes lining the chamber archway; they glowed with a faint, pulsing ember light, casting elongated shadows that danced like trapped wraiths.
+                </p>
+
+                <!-- Scene Break Divider (NovelBlock.Divider rendering * * *) -->
+                <div class="novel-block-divider">* * *</div>
+
+                <!-- Structured Heading 2: Section II -->
+                <h2 class="novel-block-heading-2">II. The Whispering Runes</h2>
+
+                <p class="novel-block-paragraph">
+                  Sunny extended his right hand, keeping his fingers a cautious inch away from the rune’s surface. A faint tingle prickled across his skin, like static electricity before a torrential lightning storm. <s>He almost pulled back</s>—no, caution was valuable, but fear was fatal.
+                </p>
+
+                <p class="novel-block-paragraph" id="targetScrollParagraph">
+                  <span style="background:var(--primary-container);padding:2px 6px;border-radius:4px;font-size:0.75rem;font-weight:700;color:var(--on-primary-container);">[Saved Progress Anchor · 68%]</span>
+                  The archive was vast, spiraling downward into unfathomable depths. Row after row of black iron pedestals stood in solemn formation, each cradling a polished prism of crystalline quartz. Within each crystal, tiny embers of memories drifted lazily, waiting for an aspirant worthy enough to decipher their dormant history.
+                </p>
+
+                <p class="novel-block-paragraph">
+                  He felt the gaze of the Spell shift within his mind. The mysterious voice, melodic and indifferent, chimed silently at the edge of his consciousness: <em>[You have entered the Sanctum of Remnants].</em>
+                </p>
+
+                <p class="novel-block-paragraph">
+                  A grim smile tugged at Sunny’s lips. Surviving the outskirts of the Dark City was one ordeal; delving into the secrets left behind by the ancient architects was another entirely. He tightened the grip on his dagger, exhaled a cloud of mist, and stepped across the threshold.
+                </p>
+
+                <!-- Chapter End Visual Card -->
+                <div class="novel-chapter-end-card">
+                  <div class="novel-chapter-end-title">End of Chapter 42</div>
+                  <div style="font-size:0.76rem;color:var(--on-surface-var);">
+                    Scroll tracker marks chapter as READ once position exceeds 90%.
+                  </div>
+                  <button class="next-chapter-action-btn" onclick="openNovelReaderAtChapter(43)">
+                    <span>Next Chapter: Ch. 43 →</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Immersive Overlay Top Bar -->
+              <div class="reader-immersive-top-bar" id="readerImmersiveTopBar">
+                <button class="phone-icon-btn" onclick="navigateToScreen('detail')">
+                  <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+                </button>
+                <div style="text-align:center;">
+                  <div style="font-size:0.82rem;font-weight:700;color:var(--on-surface);">Chapter 42</div>
+                  <div style="font-size:0.7rem;color:var(--on-surface-var);">Shadow Slave</div>
+                </div>
+                <button class="phone-icon-btn" onclick="toggleTypographySheet()">
+                  <span style="font-family:serif;font-weight:700;font-size:1.1rem;">Aa</span>
+                </button>
+              </div>
+
+              <!-- Immersive Overlay Bottom Bar -->
+              <div class="reader-immersive-bottom-bar" id="readerImmersiveBottomBar">
+                <button class="reader-chapter-stepper-btn" onclick="openNovelReaderAtChapter(41)">← Ch. 41</button>
+                <div style="flex:1;display:flex;flex-direction:column;gap:2px;align-items:center;">
+                  <input type="range" class="slider-range" id="readerSliderBar" min="0" max="100" value="68" oninput="onReaderSliderChange(this.value)">
+                  <span style="font-size:0.7rem;color:var(--on-surface-var);font-family:monospace;" id="readerSliderLabel">68% · [0.68f]</span>
+                </div>
+                <button class="reader-chapter-stepper-btn" onclick="openNovelReaderAtChapter(43)">Ch. 43 →</button>
+              </div>
+
+              <!-- Floating Aa Typography Button -->
+              <button class="floating-typography-btn" id="floatingAaBtn" onclick="toggleTypographySheet()" title="Typography & Spacing">
+                <span>Aa</span>
+              </button>
+
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Phone Bottom 3-Tab Navigation Bar -->
+        <div class="phone-bottom-nav" id="phoneBottomNav">
+          <!-- Tab 1: Library -->
+          <button class="nav-destination-btn active" data-nav-target="library" onclick="navigateToScreen('library')">
+            <div class="nav-indicator">
+              <svg style="width:20px;height:20px;" viewBox="0 0 24 24"><path fill="currentColor" d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12z"/></svg>
+            </div>
+            <span class="nav-label">Library</span>
+          </button>
+
+          <!-- Tab 2: Browse -->
+          <button class="nav-destination-btn" data-nav-target="browse" onclick="navigateToScreen('browse')">
+            <div class="nav-indicator">
+              <svg style="width:20px;height:20px;" viewBox="0 0 24 24"><path fill="currentColor" d="M12 10.9c-.61 0-1.1.49-1.1 1.1s.49 1.1 1.1 1.1c.61 0 1.1-.49 1.1-1.1s-.49-1.1-1.1-1.1zM12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm2.19 12.19L6 18l3.81-8.19L18 6l-3.81 8.19z"/></svg>
+            </div>
+            <span class="nav-label">Browse</span>
+          </button>
+
+          <!-- Tab 3: Downloads -->
+          <button class="nav-destination-btn" data-nav-target="downloads" onclick="navigateToScreen('downloads')">
+            <div class="nav-indicator">
+              <svg style="width:20px;height:20px;" viewBox="0 0 24 24"><path fill="currentColor" d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/></svg>
+            </div>
+            <span class="nav-label">Downloads</span>
+          </button>
+        </div>
+
+        <!-- Android Home Gesture Pill -->
+        <div class="home-indicator-bar">
+          <div class="home-indicator-pill"></div>
+        </div>
+
+        <!-- TYPOGRAPHY / NOVEL TEXT ENGINE SETTINGS BOTTOM SHEET -->
+        <div class="bottom-sheet-backdrop" id="typographySheetBackdrop" onclick="toggleTypographySheet()"></div>
+        <div class="bottom-sheet-drawer" id="typographySheetDrawer">
+          <div class="drawer-handle"></div>
+          <div class="drawer-title-row">
+            <span class="drawer-title">Reader Typography</span>
+            <button class="phone-icon-btn" onclick="toggleTypographySheet()">✕</button>
+          </div>
+
+          <!-- Font Family -->
+          <div class="drawer-control-group">
+            <div class="drawer-label-row">
+              <span>Font Family</span>
+              <span class="compose-key-badge">novelFontFamily</span>
+            </div>
+            <div class="font-family-button-group">
+              <button class="font-family-btn active" data-family="Serif" onclick="setNovelFontFamily('Serif')">Serif</button>
+              <button class="font-family-btn" data-family="Sans" onclick="setNovelFontFamily('Sans')">Sans-Serif</button>
+              <button class="font-family-btn" data-family="Mono" onclick="setNovelFontFamily('Mono')">Monospace</button>
+            </div>
+          </div>
+
+          <!-- Font Size Slider (12 - 32 sp, default 18) -->
+          <div class="drawer-control-group">
+            <div class="drawer-label-row">
+              <span>Font Size: <strong id="fontSizeValLabel">18 sp</strong></span>
+              <span class="compose-key-badge">novelFontSize</span>
+            </div>
+            <input type="range" class="slider-range" id="sliderFontSize" min="12" max="32" value="18" oninput="updateNovelFontSize(this.value)">
+          </div>
+
+          <!-- Line Height Multiplier Slider (1.2x - 2.0x, step 0.05, default 1.6x) -->
+          <div class="drawer-control-group">
+            <div class="drawer-label-row">
+              <span>Line Height: <strong id="lineHeightValLabel">1.60x</strong></span>
+              <span class="compose-key-badge">novelLineHeightMultiplier</span>
+            </div>
+            <input type="range" class="slider-range" id="sliderLineHeight" min="1.20" max="2.00" step="0.05" value="1.60" oninput="updateNovelLineHeight(this.value)">
+          </div>
+
+          <!-- Paragraph Spacing (4 - 28 dp, default 14 dp) -->
+          <div class="drawer-control-group">
+            <div class="drawer-label-row">
+              <span>Paragraph Spacing: <strong id="paraSpacingValLabel">14 dp</strong></span>
+              <span class="compose-key-badge">novelParagraphSpacingDp</span>
+            </div>
+            <input type="range" class="slider-range" id="sliderParaSpacing" min="4" max="28" value="14" oninput="updateNovelParaSpacing(this.value)">
+          </div>
+
+          <!-- Horizontal Padding / Margins (8 - 40 dp, default 20 dp) -->
+          <div class="drawer-control-group">
+            <div class="drawer-label-row">
+              <span>Horizontal Margins: <strong id="horizPaddingValLabel">20 dp</strong></span>
+              <span class="compose-key-badge">novelHorizontalPaddingDp</span>
+            </div>
+            <input type="range" class="slider-range" id="sliderHorizPadding" min="8" max="40" value="20" oninput="updateNovelHorizPadding(this.value)">
+          </div>
+        </div>
+
+        <!-- APP SETTINGS MODAL (CLICKED FROM GEAR ICON) -->
+        <div class="bottom-sheet-backdrop" id="settingsModalBackdrop" onclick="toggleSettingsModal()"></div>
+        <div class="bottom-sheet-drawer" id="settingsModalDrawer">
+          <div class="drawer-handle"></div>
+          <div class="drawer-title-row">
+            <span class="drawer-title">App Settings</span>
+            <button class="phone-icon-btn" onclick="toggleSettingsModal()">✕</button>
+          </div>
+
+          <div class="drawer-control-group">
+            <div class="drawer-label-row">
+              <span>Color Theme</span>
+              <span class="compose-key-badge">AppTheme</span>
+            </div>
+            <div class="font-family-button-group" style="grid-template-columns:repeat(2,1fr);">
+              <button class="font-family-btn active" data-theme-btn="WARM_DARK" onclick="setAppTheme('WARM_DARK')">Warm Dark</button>
+              <button class="font-family-btn" data-theme-btn="SEPIA" onclick="setAppTheme('SEPIA')">Sepia</button>
+              <button class="font-family-btn" data-theme-btn="LIGHT" onclick="setAppTheme('LIGHT')">Light</button>
+              <button class="font-family-btn" data-theme-btn="DARK" onclick="setAppTheme('DARK')">Dark</button>
+            </div>
+          </div>
+
+          <div class="drawer-control-group" style="margin-top:6px;">
+            <div class="drawer-label-row">
+              <span>Novel Engine Architecture</span>
+              <span class="compose-key-badge">NovelTextEngine</span>
+            </div>
+            <p style="font-size:0.75rem;color:var(--on-surface-var);">
+              Native Jetpack Compose <code>LazyColumn</code> with deterministic scroll restoration and bounded concurrency chapter scrapers.
+            </p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+
+    <!-- ===================================================================
+         RIGHT COLUMN: DESIGN SYSTEM SPECIFICATION & CONTRAST INSPECTOR
+         =================================================================== -->
+    <div class="inspector-panel">
+
+      <!-- CARD 1: ACTIVE THEME COLOR TOKENS & SWATCHES -->
+      <div class="inspector-card">
+        <div class="card-header-row">
+          <div>
+            <div class="card-title">
+              <span>Live Color Tokens</span>
+              <span class="concurrency-badge" id="inspectorThemeBadge">WARM_DARK</span>
+            </div>
+            <div class="card-subtitle">Jetpack Compose Color Scheme tokens with hex codes</div>
+          </div>
+        </div>
+
+        <!-- Dynamic Swatches Grid -->
+        <div class="swatches-grid" id="swatchesGridContainer">
+          <!-- Populated dynamically via JS -->
+        </div>
+      </div>
+
+      <!-- CARD 2: WCAG 2.1 CONTRAST INSPECTOR TABLE -->
+      <div class="inspector-card">
+        <div class="card-header-row">
+          <div>
+            <div class="card-title">WCAG 2.1 Contrast Inspector</div>
+            <div class="card-subtitle">Real-time relative luminance & contrast ratio validation</div>
+          </div>
+        </div>
+
+        <div class="contrast-table-wrapper">
+          <table class="contrast-table" id="contrastInspectorTable">
+            <thead>
+              <tr>
+                <th>Element Pair</th>
+                <th>Foreground Token</th>
+                <th>Background Token</th>
+                <th>Ratio</th>
+                <th>WCAG Level</th>
+              </tr>
+            </thead>
+            <tbody id="contrastTableBody">
+              <!-- Populated dynamically via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- CARD 3: COMPOSE APPSETTINGS LIVE CODE GENERATOR -->
+      <div class="inspector-card">
+        <div class="card-header-row">
+          <div>
+            <div class="card-title">Compose AppSettings Configuration</div>
+            <div class="card-subtitle">Synchronized Kotlin data class representation</div>
+          </div>
+        </div>
+
+        <div class="code-preview-box" id="composeCodePreview">
+          // Live Compose Settings State<br>
+          <span class="code-token-kw">data class</span> AppSettings(<br>
+          &nbsp;&nbsp;<span class="code-token-prop">theme</span>: AppTheme = AppTheme.<span class="code-token-val" id="codeSnippetTheme">WARM_DARK</span>,<br>
+          &nbsp;&nbsp;<span class="code-token-prop">novelFontSize</span>: Int = <span class="code-token-val" id="codeSnippetFontSize">18</span>,<br>
+          &nbsp;&nbsp;<span class="code-token-prop">novelFontFamily</span>: String = <span class="code-token-str" id="codeSnippetFontFamily">"Serif"</span>,<br>
+          &nbsp;&nbsp;<span class="code-token-prop">novelLineHeightMultiplier</span>: Float = <span class="code-token-val" id="codeSnippetLineHeight">1.6f</span>,<br>
+          &nbsp;&nbsp;<span class="code-token-prop">novelParagraphSpacingDp</span>: Int = <span class="code-token-val" id="codeSnippetParaSpacing">14</span>,<br>
+          &nbsp;&nbsp;<span class="code-token-prop">novelHorizontalPaddingDp</span>: Int = <span class="code-token-val" id="codeSnippetHorizPadding">20</span><br>
+          )
+        </div>
+      </div>
+
+      <!-- CARD 4: PROGRESSIVE CHAPTER LIST RETRIEVAL ARCHITECTURE -->
+      <div class="inspector-card">
+        <div class="card-header-row">
+          <div>
+            <div class="card-title">Progressive Loading & Slug Resilience</div>
+            <div class="card-subtitle">Issue #71 Source contract & Room DAO synchronization</div>
+          </div>
+        </div>
+
+        <div class="arch-flow-diagram">
+          <div class="arch-step-row">
+            <div class="arch-step-num">1</div>
+            <div class="arch-step-desc">
+              <strong>Immediate Page 1 Emission (~300ms)</strong>: <code>FreeWebNovel</code> emits chapters 1–200 instantly via <code>fetchChapterListProgressive</code>, allowing readers to open Chapter 1 without blocking on sequential AJAX requests.
+            </div>
+          </div>
+
+          <div class="arch-step-row">
+            <div class="arch-step-num">2</div>
+            <div class="arch-step-desc">
+              <strong>Bounded Concurrency <code>Semaphore(4)</code></strong>: Pages 2..N are fetched concurrently (max 4 in-flight HTTP requests), merging deterministically in ascending order with deduplication.
+            </div>
+          </div>
+
+          <div class="arch-step-row">
+            <div class="arch-step-num">3</div>
+            <div class="arch-step-desc">
+              <strong>URL-Slug Rotation Resilience</strong>: <code>ChapterDao.replaceChaptersForSeries</code> matches incoming chapters by exact URL first; if the slug hash changed, it falls back to matching unique chapter number (<code>number >= 0f</code>), preserving <code>read</code>, <code>progress</code>, and <code>downloaded</code> flags.
+            </div>
+          </div>
+
+          <div class="arch-step-row">
+            <div class="arch-step-num">4</div>
+            <div class="arch-step-desc">
+              <strong>Native <code>NovelTextEngine</code></strong>: Zero <code>WebView</code> overhead. Renders <code>LazyColumn</code> with styled <code>NovelBlock</code> items and restores exact normalized scroll position <code>[0f, 1f]</code>.
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- Toast Notification Container -->
+  <div class="toast-msg" id="toastMessage">Action performed</div>
+
+  <!-- ===================================================================
+       CLIENT-SIDE JAVASCRIPT CONTROLLERS
+       =================================================================== -->
+  <script>
+    /* ------------------------------------------------------------------
+       THEME PALETTES & COLOR DEFINITIONS
+       ------------------------------------------------------------------ */
+    const THEMES = {
+      WARM_DARK: {
+        name: "Warm Dark",
+        tag: "WARM_DARK",
+        tokens: {
+          background: "#181614",
+          surface: "#211E1B",
+          surfaceContainer: "#2A2521",
+          onBackground: "#E6DFD5",
+          onSurfaceVariant: "#A89F93",
+          primary: "#D98A4E",
+          onPrimary: "#2B1708",
+          primaryContainer: "#4A2E16",
+          onPrimaryContainer: "#FFDCC4",
+          secondary: "#7A9A8B",
+          onSecondary: "#12261D",
+          secondaryContainer: "#263D33",
+          onSecondaryContainer: "#BCE0CF"
+        }
+      },
+      SEPIA: {
+        name: "Sepia",
+        tag: "SEPIA",
+        tokens: {
+          background: "#F4ECD8",
+          surface: "#EFE4C8",
+          surfaceContainer: "#E4D5B7",
+          onBackground: "#2C221E",
+          onSurfaceVariant: "#5C4B3B",
+          primary: "#8C5327",
+          onPrimary: "#FFFFFF",
+          primaryContainer: "#F5D9C1",
+          onPrimaryContainer: "#361B06",
+          secondary: "#4F6D5A",
+          onSecondary: "#FFFFFF",
+          secondaryContainer: "#CFE4D6",
+          onSecondaryContainer: "#14291C"
+        }
+      },
+      LIGHT: {
+        name: "Light",
+        tag: "LIGHT",
+        tokens: {
+          background: "#FAF8F5",
+          surface: "#FFFFFF",
+          surfaceContainer: "#F0ECE1",
+          onBackground: "#1C1B1A",
+          onSurfaceVariant: "#605C56",
+          primary: "#B86528",
+          onPrimary: "#FFFFFF",
+          primaryContainer: "#FDE8D7",
+          onPrimaryContainer: "#3D1C05",
+          secondary: "#536358",
+          onSecondary: "#FFFFFF",
+          secondaryContainer: "#D6E0D9",
+          onSecondaryContainer: "#101E15"
+        }
+      },
+      DARK: {
+        name: "Dark",
+        tag: "DARK",
+        tokens: {
+          background: "#121212",
+          surface: "#1E1E1E",
+          surfaceContainer: "#282828",
+          onBackground: "#E6E1E5",
+          onSurfaceVariant: "#938F99",
+          primary: "#D0BCFF",
+          onPrimary: "#381E72",
+          primaryContainer: "#4F378A",
+          onPrimaryContainer: "#E8DDFF",
+          secondary: "#CCC2DC",
+          onSecondary: "#332D41",
+          secondaryContainer: "#4A4458",
+          onSecondaryContainer: "#E8DEF8"
+        }
+      }
+    };
+
+    // Current State
+    let activeThemeKey = "WARM_DARK";
+    let activeScreenKey = "library";
+    let isReaderChromeVisible = true;
+    let isInLibrary = true;
+    let isSlugRotationSimulated = false;
+
+    // Novel Typography State
+    const novelSettings = {
+      fontFamily: "Serif",
+      fontSize: 18,
+      lineHeight: 1.60,
+      paraSpacing: 14,
+      horizPadding: 20
+    };
+
+    // Browse Sources
+    const BROWSE_SOURCES = [
+      { id: "freewebnovel", name: "FreeWebNovel (EN) · Novel", type: "Novel" },
+      { id: "asurascans", name: "AsuraScans (EN) · Manhwa", type: "Manhwa" },
+      { id: "royalroad", name: "RoyalRoad (EN) · Novel", type: "Novel" }
+    ];
+    let activeBrowseSourceIdx = 0;
+
+    // Sample series data per source
+    const SOURCE_CATALOGS = {
+      freewebnovel: [
+        { id: "shadow-slave", title: "Shadow Slave", author: "Guiltythree", ch: "1,420", rating: "4.9 ★", coverBg: "#2A2218", coverAccent: "#D98A4E" },
+        { id: "lord-of-the-mysteries", title: "Lord of the Mysteries", author: "Cuttlefish", ch: "1,432", rating: "4.9 ★", coverBg: "#1B262C", coverAccent: "#7A9A8B" },
+        { id: "reverend-insanity", title: "Reverend Insanity", author: "Gu Zhen Ren", ch: "2,334", rating: "4.8 ★", coverBg: "#231F20", coverAccent: "#A63D40" },
+        { id: "omniscient-reader", title: "Omniscient Reader", author: "sing N song", ch: "551", rating: "4.9 ★", coverBg: "#1F2937", coverAccent: "#60A5FA" }
+      ],
+      asurascans: [
+        { id: "solo-leveling", title: "Solo Leveling: Ragnarok", author: "Daul", ch: "15", rating: "4.8 ★", coverBg: "#1C1824", coverAccent: "#9D72FF" },
+        { id: "return-mount-hua", title: "Return of Mount Hua Sect", author: "Biga", ch: "128", rating: "4.9 ★", coverBg: "#241818", coverAccent: "#E05A47" },
+        { id: "greatest-estate", title: "The Greatest Estate Developer", author: "BK_Moon", ch: "140", rating: "4.9 ★", coverBg: "#182024", coverAccent: "#38BDF8" },
+        { id: "reaper-drifting", title: "Reaper of the Drifting Moon", author: "Woo-Gak", ch: "92", rating: "4.7 ★", coverBg: "#18181B", coverAccent: "#A1A1AA" }
+      ],
+      royalroad: [
+        { id: "primal-hunter", title: "The Primal Hunter", author: "Zogarth", ch: "900", rating: "4.7 ★", coverBg: "#18241D", coverAccent: "#528265" },
+        { id: "defiance-fall", title: "Defiance of the Fall", author: "JF Brink", ch: "1,120", rating: "4.7 ★", coverBg: "#291E16", coverAccent: "#D97736" },
+        { id: "dungeon-crawler", title: "Dungeon Crawler Carl", author: "Matt Dinniman", ch: "350", rating: "4.9 ★", coverBg: "#24141E", coverAccent: "#EC4899" },
+        { id: "beware-chicken", title: "Beware of Chicken", author: "CasualFarmer", ch: "280", rating: "4.9 ★", coverBg: "#202416", coverAccent: "#84CC16" }
+      ]
+    };
+
+    /* ------------------------------------------------------------------
+       WCAG 2.1 CONTRAST RATIO CALCULATION
+       ------------------------------------------------------------------ */
+    function hexToRgb(hex) {
+      hex = hex.replace(/^#/, '');
+      if (hex.length === 3) {
+        hex = hex.split('').map(c => c + c).join('');
+      }
+      const num = parseInt(hex, 16);
+      return {
+        r: (num >> 16) & 255,
+        g: (num >> 8) & 255,
+        b: num & 255
+      };
+    }
+
+    function relativeLuminance(rgb) {
+      const a = [rgb.r, rgb.g, rgb.b].map(v => {
+        v /= 255;
+        return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+      });
+      return 0.2126 * a[0] + 0.7152 * a[1] + 0.0722 * a[2];
+    }
+
+    function calculateContrastRatio(hex1, hex2) {
+      const lum1 = relativeLuminance(hexToRgb(hex1));
+      const lum2 = relativeLuminance(hexToRgb(hex2));
+      const brightest = Math.max(lum1, lum2);
+      const darkest = Math.min(lum1, lum2);
+      return (brightest + 0.05) / (darkest + 0.05);
+    }
+
+    /* ------------------------------------------------------------------
+       THEME CONTROLLER
+       ------------------------------------------------------------------ */
+    function setAppTheme(themeKey) {
+      if (!THEMES[themeKey]) return;
+      activeThemeKey = themeKey;
+
+      // Update Body attribute
+      document.body.setAttribute("data-theme", themeKey);
+
+      // Update Header Theme Switcher Buttons
+      document.querySelectorAll(".theme-btn").forEach(btn => {
+        btn.classList.toggle("active", btn.getAttribute("data-theme-target") === themeKey);
+      });
+
+      // Update Settings Modal Buttons
+      document.querySelectorAll("[data-theme-btn]").forEach(btn => {
+        btn.classList.toggle("active", btn.getAttribute("data-theme-btn") === themeKey);
+      });
+
+      // Update Inspector Badge & Swatches & Contrast Table
+      document.getElementById("inspectorThemeBadge").textContent = themeKey;
+      document.getElementById("codeSnippetTheme").textContent = themeKey;
+      renderThemeSwatches();
+      renderContrastTable();
+
+      showToast(`Switched theme to ${THEMES[themeKey].name}`);
+    }
+
+    function renderThemeSwatches() {
+      const container = document.getElementById("swatchesGridContainer");
+      container.innerHTML = "";
+
+      const tokens = THEMES[activeThemeKey].tokens;
+      for (const [key, hex] of Object.entries(tokens)) {
+        const item = document.createElement("div");
+        item.className = "swatch-item";
+        item.innerHTML = `
+          <div class="swatch-color-box" style="background-color: ${hex};"></div>
+          <div class="swatch-info">
+            <div class="swatch-token-name">${key}</div>
+            <div class="swatch-hex">${hex}</div>
+          </div>
+        `;
+        container.appendChild(item);
+      }
+    }
+
+    function renderContrastTable() {
+      const tbody = document.getElementById("contrastTableBody");
+      tbody.innerHTML = "";
+
+      const tokens = THEMES[activeThemeKey].tokens;
+
+      const pairs = [
+        {
+          name: "Primary Text on Background",
+          fgName: "onBackground",
+          fgHex: tokens.onBackground,
+          bgName: "background",
+          bgHex: tokens.background
+        },
+        {
+          name: "Secondary Text on Surface",
+          fgName: "onSurfaceVariant",
+          fgHex: tokens.onSurfaceVariant,
+          bgName: "surface",
+          bgHex: tokens.surface
+        },
+        {
+          name: "Primary Accent on Background",
+          fgName: "primary",
+          fgHex: tokens.primary,
+          bgName: "background",
+          bgHex: tokens.background
+        },
+        {
+          name: "OnPrimary on Primary Container",
+          fgName: "onPrimaryContainer",
+          fgHex: tokens.onPrimaryContainer,
+          bgName: "primaryContainer",
+          bgHex: tokens.primaryContainer
+        },
+        {
+          name: "Secondary Accent on Background",
+          fgName: "secondary",
+          fgHex: tokens.secondary,
+          bgName: "background",
+          bgHex: tokens.background
+        },
+        {
+          name: "OnSecondary on Container",
+          fgName: "onSecondaryContainer",
+          fgHex: tokens.onSecondaryContainer,
+          bgName: "secondaryContainer",
+          bgHex: tokens.secondaryContainer
+        }
+      ];
+
+      pairs.forEach(pair => {
+        const ratio = calculateContrastRatio(pair.fgHex, pair.bgHex);
+        const formattedRatio = ratio.toFixed(2) + ":1";
+
+        let badgeClass = "fail";
+        let badgeLabel = "FAIL";
+
+        if (ratio >= 7.0) {
+          badgeClass = "pass-aaa";
+          badgeLabel = "AAA PASS";
+        } else if (ratio >= 4.5) {
+          badgeClass = "pass-aa";
+          badgeLabel = "AA PASS";
+        } else if (ratio >= 3.0) {
+          badgeClass = "pass-aa";
+          badgeLabel = "AA LARGE";
+        }
+
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td><strong>${pair.name}</strong></td>
+          <td><code>${pair.fgName}</code> (${pair.fgHex})</td>
+          <td><code>${pair.bgName}</code> (${pair.bgHex})</td>
+          <td style="font-family:monospace;font-weight:700;">${formattedRatio}</td>
+          <td><span class="contrast-badge ${badgeClass}">${badgeLabel}</span></td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    /* ------------------------------------------------------------------
+       SCREEN NAVIGATION CONTROLLER
+       ------------------------------------------------------------------ */
+    function navigateToScreen(screenKey) {
+      activeScreenKey = screenKey;
+
+      // Hide all screen views
+      document.querySelectorAll(".screen-view").forEach(v => v.classList.remove("active"));
+      const targetView = document.getElementById("view-" + screenKey);
+      if (targetView) targetView.classList.add("active");
+
+      // Update Quick Switcher buttons
+      document.querySelectorAll(".screen-jump-btn").forEach(btn => {
+        btn.classList.toggle("active", btn.getAttribute("data-screen-btn") === screenKey);
+      });
+
+      // Update Bottom Nav destinations (highlight only if matching 3 primary tabs)
+      document.querySelectorAll(".nav-destination-btn").forEach(btn => {
+        btn.classList.toggle("active", btn.getAttribute("data-nav-target") === screenKey);
+      });
+
+      // Update Top App Bar Title & Controls
+      const topBarTitle = document.getElementById("phoneTopBarTitle");
+      const backBtn = document.getElementById("phoneBackBtn");
+      const settingsBtn = document.getElementById("phoneSettingsBtn");
+      const aaBtn = document.getElementById("phoneReaderAaBtn");
+      const topBar = document.getElementById("phoneTopAppBar");
+      const bottomNav = document.getElementById("phoneBottomNav");
+
+      if (screenKey === "library") {
+        topBarTitle.textContent = "Library";
+        backBtn.style.display = "none";
+        settingsBtn.style.display = "flex";
+        aaBtn.style.display = "none";
+        topBar.style.display = "flex";
+        bottomNav.style.display = "flex";
+      } else if (screenKey === "browse") {
+        topBarTitle.textContent = "Browse";
+        backBtn.style.display = "none";
+        settingsBtn.style.display = "flex";
+        aaBtn.style.display = "none";
+        topBar.style.display = "flex";
+        bottomNav.style.display = "flex";
+        renderBrowseCatalog();
+      } else if (screenKey === "downloads") {
+        topBarTitle.textContent = "Downloads";
+        backBtn.style.display = "none";
+        settingsBtn.style.display = "flex";
+        aaBtn.style.display = "none";
+        topBar.style.display = "flex";
+        bottomNav.style.display = "flex";
+      } else if (screenKey === "detail") {
+        topBarTitle.textContent = "Series Detail";
+        backBtn.style.display = "flex";
+        settingsBtn.style.display = "none";
+        aaBtn.style.display = "none";
+        topBar.style.display = "flex";
+        bottomNav.style.display = "none";
+      } else if (screenKey === "reader") {
+        topBarTitle.textContent = "Ch. 42: The Ember Archive";
+        backBtn.style.display = "flex";
+        settingsBtn.style.display = "none";
+        aaBtn.style.display = "flex";
+        topBar.style.display = "none"; // Reader uses its own immersive top bar
+        bottomNav.style.display = "none";
+      }
+
+      // Close bottom drawers if open
+      closeAllSheets();
+    }
+
+    function handleTopBarBack() {
+      if (activeScreenKey === "reader") {
+        navigateToScreen("detail");
+      } else if (activeScreenKey === "detail") {
+        navigateToScreen("library");
+      }
+    }
+
+    function openSeriesDetail(seriesId) {
+      navigateToScreen("detail");
+    }
+
+    function openNovelReaderAtChapter(chapterNum) {
+      navigateToScreen("reader");
+      showToast(`Opened Chapter ${chapterNum}`);
+    }
+
+    function openNovelReaderAtProgress(progressRatio) {
+      navigateToScreen("reader");
+      setTimeout(() => {
+        restoreReaderProgress(progressRatio);
+      }, 150);
+    }
+
+    /* ------------------------------------------------------------------
+       BROWSE SOURCE SELECTOR & TABS
+       ------------------------------------------------------------------ */
+    function cycleBrowseSource() {
+      activeBrowseSourceIdx = (activeBrowseSourceIdx + 1) % BROWSE_SOURCES.length;
+      const current = BROWSE_SOURCES[activeBrowseSourceIdx];
+      document.getElementById("activeBrowseSourceLabel").textContent = current.name;
+      renderBrowseCatalog();
+      showToast(`Active Source: ${current.name}`);
+    }
+
+    function setBrowseTab(btn, tabMode) {
+      document.querySelectorAll(".segmented-tab").forEach(t => t.classList.remove("active"));
+      btn.classList.add("active");
+      showToast(`Browse filter: ${tabMode.toUpperCase()}`);
+    }
+
+    function renderBrowseCatalog() {
+      const grid = document.getElementById("browseSeriesGrid");
+      grid.innerHTML = "";
+
+      const current = BROWSE_SOURCES[activeBrowseSourceIdx];
+      const items = SOURCE_CATALOGS[current.id] || SOURCE_CATALOGS.freewebnovel;
+
+      items.forEach(series => {
+        const card = document.createElement("div");
+        card.className = "series-card";
+        card.onclick = () => openSeriesDetail(series.id);
+        card.innerHTML = `
+          <div class="series-cover-wrapper">
+            <svg class="cover-art-svg" viewBox="0 0 120 180">
+              <rect width="120" height="180" fill="${series.coverBg}"/>
+              <circle cx="60" cy="70" r="28" fill="${series.coverAccent}" opacity="0.35"/>
+              <text x="60" y="125" fill="#E6DFD5" font-size="9" font-weight="bold" text-anchor="middle" font-family="sans-serif">${series.title.toUpperCase()}</text>
+              <text x="60" y="140" fill="#A89F93" font-size="8" text-anchor="middle" font-family="sans-serif">${series.author}</text>
+            </svg>
+            <span class="series-badge-unread" style="background:var(--secondary);color:var(--on-secondary);">${series.rating}</span>
+          </div>
+          <div class="series-card-body">
+            <div class="series-card-title">${series.title}</div>
+            <div class="series-card-meta">
+              <span>${series.ch} ch</span>
+              <span>·</span>
+              <span>${current.type}</span>
+            </div>
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    /* ------------------------------------------------------------------
+       PROGRESSIVE CHAPTER LOADING SIMULATION (FREEWEBNOVEL)
+       ------------------------------------------------------------------ */
+    let simInterval = null;
+    function triggerProgressiveLoadSim() {
+      if (simInterval) clearInterval(simInterval);
+
+      const statusText = document.getElementById("progressiveStatusText");
+      const progressBar = document.getElementById("progressiveProgressBar");
+      const totalHeader = document.getElementById("chapterTotalCountHeader");
+
+      statusText.textContent = "Page 1 loaded (Ch. 1–200) · Emitted in 280ms";
+      progressBar.style.width = "14%";
+      totalHeader.textContent = "200 chapters (loading...)";
+
+      let currentCount = 200;
+      const total = 1420;
+
+      simInterval = setInterval(() => {
+        currentCount += 240;
+        if (currentCount >= total) {
+          currentCount = total;
+          clearInterval(simInterval);
+          statusText.textContent = "All 1,420 chapters loaded & deduplicated!";
+          progressBar.style.width = "100%";
+          totalHeader.textContent = "1,420 chapters";
+          showToast("Progressive Chapter Retrieval Complete!");
+        } else {
+          const pct = Math.round((currentCount / total) * 100);
+          statusText.textContent = `Concurrent fetch: ${currentCount} / ${total} chapters (Semaphore 4)...`;
+          progressBar.style.width = pct + "%";
+          totalHeader.textContent = `${currentCount} chapters...`;
+        }
+      }, 500);
+    }
+
+    function toggleSlugRotationDemo() {
+      isSlugRotationSimulated = !isSlugRotationSimulated;
+      const note = document.getElementById("slugRotationSubtitleNote");
+      if (isSlugRotationSimulated) {
+        note.innerHTML = `<span style="color:var(--primary);font-weight:700;">Rotated: ch-42-hash89b -> Preserved via Ch #42.0!</span>`;
+        showToast("Slug hash rotated: reading state 68% preserved!");
+      } else {
+        note.textContent = "Slug rotated: preserved via Ch #42.0";
+      }
+    }
+
+    function toggleLibraryBookmark() {
+      isInLibrary = !isInLibrary;
+      const btn = document.getElementById("libraryToggleBtn");
+      if (isInLibrary) {
+        btn.innerHTML = `<span>✓ In Library</span>`;
+        btn.style.background = "var(--primary-container)";
+        btn.style.color = "var(--on-primary-container)";
+        showToast("Added to Library");
+      } else {
+        btn.innerHTML = `<span>+ Add to Library</span>`;
+        btn.style.background = "var(--surface-container)";
+        btn.style.color = "var(--on-surface)";
+        showToast("Removed from Library");
+      }
+    }
+
+    /* ------------------------------------------------------------------
+       NOVEL TEXT ENGINE (READER CANVAS & SCROLL TRACKER)
+       ------------------------------------------------------------------ */
+    const novelCanvas = document.getElementById("novelCanvas");
+
+    novelCanvas.addEventListener("scroll", () => {
+      const scrollTop = novelCanvas.scrollTop;
+      const scrollHeight = novelCanvas.scrollHeight - novelCanvas.clientHeight;
+      const ratio = scrollHeight > 0 ? Math.min(Math.max(scrollTop / scrollHeight, 0), 1) : 0;
+      updateReaderScrollDisplay(ratio);
+    });
+
+    function updateReaderScrollDisplay(ratio) {
+      const pct = Math.round(ratio * 100);
+      document.getElementById("readerProgressPercentText").textContent = pct + "%";
+      document.getElementById("readerProgressNormalizedText").textContent = `[${ratio.toFixed(2)}f]`;
+      document.getElementById("readerSliderBar").value = pct;
+      document.getElementById("readerSliderLabel").textContent = `${pct}% · [${ratio.toFixed(2)}f]`;
+
+      const badge = document.getElementById("readerCompletionBadge");
+      if (ratio >= 0.90) {
+        badge.textContent = "READ ✓";
+        badge.classList.add("read-done");
+      } else {
+        badge.textContent = "IN-PROGRESS";
+        badge.classList.remove("read-done");
+      }
+    }
+
+    function onReaderSliderChange(value) {
+      const ratio = value / 100;
+      const scrollHeight = novelCanvas.scrollHeight - novelCanvas.clientHeight;
+      novelCanvas.scrollTop = scrollHeight * ratio;
+      updateReaderScrollDisplay(ratio);
+    }
+
+    function restoreReaderProgress(ratio) {
+      const scrollHeight = novelCanvas.scrollHeight - novelCanvas.clientHeight;
+      novelCanvas.scrollTo({
+        top: scrollHeight * ratio,
+        behavior: "smooth"
+      });
+      updateReaderScrollDisplay(ratio);
+      showToast(`Restored position to ${(ratio * 100).toFixed(0)}%`);
+    }
+
+    function handleReaderCanvasTap(event) {
+      // Toggle immersive chrome if not clicking a link/button
+      if (event.target.tagName.toLowerCase() === 'button') return;
+
+      isReaderChromeVisible = !isReaderChromeVisible;
+      const topBar = document.getElementById("readerImmersiveTopBar");
+      const bottomBar = document.getElementById("readerImmersiveBottomBar");
+      const aaBtn = document.getElementById("floatingAaBtn");
+
+      topBar.classList.toggle("hidden", !isReaderChromeVisible);
+      bottomBar.classList.toggle("hidden", !isReaderChromeVisible);
+      aaBtn.classList.toggle("hidden", !isReaderChromeVisible);
+    }
+
+    /* ------------------------------------------------------------------
+       TYPOGRAPHY CONTROLLERS & COMPOSE SETTINGS GENERATOR
+       ------------------------------------------------------------------ */
+    function toggleTypographySheet() {
+      const backdrop = document.getElementById("typographySheetBackdrop");
+      const drawer = document.getElementById("typographySheetDrawer");
+      const isOpen = drawer.classList.contains("open");
+
+      if (isOpen) {
+        drawer.classList.remove("open");
+        backdrop.classList.remove("open");
+      } else {
+        closeAllSheets();
+        drawer.classList.add("open");
+        backdrop.classList.add("open");
+      }
+    }
+
+    function toggleSettingsModal() {
+      const backdrop = document.getElementById("settingsModalBackdrop");
+      const drawer = document.getElementById("settingsModalDrawer");
+      const isOpen = drawer.classList.contains("open");
+
+      if (isOpen) {
+        drawer.classList.remove("open");
+        backdrop.classList.remove("open");
+      } else {
+        closeAllSheets();
+        drawer.classList.add("open");
+        backdrop.classList.add("open");
+      }
+    }
+
+    function closeAllSheets() {
+      document.querySelectorAll(".bottom-sheet-backdrop").forEach(b => b.classList.remove("open"));
+      document.querySelectorAll(".bottom-sheet-drawer").forEach(d => d.classList.remove("open"));
+    }
+
+    function setNovelFontFamily(familyKey) {
+      novelSettings.fontFamily = familyKey;
+
+      let cssFamily = 'Georgia, Cambria, "Times New Roman", serif';
+      if (familyKey === "Sans") {
+        cssFamily = 'system-ui, -apple-system, sans-serif';
+      } else if (familyKey === "Mono") {
+        cssFamily = 'ui-monospace, "SF Mono", monospace';
+      }
+
+      document.documentElement.style.setProperty("--novel-font-family", cssFamily);
+
+      document.querySelectorAll("[data-family]").forEach(b => {
+        b.classList.toggle("active", b.getAttribute("data-family") === familyKey);
+      });
+
+      document.getElementById("codeSnippetFontFamily").textContent = `"${familyKey}"`;
+    }
+
+    function updateNovelFontSize(val) {
+      novelSettings.fontSize = parseInt(val);
+      document.documentElement.style.setProperty("--novel-font-size", val + "px");
+      document.getElementById("fontSizeValLabel").textContent = val + " sp";
+      document.getElementById("codeSnippetFontSize").textContent = val;
+    }
+
+    function updateNovelLineHeight(val) {
+      novelSettings.lineHeight = parseFloat(val);
+      document.documentElement.style.setProperty("--novel-line-height", val);
+      document.getElementById("lineHeightValLabel").textContent = parseFloat(val).toFixed(2) + "x";
+      document.getElementById("codeSnippetLineHeight").textContent = parseFloat(val).toFixed(2) + "f";
+    }
+
+    function updateNovelParaSpacing(val) {
+      novelSettings.paraSpacing = parseInt(val);
+      document.documentElement.style.setProperty("--novel-para-spacing", val + "px");
+      document.getElementById("paraSpacingValLabel").textContent = val + " dp";
+      document.getElementById("codeSnippetParaSpacing").textContent = val;
+    }
+
+    function updateNovelHorizPadding(val) {
+      novelSettings.horizPadding = parseInt(val);
+      document.documentElement.style.setProperty("--novel-horiz-padding", val + "px");
+      document.getElementById("horizPaddingValLabel").textContent = val + " dp";
+      document.getElementById("codeSnippetHorizPadding").textContent = val;
+    }
+
+    /* ------------------------------------------------------------------
+       TOAST UTILITY
+       ------------------------------------------------------------------ */
+    let toastTimeout = null;
+    function showToast(msg) {
+      const toast = document.getElementById("toastMessage");
+      toast.textContent = msg;
+      toast.classList.add("show");
+      if (toastTimeout) clearTimeout(toastTimeout);
+      toastTimeout = setTimeout(() => {
+        toast.classList.remove("show");
+      }, 2600);
+    }
+
+    /* ------------------------------------------------------------------
+       INITIALIZATION
+       ------------------------------------------------------------------ */
+    window.addEventListener("DOMContentLoaded", () => {
+      setAppTheme("WARM_DARK");
+      renderBrowseCatalog();
+      updateReaderScrollDisplay(0.68);
+    });
+  </script>
+</body>
+</html>
