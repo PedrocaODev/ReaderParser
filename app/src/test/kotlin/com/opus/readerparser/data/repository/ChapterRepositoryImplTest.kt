@@ -695,4 +695,103 @@ class ChapterRepositoryImplTest {
         val storedStale = fakeDao.getByUrl(testSeries.sourceId, staleChapter.url)
         assertNull(storedStale)
     }
+
+    @Test
+    fun `refreshChapters preserves read progress and downloaded state when chapter URLs rotate but chapter numbers match`() = runTest {
+        val old1 = testChapter.copy(url = "https://test.invalid/chapter/old-1", number = 1f)
+            .toEntity().copy(read = true, progress = 0.6f, downloaded = true)
+        val old2 = testChapter.copy(url = "https://test.invalid/chapter/old-2", number = 2f)
+            .toEntity().copy(read = false, progress = 0.25f, downloaded = false)
+        fakeDao.upsertAll(listOf(old1, old2))
+
+        val new1 = testChapter.copy(url = "https://test.invalid/chapter/new-1", number = 1f)
+        val new2 = testChapter.copy(url = "https://test.invalid/chapter/new-2", number = 2f)
+        fakeSource.chapterListResult = listOf(new1, new2)
+
+        repository.refreshChapters(testSeries)
+
+        assertNull(fakeDao.getByUrl(testSeries.sourceId, old1.url))
+        assertNull(fakeDao.getByUrl(testSeries.sourceId, old2.url))
+
+        val storedNew1 = fakeDao.getByUrl(testSeries.sourceId, new1.url)
+        assertNotNull(storedNew1)
+        assertEquals(true, storedNew1!!.read)
+        assertEquals(0.6f, storedNew1.progress, 0.001f)
+        assertEquals(true, storedNew1.downloaded)
+
+        val storedNew2 = fakeDao.getByUrl(testSeries.sourceId, new2.url)
+        assertNotNull(storedNew2)
+        assertEquals(false, storedNew2!!.read)
+        assertEquals(0.25f, storedNew2.progress, 0.001f)
+        assertEquals(false, storedNew2.downloaded)
+    }
+
+    @Test
+    fun `refreshChapters does not merge state by number when number is negative or duplicate`() = runTest {
+        val oldNeg = testChapter.copy(url = "https://test.invalid/chapter/old-neg", number = -1f)
+            .toEntity().copy(read = true, progress = 0.8f, downloaded = true)
+        val oldDupIncoming = testChapter.copy(url = "https://test.invalid/chapter/old-dup-5", number = 5f)
+            .toEntity().copy(read = true, progress = 0.9f, downloaded = true)
+        val oldDupExistingA = testChapter.copy(url = "https://test.invalid/chapter/old-dup-6a", number = 6f)
+            .toEntity().copy(read = true, progress = 0.4f, downloaded = true)
+        val oldDupExistingB = testChapter.copy(url = "https://test.invalid/chapter/old-dup-6b", number = 6f)
+            .toEntity().copy(read = true, progress = 0.7f, downloaded = false)
+
+        fakeDao.upsertAll(listOf(oldNeg, oldDupIncoming, oldDupExistingA, oldDupExistingB))
+
+        val newNeg = testChapter.copy(url = "https://test.invalid/chapter/new-neg", number = -1f)
+        val newDupIncomingA = testChapter.copy(url = "https://test.invalid/chapter/new-dup-5a", number = 5f)
+        val newDupIncomingB = testChapter.copy(url = "https://test.invalid/chapter/new-dup-5b", number = 5f)
+        val newDupExisting = testChapter.copy(url = "https://test.invalid/chapter/new-dup-6", number = 6f)
+
+        fakeSource.chapterListResult = listOf(newNeg, newDupIncomingA, newDupIncomingB, newDupExisting)
+
+        repository.refreshChapters(testSeries)
+
+        assertNull(fakeDao.getByUrl(testSeries.sourceId, oldNeg.url))
+        assertNull(fakeDao.getByUrl(testSeries.sourceId, oldDupIncoming.url))
+        assertNull(fakeDao.getByUrl(testSeries.sourceId, oldDupExistingA.url))
+        assertNull(fakeDao.getByUrl(testSeries.sourceId, oldDupExistingB.url))
+
+        val storedNewNeg = fakeDao.getByUrl(testSeries.sourceId, newNeg.url)
+        assertNotNull(storedNewNeg)
+        assertEquals(false, storedNewNeg!!.read)
+        assertEquals(0f, storedNewNeg.progress, 0.001f)
+        assertEquals(false, storedNewNeg.downloaded)
+
+        val storedNewDupIncomingA = fakeDao.getByUrl(testSeries.sourceId, newDupIncomingA.url)
+        assertNotNull(storedNewDupIncomingA)
+        assertEquals(false, storedNewDupIncomingA!!.read)
+        assertEquals(0f, storedNewDupIncomingA.progress, 0.001f)
+        assertEquals(false, storedNewDupIncomingA.downloaded)
+
+        val storedNewDupIncomingB = fakeDao.getByUrl(testSeries.sourceId, newDupIncomingB.url)
+        assertNotNull(storedNewDupIncomingB)
+        assertEquals(false, storedNewDupIncomingB!!.read)
+        assertEquals(0f, storedNewDupIncomingB.progress, 0.001f)
+        assertEquals(false, storedNewDupIncomingB.downloaded)
+
+        val storedNewDupExisting = fakeDao.getByUrl(testSeries.sourceId, newDupExisting.url)
+        assertNotNull(storedNewDupExisting)
+        assertEquals(false, storedNewDupExisting!!.read)
+        assertEquals(0f, storedNewDupExisting.progress, 0.001f)
+        assertEquals(false, storedNewDupExisting.downloaded)
+    }
+
+    @Test
+    fun `refreshChapters does not delete existing local chapters or reset state when source returns empty list`() = runTest {
+        val existing = testChapter.copy(url = "https://test.invalid/chapter/1", number = 1f)
+            .toEntity().copy(read = true, progress = 0.5f, downloaded = true)
+        fakeDao.upsertAll(listOf(existing))
+
+        fakeSource.chapterListResult = emptyList()
+
+        repository.refreshChapters(testSeries)
+
+        val stored = fakeDao.getByUrl(testSeries.sourceId, existing.url)
+        assertNotNull(stored)
+        assertEquals(true, stored!!.read)
+        assertEquals(0.5f, stored.progress, 0.001f)
+        assertEquals(true, stored.downloaded)
+    }
 }
