@@ -1,3 +1,9 @@
 package com.opus.readerparser.domain.model
 
-enum class AppTheme { SYSTEM, LIGHT, DARK }
+enum class AppTheme {
+    SYSTEM,
+    LIGHT,
+    DARK,
+    WARM_DARK,
+    SEPIA,
+}

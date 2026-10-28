@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -52,18 +53,31 @@ import com.opus.readerparser.ui.components.SeriesCatalogGrid
 import com.opus.readerparser.ui.theme.ReaderParserTheme
 import kotlinx.coroutines.flow.collect
 
+fun SourceInfo.displayLabel(): String {
+    val typeLabel = type.name.lowercase().replaceFirstChar { it.uppercase() }
+    return "$name (${lang.uppercase()}) · $typeLabel"
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BrowseContent(
     state: BrowseUiState,
     onAction: (BrowseAction) -> Unit,
+    onNavigateToSettings: () -> Unit = {},
 ) {
     var sourceMenuExpanded by remember { mutableStateOf(false) }
     val selectedSource = state.sources.find { it.id == state.selectedSourceId }
 
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("Browse") })
+            TopAppBar(
+                title = { Text("Browse") },
+                actions = {
+                    IconButton(onClick = onNavigateToSettings) {
+                        Icon(Icons.Filled.Settings, contentDescription = "Settings")
+                    }
+                },
+            )
         },
     ) { innerPadding ->
         Column(
@@ -81,14 +95,15 @@ fun BrowseContent(
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                 ) {
                     OutlinedTextField(
-                        value = selectedSource?.name ?: "Select a source",
+                        value = selectedSource?.displayLabel() ?: "Select a source",
                         onValueChange = {},
                         readOnly = true,
                         label = { Text("Source") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = sourceMenuExpanded) },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .menuAnchor(MenuAnchorType.PrimaryNotEditable),
+                            .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                            .testTag("source_selector"),
                     )
                     DropdownMenu(
                         expanded = sourceMenuExpanded,
@@ -96,7 +111,7 @@ fun BrowseContent(
                     ) {
                         state.sources.forEach { source ->
                             DropdownMenuItem(
-                                text = { Text("${source.name} (${source.lang})") },
+                                text = { Text(source.displayLabel()) },
                                 onClick = {
                                     onAction(BrowseAction.SelectSource(source.id))
                                     sourceMenuExpanded = false
