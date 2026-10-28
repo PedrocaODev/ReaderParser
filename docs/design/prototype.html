@@ -1829,6 +1829,482 @@
       transform: translateY(0);
       opacity: 1;
     }
+
+    /* ------------------------------------------------------------------
+       MANHWA READER & UNIFIED READER STYLES (ContentType.MANHWA)
+       ------------------------------------------------------------------ */
+    .reader-mode-switch-bar {
+      display: flex;
+      gap: 4px;
+      background: var(--surface-container);
+      padding: 4px;
+      border-radius: var(--radius-full);
+      margin: 8px 12px 6px 12px;
+      border: 1px solid var(--outline-variant);
+      z-index: 25;
+      position: relative;
+    }
+
+    .reader-mode-btn {
+      flex: 1;
+      padding: 6px 12px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      border: none;
+      border-radius: var(--radius-full);
+      cursor: pointer;
+      color: var(--on-surface-var);
+      background: transparent;
+      transition: var(--transition);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .reader-mode-btn:hover {
+      color: var(--on-surface);
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .reader-mode-btn.active {
+      background: var(--primary);
+      color: var(--on-primary);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .reader-engine-subview {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    /* Manhwa Header Tracker */
+    .manhwa-header-tracker {
+      background: var(--surface);
+      border-bottom: 1px solid var(--outline-variant);
+      padding: 8px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 0.72rem;
+      color: var(--on-surface-var);
+      z-index: 20;
+    }
+
+    .manhwa-tracker-top-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .manhwa-page-counter-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-weight: 700;
+      color: var(--primary);
+      font-size: 0.78rem;
+    }
+
+    .manhwa-page-counter-badge strong {
+      font-size: 0.95rem;
+      color: var(--primary);
+    }
+
+    .manhwa-source-tag {
+      background: var(--surface-container-high);
+      color: var(--secondary);
+      border: 1px solid var(--outline-variant);
+      padding: 2px 8px;
+      border-radius: var(--radius-sm);
+      font-size: 0.68rem;
+      font-weight: 700;
+    }
+
+    .manhwa-quick-jump-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      overflow-x: auto;
+      padding-bottom: 2px;
+      scrollbar-width: none;
+    }
+    .manhwa-quick-jump-row::-webkit-scrollbar { display: none; }
+
+    .manhwa-jump-chip {
+      background: var(--surface-container);
+      border: 1px solid var(--outline-variant);
+      color: var(--on-surface);
+      border-radius: var(--radius-full);
+      padding: 2px 8px;
+      font-size: 0.68rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: var(--transition);
+    }
+
+    .manhwa-jump-chip:hover {
+      border-color: var(--primary);
+    }
+
+    .manhwa-jump-chip.active {
+      background: var(--primary-container);
+      color: var(--on-primary-container);
+      border-color: var(--primary);
+      font-weight: 800;
+    }
+
+    /* Manhwa Controls Toolbar */
+    .manhwa-controls-toolbar {
+      background: var(--surface-container-high);
+      border-bottom: 1px solid var(--outline-variant);
+      padding: 6px 12px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      font-size: 0.7rem;
+      z-index: 18;
+    }
+
+    .control-segment-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .control-segment-label {
+      font-weight: 700;
+      color: var(--on-surface-var);
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .segmented-pill-container {
+      display: inline-flex;
+      background: var(--surface);
+      border: 1px solid var(--outline-variant);
+      border-radius: var(--radius-full);
+      padding: 2px;
+      gap: 2px;
+    }
+
+    .seg-btn {
+      background: transparent;
+      border: none;
+      border-radius: var(--radius-full);
+      padding: 3px 8px;
+      font-size: 0.67rem;
+      font-weight: 700;
+      color: var(--on-surface-var);
+      cursor: pointer;
+      transition: var(--transition);
+    }
+
+    .seg-btn.active {
+      background: var(--primary);
+      color: var(--on-primary);
+    }
+
+    .sim-toggle-pill {
+      background: var(--surface);
+      border: 1px solid var(--outline-variant);
+      border-radius: var(--radius-full);
+      padding: 3px 9px;
+      font-size: 0.67rem;
+      font-weight: 700;
+      color: var(--on-surface);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: var(--transition);
+    }
+
+    .sim-toggle-pill:hover {
+      border-color: var(--primary);
+    }
+
+    .sim-toggle-pill.active {
+      background: var(--primary-container);
+      color: var(--on-primary-container);
+      border-color: var(--primary);
+    }
+
+    .sim-toggle-pill.danger-active {
+      background: rgba(224, 108, 117, 0.2);
+      color: var(--error);
+      border-color: var(--error);
+    }
+
+    /* Manhwa Canvas */
+    .manhwa-canvas {
+      flex: 1;
+      width: 100%;
+      position: relative;
+      background: #08060B;
+      cursor: pointer;
+      scroll-behavior: smooth;
+    }
+
+    /* Layout Mode 1: Webtoon (Continuous Vertical Strip) */
+    .manhwa-canvas.layout-webtoon {
+      overflow-y: auto;
+      overflow-x: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 12px 10px 80px 10px;
+      gap: 10px;
+    }
+
+    /* Layout Mode 2: Paged LTR */
+    .manhwa-canvas.layout-paged-ltr {
+      overflow-x: auto;
+      overflow-y: hidden;
+      display: flex;
+      flex-direction: row;
+      scroll-snap-type: x mandatory;
+      padding: 10px;
+      gap: 12px;
+      align-items: center;
+    }
+
+    /* Layout Mode 3: Paged RTL */
+    .manhwa-canvas.layout-paged-rtl {
+      direction: rtl;
+      overflow-x: auto;
+      overflow-y: hidden;
+      display: flex;
+      flex-direction: row;
+      scroll-snap-type: x mandatory;
+      padding: 10px;
+      gap: 12px;
+      align-items: center;
+    }
+
+    /* Manhwa Page Item Wrapper */
+    .manhwa-page-item {
+      position: relative;
+      transition: transform 0.2s ease;
+      box-sizing: border-box;
+    }
+
+    .manhwa-canvas.layout-webtoon .manhwa-page-item {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .manhwa-canvas.layout-paged-ltr .manhwa-page-item,
+    .manhwa-canvas.layout-paged-rtl .manhwa-page-item {
+      flex: 0 0 100%;
+      width: 100%;
+      height: 100%;
+      scroll-snap-align: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      direction: ltr;
+    }
+
+    /* ContentScale Modes applied to SVG */
+    .manhwa-canvas.scale-fit-width .manhwa-panel-svg {
+      width: 100%;
+      max-width: 100%;
+      height: auto;
+      border-radius: var(--radius-sm);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+      display: block;
+    }
+
+    .manhwa-canvas.scale-fit-height .manhwa-panel-svg {
+      height: 100%;
+      max-height: calc(100vh - 220px);
+      width: auto;
+      max-width: 100%;
+      border-radius: var(--radius-sm);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+      display: block;
+    }
+
+    .manhwa-canvas.scale-original .manhwa-panel-svg {
+      width: 380px;
+      max-width: 96%;
+      height: auto;
+      border-radius: var(--radius-sm);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+      display: block;
+    }
+
+    /* Measurable Image Placeholder (AsyncImage loading state) */
+    .manhwa-placeholder-card {
+      min-height: 220px;
+      width: 100%;
+      background: var(--surface-container);
+      border: 1.5px dashed var(--outline);
+      border-radius: var(--radius-md);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 24px 16px;
+      color: var(--on-surface-var);
+      text-align: center;
+      box-sizing: border-box;
+    }
+
+    .manhwa-spinner {
+      width: 36px;
+      height: 36px;
+      border: 3px solid var(--outline-variant);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: manhwaSpin 1s linear infinite;
+    }
+
+    @keyframes manhwaSpin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Failed Image State (Retaining min-height under error painter) */
+    .manhwa-error-card {
+      min-height: 220px;
+      width: 100%;
+      background: rgba(224, 108, 117, 0.08);
+      border: 1.5px solid var(--error);
+      border-radius: var(--radius-md);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 24px 16px;
+      color: var(--on-surface);
+      text-align: center;
+      box-sizing: border-box;
+    }
+
+    .manhwa-retry-btn {
+      background: var(--error);
+      color: #FFFFFF;
+      border: none;
+      padding: 6px 16px;
+      border-radius: var(--radius-full);
+      font-size: 0.72rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: var(--transition);
+    }
+    .manhwa-retry-btn:hover {
+      filter: brightness(1.15);
+    }
+
+    /* Content Mismatch Recovery Banner */
+    .manhwa-mismatch-banner {
+      width: 100%;
+      background: var(--surface-container-high);
+      border: 1.5px solid var(--error);
+      border-radius: var(--radius-md);
+      padding: 12px 14px;
+      margin-bottom: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      box-shadow: var(--shadow-md);
+    }
+
+    .mismatch-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--error);
+    }
+
+    .mismatch-body {
+      font-size: 0.73rem;
+      color: var(--on-surface);
+      line-height: 1.4;
+    }
+
+    .mismatch-body code {
+      background: var(--surface);
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      color: var(--primary);
+    }
+
+    .mismatch-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    .mismatch-retry-btn {
+      background: var(--primary);
+      color: var(--on-primary);
+      border: none;
+      border-radius: var(--radius-full);
+      padding: 4px 12px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .mismatch-dismiss-btn {
+      background: var(--surface);
+      color: var(--on-surface-var);
+      border: 1px solid var(--outline-variant);
+      border-radius: var(--radius-full);
+      padding: 4px 12px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    /* Floating Manhwa Settings Button */
+    .floating-manhwa-btn {
+      position: absolute;
+      bottom: 80px;
+      right: 16px;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: var(--secondary);
+      color: var(--on-secondary);
+      border: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: var(--shadow-lg);
+      cursor: pointer;
+      z-index: 30;
+      transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
+    }
+    .floating-manhwa-btn:hover {
+      transform: scale(1.08);
+    }
+    .floating-manhwa-btn.hidden {
+      transform: translateY(100px);
+      opacity: 0;
+      pointer-events: none;
+    }
+
   </style>
 </head>
 <body data-theme="WARM_DARK">
@@ -1878,7 +2354,8 @@
         <button class="screen-jump-btn" data-screen-btn="browse" onclick="navigateToScreen('browse')">Browse</button>
         <button class="screen-jump-btn" data-screen-btn="downloads" onclick="navigateToScreen('downloads')">Downloads</button>
         <button class="screen-jump-btn" data-screen-btn="detail" onclick="navigateToScreen('detail')">Series Detail</button>
-        <button class="screen-jump-btn" data-screen-btn="reader" onclick="navigateToScreen('reader')">Novel Reader</button>
+        <button class="screen-jump-btn" data-screen-btn="reader-novel" onclick="navigateToReader('NOVEL')">Novel Reader</button>
+        <button class="screen-jump-btn" data-screen-btn="reader-manhwa" onclick="navigateToReader('MANHWA')">Manhwa Reader</button>
       </div>
 
       <!-- PHONE HARDWARE FRAME -->
@@ -2304,20 +2781,36 @@
           <div class="screen-view" id="view-reader">
             <div class="reader-view-container">
 
-              <!-- Reader Live Scroll Header Tracker (Sticky) -->
-              <div class="reader-scroll-header-tracker" id="readerScrollTracker">
-                <span class="reader-scroll-badge">
-                  <span>Scroll:</span>
-                  <span id="readerProgressPercentText">68%</span>
-                  <span id="readerProgressNormalizedText" style="font-family:monospace;font-size:0.7rem;opacity:0.8;">[0.68f]</span>
-                </span>
-                <span class="reader-read-status-badge" id="readerCompletionBadge">IN-PROGRESS</span>
-                <button class="restore-progress-btn" onclick="restoreReaderProgress(0.68)">Restore Progress (68%)</button>
+              <!-- UNIFIED READER VARIANT SELECTOR PILL -->
+              <div class="reader-mode-switch-bar">
+                <button class="reader-mode-btn active" id="modeBtnNovel" onclick="setReaderContentType('NOVEL')">
+                  <span style="font-size:0.9rem;">📖</span>
+                  <span>Novel (NovelTextEngine)</span>
+                </button>
+                <button class="reader-mode-btn" id="modeBtnManhwa" onclick="setReaderContentType('MANHWA')">
+                  <span style="font-size:0.9rem;">🎨</span>
+                  <span>Manhwa (ManhwaPageList)</span>
+                </button>
               </div>
 
-              <!-- Continuous Vertical Scroll Prose Canvas (NovelTextEngine) -->
-              <!-- Tap-to-toggle immersive chrome on click -->
-              <div class="novel-canvas" id="novelCanvas" onclick="handleReaderCanvasTap(event)">
+              <!-- ==============================================
+                   SUBVIEW A: NOVEL READER (NovelTextEngine)
+                   ============================================== -->
+              <div class="reader-engine-subview active" id="novelReaderSubView">
+
+                <!-- Novel Live Scroll Header Tracker (Sticky) -->
+                <div class="reader-scroll-header-tracker" id="readerScrollTracker">
+                  <span class="reader-scroll-badge">
+                    <span>Scroll:</span>
+                    <span id="readerProgressPercentText">68%</span>
+                    <span id="readerProgressNormalizedText" style="font-family:monospace;font-size:0.7rem;opacity:0.8;">[0.68f]</span>
+                  </span>
+                  <span class="reader-read-status-badge" id="readerCompletionBadge">IN-PROGRESS</span>
+                  <button class="restore-progress-btn" onclick="restoreReaderProgress(0.68)">Restore Progress (68%)</button>
+                </div>
+
+                <!-- Continuous Vertical Scroll Prose Canvas (NovelTextEngine) -->
+                <div class="novel-canvas" id="novelCanvas" onclick="handleReaderCanvasTap(event)">
 
                 <!-- Structured Heading 1 (NovelBlock.Heading level=1) -->
                 <h1 class="novel-block-heading-1">Chapter 42: The Ember Archive</h1>
@@ -2375,40 +2868,380 @@
                     <span>Next Chapter: Ch. 43 →</span>
                   </button>
                 </div>
+
+                <!-- Floating Aa Typography Button -->
+                <button class="floating-typography-btn" id="floatingAaBtn" onclick="toggleTypographySheet()" title="Typography & Spacing">
+                  <span>Aa</span>
+                </button>
               </div>
 
-              <!-- Immersive Overlay Top Bar -->
+              <!-- ==============================================
+                   SUBVIEW B: MANHWA READER (ManhwaPageList)
+                   ============================================== -->
+              <div class="reader-engine-subview" id="manhwaReaderSubView" style="display:none;">
+
+                <!-- Manhwa Live Page Header Tracker (Sticky) -->
+                <div class="manhwa-header-tracker" id="manhwaHeaderTracker">
+                  <div class="manhwa-tracker-top-row">
+                    <span class="manhwa-page-counter-badge">
+                      <span>Page:</span>
+                      <strong id="manhwaCurrentPageNum">1</strong>
+                      <span>/</span>
+                      <span>8</span>
+                    </span>
+                    <span class="reader-read-status-badge" id="manhwaCompletionBadge">IN-PROGRESS</span>
+                    <span class="manhwa-source-tag">AsuraScans (EN)</span>
+                  </div>
+
+                  <!-- Quick Jump Row -->
+                  <div class="manhwa-quick-jump-row">
+                    <span style="font-size:0.68rem;color:var(--on-surface-var);font-weight:700;">Jump:</span>
+                    <button class="manhwa-jump-chip active" id="chipPage1" onclick="jumpToManhwaPage(0)">Pg 1</button>
+                    <button class="manhwa-jump-chip" id="chipPage4" onclick="jumpToManhwaPage(3)">Pg 4 (Placeholder)</button>
+                    <button class="manhwa-jump-chip" id="chipPage6" onclick="jumpToManhwaPage(5)">Pg 6 (Error)</button>
+                    <button class="manhwa-jump-chip" id="chipPage8" onclick="jumpToManhwaPage(7)">Pg 8 (Final → Marks Read)</button>
+                  </div>
+                </div>
+
+                <!-- Manhwa Controls Toolbar (Layout, Zoom, Simulation) -->
+                <div class="manhwa-controls-toolbar">
+                  <!-- Layout Modes -->
+                  <div class="control-segment-group">
+                    <span class="control-segment-label">Layout:</span>
+                    <div class="segmented-pill-container">
+                      <button class="seg-btn active" id="btnLayoutWebtoon" onclick="setManhwaLayoutMode('webtoon')" title="Continuous Vertical Strip">Webtoon</button>
+                      <button class="seg-btn" id="btnLayoutPagedLtr" onclick="setManhwaLayoutMode('paged-ltr')" title="Horizontal Pager (LTR)">Paged LTR</button>
+                      <button class="seg-btn" id="btnLayoutPagedRtl" onclick="setManhwaLayoutMode('paged-rtl')" title="Horizontal Pager (RTL)">Paged RTL</button>
+                    </div>
+                  </div>
+
+                  <!-- Content Scale / Zoom Modes -->
+                  <div class="control-segment-group">
+                    <span class="control-segment-label">Scale:</span>
+                    <div class="segmented-pill-container">
+                      <button class="seg-btn active" id="btnScaleWidth" onclick="setManhwaContentScale('fit-width')" title="Fit Width">Fit W</button>
+                      <button class="seg-btn" id="btnScaleHeight" onclick="setManhwaContentScale('fit-height')" title="Fit Height">Fit H</button>
+                      <button class="seg-btn" id="btnScaleOriginal" onclick="setManhwaContentScale('original')" title="Original Scale">1:1</button>
+                    </div>
+                  </div>
+
+                  <!-- Spec Simulation Toggles -->
+                  <div class="control-segment-group" style="width:100%;justify-content:space-between;margin-top:2px;">
+                    <span class="control-segment-label">Spec Demos:</span>
+                    <div style="display:flex;gap:4px;flex-wrap:wrap;">
+                      <button class="sim-toggle-pill" id="togglePlaceholderBtn" onclick="toggleManhwaPlaceholder()" title="Toggle measurable AsyncImage placeholder with min-height: 220px">
+                        <span>⏳ Pg 4 Placeholder</span>
+                      </button>
+                      <button class="sim-toggle-pill" id="toggleErrorBtn" onclick="toggleManhwaError()" title="Toggle failed image state with error painter & preserved min-height">
+                        <span>⚠️ Pg 6 Error</span>
+                      </button>
+                      <button class="sim-toggle-pill" id="toggleMismatchBtn" onclick="toggleManhwaMismatch()" title="Simulate ChapterContent variant disagreement recovery">
+                        <span>⚡ Mismatch Error</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Manhwa Reading Canvas (ManhwaPageList) -->
+                <div class="manhwa-canvas layout-webtoon scale-fit-width" id="manhwaCanvas" onclick="handleReaderCanvasTap(event)">
+
+                  <!-- Unexpected Variant Disagreement Error Banner (Hidden by default) -->
+                  <div class="manhwa-mismatch-banner" id="manhwaMismatchBanner" style="display:none;">
+                    <div class="mismatch-header">
+                      <svg style="width:18px;height:18px;color:var(--error);" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+                      <strong>Unexpected Content Variant Disagreement</strong>
+                    </div>
+                    <div class="mismatch-body">
+                      Route expected <code>ContentType.MANHWA</code>, but received <code>ChapterContent.Text(html)</code>. Per contract (<code>docs/specs/reader.md</code>): cached payload bypassed, forced network fetch re-attempted. Variant still disagrees.
+                    </div>
+                    <div class="mismatch-actions">
+                      <button class="mismatch-retry-btn" onclick="retryMismatchRecovery()">↻ Retry Forced Retrieval</button>
+                      <button class="mismatch-dismiss-btn" onclick="toggleManhwaMismatch()">Dismiss</button>
+                    </div>
+                  </div>
+
+                  <!-- Page Item 1 -->
+                  <div class="manhwa-page-item" id="manhwaPageItem1" data-page-index="0">
+                    <svg class="manhwa-panel-svg" viewBox="0 0 400 420" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="p1-sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0A0714"/>
+      <stop offset="70%" stop-color="#1D1435"/>
+      <stop offset="100%" stop-color="#2B1B4A"/>
+    </linearGradient>
+    <linearGradient id="p1-rift" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FF57B2"/>
+      <stop offset="50%" stop-color="#9D72FF"/>
+      <stop offset="100%" stop-color="#3A1266"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="420" fill="url(#p1-sky)"/>
+  <path d="M80 0 L150 90 L120 140 L210 220 L180 270 L250 340" stroke="#BD85FF" stroke-width="2" fill="none" opacity="0.6"/>
+  <polygon points="200,20 220,90 280,110 240,160 310,210 260,250 330,300 240,320 220,240 160,180 190,120" fill="url(#p1-rift)" opacity="0.85"/>
+  <rect x="20" y="320" width="40" height="100" fill="#08060F"/>
+  <rect x="70" y="290" width="55" height="130" fill="#0C0916"/>
+  <rect x="135" y="330" width="50" height="90" fill="#08060F"/>
+  <rect x="195" y="280" width="65" height="140" fill="#0E0B1A"/>
+  <rect x="270" y="310" width="50" height="110" fill="#0A0712"/>
+  <rect x="330" y="340" width="55" height="80" fill="#07050C"/>
+  <circle cx="85" cy="310" r="2" fill="#FFD700" opacity="0.7"/>
+  <circle cx="100" cy="330" r="2" fill="#FFD700" opacity="0.7"/>
+  <circle cx="215" cy="300" r="2" fill="#FFD700" opacity="0.8"/>
+  <circle cx="235" cy="320" r="2" fill="#00F0FF" opacity="0.8"/>
+  <rect x="30" y="40" width="340" height="64" rx="8" fill="#090710" stroke="#9D72FF" stroke-width="1.5" opacity="0.95"/>
+  <text x="200" y="66" fill="#E6DFD5" font-size="12" font-weight="bold" text-anchor="middle" font-family="sans-serif">Ten years after the Shadow Monarch vanished...</text>
+  <text x="200" y="88" fill="#BD85FF" font-size="11" font-style="italic" text-anchor="middle" font-family="sans-serif">The dimensional rift over Seoul reopened with fury.</text>
+  <rect x="280" y="12" width="108" height="20" rx="4" fill="#1E1630" stroke="#4D3E6B" stroke-width="1"/>
+  <text x="334" y="26" fill="#D98A4E" font-size="10" font-weight="bold" text-anchor="middle" font-family="monospace">PAGE 1 / 8</text>
+</svg>
+                  </div>
+
+                  <!-- Page Item 2 -->
+                  <div class="manhwa-page-item" id="manhwaPageItem2" data-page-index="1">
+                    <svg class="manhwa-panel-svg" viewBox="0 0 400 450" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="p2-aura" cx="50%" cy="45%" r="60%">
+      <stop offset="0%" stop-color="#1F3A52" stop-opacity="0.9"/>
+      <stop offset="60%" stop-color="#0C1622" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#070A0F"/>
+    </radialGradient>
+  </defs>
+  <rect width="400" height="450" fill="url(#p2-aura)"/>
+  <line x1="200" y1="200" x2="20" y2="30" stroke="#00F0FF" stroke-width="1" opacity="0.2"/>
+  <line x1="200" y1="200" x2="380" y2="40" stroke="#00F0FF" stroke-width="1" opacity="0.2"/>
+  <line x1="200" y1="200" x2="10" y2="350" stroke="#00F0FF" stroke-width="1" opacity="0.25"/>
+  <line x1="200" y1="200" x2="390" y2="360" stroke="#00F0FF" stroke-width="1" opacity="0.25"/>
+  <path d="M170 320 L230 320 L220 220 L240 180 L230 140 L200 130 L170 140 L160 180 L180 220 Z" fill="#121824"/>
+  <path d="M170 140 Q200 110 230 140 Q215 125 185 125 Z" fill="#080C14"/>
+  <circle cx="193" cy="152" r="2.5" fill="#00F0FF"/>
+  <circle cx="207" cy="152" r="2.5" fill="#00F0FF"/>
+  <path d="M193 152 Q180 148 175 145" stroke="#00F0FF" stroke-width="1.5" fill="none" opacity="0.8"/>
+  <path d="M207 152 Q220 148 225 145" stroke="#00F0FF" stroke-width="1.5" fill="none" opacity="0.8"/>
+  <path d="M150 220 Q130 180 140 150 Q160 170 155 210" fill="#1B0D33" stroke="#9D72FF" stroke-width="1" opacity="0.75"/>
+  <path d="M250 220 Q270 180 260 150 Q240 170 245 210" fill="#1B0D33" stroke="#9D72FF" stroke-width="1" opacity="0.75"/>
+  <polygon points="120,380 280,380 260,450 140,450" fill="#0D1117" stroke="#2D3748" stroke-width="2"/>
+  <rect x="40" y="350" width="320" height="56" rx="16" fill="#0F1520" stroke="#00C2FF" stroke-width="1.5"/>
+  <text x="200" y="373" fill="#FFFFFF" font-size="12" font-weight="bold" text-anchor="middle" font-family="sans-serif">"If this world is targeted by the Itarim..."</text>
+  <text x="200" y="392" fill="#00F0FF" font-size="11" font-weight="bold" text-anchor="middle" font-family="sans-serif">"...then I have no choice but to inherit his legacy."</text>
+  <rect x="280" y="12" width="108" height="20" rx="4" fill="#101724" stroke="#233854" stroke-width="1"/>
+  <text x="334" y="26" fill="#D98A4E" font-size="10" font-weight="bold" text-anchor="middle" font-family="monospace">PAGE 2 / 8</text>
+</svg>
+                  </div>
+
+                  <!-- Page Item 3 -->
+                  <div class="manhwa-page-item" id="manhwaPageItem3" data-page-index="2">
+                    <svg class="manhwa-panel-svg" viewBox="0 0 400 380" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="p3-blade" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1E1C28"/>
+      <stop offset="50%" stop-color="#0F0D17"/>
+      <stop offset="100%" stop-color="#302447"/>
+    </linearGradient>
+    <linearGradient id="p3-sys" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#081B2B" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#040D17" stop-opacity="0.95"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="380" fill="#12111A"/>
+  <polygon points="60,280 180,180 340,60 300,50 160,150 50,250 40,290" fill="url(#p3-blade)" stroke="#9D72FF" stroke-width="1.5"/>
+  <path d="M140 170 L155 160 L150 180 M200 130 L210 115 L220 135 M260 90 L275 80" stroke="#00F0FF" stroke-width="2" fill="none"/>
+  <rect x="30" y="200" width="340" height="155" rx="10" fill="url(#p3-sys)" stroke="#00C2FF" stroke-width="2"/>
+  <rect x="30" y="200" width="340" height="32" rx="10" fill="#0A3452"/>
+  <text x="200" y="222" fill="#00F0FF" font-size="12" font-weight="bold" text-anchor="middle" font-family="monospace">[ SYSTEM QUEST: PROVE YOUR INHERITANCE ]</text>
+  <text x="50" y="255" fill="#E6DFD5" font-size="11" font-family="sans-serif">Goal: Exterminate the Beast Vanguard fiends.</text>
+  <text x="50" y="278" fill="#A89F93" font-size="11" font-family="sans-serif">Remaining enemies: <tspan fill="#FF4757" font-weight="bold">6 fiends + 1 Champion</tspan></text>
+  <text x="50" y="302" fill="#00F0FF" font-size="11" font-family="sans-serif">Reward: <tspan fill="#6CB687" font-weight="bold">Stage 1 Authority: Shadow Extraction</tspan></text>
+  <text x="50" y="326" fill="#FF4757" font-size="10" font-style="italic" font-family="sans-serif">Penalty for failure: Death.</text>
+  <rect x="280" y="12" width="108" height="20" rx="4" fill="#1B1829" stroke="#3E3559" stroke-width="1"/>
+  <text x="334" y="26" fill="#D98A4E" font-size="10" font-weight="bold" text-anchor="middle" font-family="monospace">PAGE 3 / 8</text>
+</svg>
+                  </div>
+
+                  <!-- Page Item 4 (Loaded SVG or Measurable Placeholder) -->
+                  <div class="manhwa-page-item" id="manhwaPageItem4" data-page-index="3">
+                    <div id="manhwaPage4Content" style="width:100%;">
+                      <svg class="manhwa-panel-svg" viewBox="0 0 400 430" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="p4-crimson" cx="50%" cy="50%" r="65%">
+      <stop offset="0%" stop-color="#3A111A"/>
+      <stop offset="60%" stop-color="#1E0A10"/>
+      <stop offset="100%" stop-color="#0F0508"/>
+    </radialGradient>
+  </defs>
+  <rect width="400" height="430" fill="url(#p4-crimson)"/>
+  <line x1="20" y1="100" x2="380" y2="160" stroke="#FF4757" stroke-width="2" opacity="0.4"/>
+  <line x1="0" y1="300" x2="400" y2="260" stroke="#FF4757" stroke-width="2" opacity="0.4"/>
+  <polygon points="30,220 80,170 120,200 100,270 40,280" fill="#16080C" stroke="#FF3838" stroke-width="1.5"/>
+  <circle cx="75" cy="195" r="4" fill="#FF2B2B"/>
+  <polygon points="60,220 70,240 80,220 90,240" fill="#FFF"/>
+  <polygon points="140,160 200,90 260,160 240,290 160,290" fill="#1B090F" stroke="#FF4757" stroke-width="2"/>
+  <polygon points="170,120 180,70 190,110" fill="#FF6B81"/>
+  <polygon points="210,110 220,70 230,120" fill="#FF6B81"/>
+  <circle cx="185" cy="150" r="5" fill="#FF0033"/>
+  <circle cx="215" cy="150" r="5" fill="#FF0033"/>
+  <polygon points="175,185 185,210 200,185 215,210 225,185" fill="#FFF"/>
+  <polygon points="280,210 330,160 370,190 350,270 290,270" fill="#16080C" stroke="#FF3838" stroke-width="1.5"/>
+  <circle cx="325" cy="185" r="4" fill="#FF2B2B"/>
+  <text x="200" y="370" fill="#FF4757" font-size="28" font-weight="900" text-anchor="middle" font-family="impact, sans-serif" transform="rotate(-5 200 370)">GROOAAARRRR!!</text>
+  <rect x="280" y="12" width="108" height="20" rx="4" fill="#240E15" stroke="#5E1E2C" stroke-width="1"/>
+  <text x="334" y="26" fill="#D98A4E" font-size="10" font-weight="bold" text-anchor="middle" font-family="monospace">PAGE 4 / 8</text>
+</svg>
+                    </div>
+                  </div>
+
+                  <!-- Page Item 5 -->
+                  <div class="manhwa-page-item" id="manhwaPageItem5" data-page-index="4">
+                    <svg class="manhwa-panel-svg" viewBox="0 0 400 440" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="p5-slash" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#00F0FF"/>
+      <stop offset="50%" stop-color="#9D72FF"/>
+      <stop offset="100%" stop-color="#FF57B2"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="440" fill="#0A0914"/>
+  <path d="M20 380 Q 200 180 380 40" stroke="url(#p5-slash)" stroke-width="14" stroke-linecap="round" fill="none"/>
+  <path d="M40 400 Q 220 200 390 70" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" fill="none"/>
+  <path d="M10 220 Q 180 280 390 180" stroke="#00F0FF" stroke-width="8" stroke-linecap="round" fill="none" opacity="0.7"/>
+  <polygon points="70,120 120,90 110,150" fill="#1B0D2A" opacity="0.6"/>
+  <polygon points="290,260 340,230 330,300" fill="#1B0D2A" opacity="0.6"/>
+  <polygon points="180,240 220,190 250,210 210,270" fill="#00F0FF" opacity="0.8"/>
+  <circle cx="225" cy="180" r="12" fill="#0C1628"/>
+  <line x1="220" y1="180" x2="245" y2="170" stroke="#00F0FF" stroke-width="3"/>
+  <text x="200" y="340" fill="#FFD700" stroke="#8C5327" stroke-width="1.5" font-size="32" font-weight="900" text-anchor="middle" font-family="impact, sans-serif" transform="rotate(8 200 340)">SLASHHH!!</text>
+  <rect x="280" y="12" width="108" height="20" rx="4" fill="#191529" stroke="#3D355C" stroke-width="1"/>
+  <text x="334" y="26" fill="#D98A4E" font-size="10" font-weight="bold" text-anchor="middle" font-family="monospace">PAGE 5 / 8</text>
+</svg>
+                  </div>
+
+                  <!-- Page Item 6 (Loaded SVG or Error State) -->
+                  <div class="manhwa-page-item" id="manhwaPageItem6" data-page-index="5">
+                    <div id="manhwaPage6Content" style="width:100%;">
+                      <svg class="manhwa-panel-svg" viewBox="0 0 400 430" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="p6-magma" cx="50%" cy="75%" r="70%">
+      <stop offset="0%" stop-color="#421A0F"/>
+      <stop offset="50%" stop-color="#210C07"/>
+      <stop offset="100%" stop-color="#0F0503"/>
+    </radialGradient>
+  </defs>
+  <rect width="400" height="430" fill="url(#p6-magma)"/>
+  <ellipse cx="200" cy="370" rx="160" ry="35" fill="none" stroke="#D98A4E" stroke-width="3" opacity="0.8"/>
+  <ellipse cx="200" cy="370" rx="100" ry="20" fill="none" stroke="#FF793F" stroke-width="2" opacity="0.6"/>
+  <path d="M200 370 L140 410 M200 370 L260 415 M200 370 L220 430 M200 370 L170 425" stroke="#FF5722" stroke-width="2.5"/>
+  <polygon points="130,220 200,120 270,220 250,360 150,360" fill="#1F110B" stroke="#D98A4E" stroke-width="1.5"/>
+  <rect x="175" y="330" width="50" height="45" rx="4" fill="#3B2216" stroke="#FF793F" stroke-width="2"/>
+  <line x1="200" y1="240" x2="200" y2="330" stroke="#8C5327" stroke-width="6"/>
+  <path d="M170 140 Q140 90 120 110 Q150 130 165 150" fill="#FF5722"/>
+  <path d="M230 140 Q260 90 280 110 Q250 130 235 150" fill="#FF5722"/>
+  <circle cx="185" cy="160" r="4" fill="#FFB74D"/>
+  <circle cx="215" cy="160" r="4" fill="#FFB74D"/>
+  <rect x="30" y="30" width="340" height="60" rx="10" fill="#1B0D07" stroke="#D98A4E" stroke-width="1.5"/>
+  <text x="200" y="54" fill="#FFFFFF" font-size="11" font-weight="bold" text-anchor="middle" font-family="sans-serif">"Insolent boy! You dare challenge the Sovereign Vanguard"</text>
+  <text x="200" y="72" fill="#FF793F" font-size="11" font-weight="bold" text-anchor="middle" font-family="sans-serif">"with a borrowed shadow?!"</text>
+  <rect x="280" y="12" width="108" height="20" rx="4" fill="#2B140B" stroke="#5C2C1A" stroke-width="1"/>
+  <text x="334" y="26" fill="#D98A4E" font-size="10" font-weight="bold" text-anchor="middle" font-family="monospace">PAGE 6 / 8</text>
+</svg>
+                    </div>
+                  </div>
+
+                  <!-- Page Item 7 -->
+                  <div class="manhwa-page-item" id="manhwaPageItem7" data-page-index="6">
+                    <svg class="manhwa-panel-svg" viewBox="0 0 400 460" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="p7-arise" cx="50%" cy="45%" r="65%">
+      <stop offset="0%" stop-color="#301550"/>
+      <stop offset="50%" stop-color="#180A28"/>
+      <stop offset="100%" stop-color="#08040E"/>
+    </radialGradient>
+  </defs>
+  <rect width="400" height="460" fill="url(#p7-arise)"/>
+  <path d="M60 460 Q 40 340 70 280 Q 90 240 80 180" stroke="#9D72FF" stroke-width="12" stroke-linecap="round" fill="none" opacity="0.75"/>
+  <path d="M120 460 Q 140 330 110 260 Q 90 200 115 150" stroke="#00F0FF" stroke-width="8" stroke-linecap="round" fill="none" opacity="0.6"/>
+  <path d="M340 460 Q 360 340 330 280 Q 310 240 320 180" stroke="#9D72FF" stroke-width="12" stroke-linecap="round" fill="none" opacity="0.75"/>
+  <path d="M280 460 Q 260 330 290 260 Q 310 200 285 150" stroke="#00F0FF" stroke-width="8" stroke-linecap="round" fill="none" opacity="0.6"/>
+  <polygon points="60,200 85,160 110,200 95,240 75,240" fill="#0F0818" stroke="#9D72FF" stroke-width="1.5"/>
+  <line x1="75" y1="185" x2="95" y2="185" stroke="#00F0FF" stroke-width="3"/>
+  <polygon points="290,200 315,160 340,200 325,240 305,240" fill="#0F0818" stroke="#9D72FF" stroke-width="1.5"/>
+  <line x1="305" y1="185" x2="325" y2="185" stroke="#00F0FF" stroke-width="3"/>
+  <circle cx="200" cy="140" r="16" fill="#120C20"/>
+  <line x1="194" y1="138" x2="198" y2="138" stroke="#00F0FF" stroke-width="3"/>
+  <line x1="202" y1="138" x2="206" y2="138" stroke="#00F0FF" stroke-width="3"/>
+  <polygon points="170,180 230,180 220,280 180,280" fill="#100A1C"/>
+  <line x1="200" y1="190" x2="200" y2="100" stroke="#00F0FF" stroke-width="5" stroke-linecap="round"/>
+  <text x="200" y="325" fill="#FFFFFF" stroke="#9D72FF" stroke-width="2" font-size="42" font-weight="900" text-anchor="middle" font-family="sans-serif" letter-spacing="6">A R I S E</text>
+  <text x="200" y="360" fill="#00F0FF" font-size="16" font-weight="bold" text-anchor="middle" font-family="sans-serif" letter-spacing="4">( 일 어 나 라 )</text>
+  <rect x="280" y="12" width="108" height="20" rx="4" fill="#1A0C2B" stroke="#42216E" stroke-width="1"/>
+  <text x="334" y="26" fill="#D98A4E" font-size="10" font-weight="bold" text-anchor="middle" font-family="monospace">PAGE 7 / 8</text>
+</svg>
+                  </div>
+
+                  <!-- Page Item 8 (Final Page - Marks Read!) -->
+                  <div class="manhwa-page-item" id="manhwaPageItem8" data-page-index="7">
+                    <svg class="manhwa-panel-svg" viewBox="0 0 400 430" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="p8-glow" cx="50%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#16314A"/>
+      <stop offset="60%" stop-color="#0B1724"/>
+      <stop offset="100%" stop-color="#050A10"/>
+    </radialGradient>
+  </defs>
+  <rect width="400" height="430" fill="url(#p8-glow)"/>
+  <polygon points="40,320 80,260 120,320 100,380 60,380" fill="#0B1522" stroke="#00F0FF" stroke-width="1.5"/>
+  <line x1="70" y1="285" x2="90" y2="285" stroke="#00F0FF" stroke-width="2.5"/>
+  <polygon points="280,320 320,260 360,320 340,380 300,380" fill="#0B1522" stroke="#00F0FF" stroke-width="1.5"/>
+  <line x1="310" y1="285" x2="330" y2="285" stroke="#00F0FF" stroke-width="2.5"/>
+  <circle cx="200" cy="200" r="15" fill="#101C2B"/>
+  <line x1="195" y1="198" x2="205" y2="198" stroke="#00F0FF" stroke-width="2.5"/>
+  <polygon points="175,230 225,230 215,350 185,350" fill="#0C1624" stroke="#1D3B5C" stroke-width="1"/>
+  <rect x="30" y="30" width="340" height="125" rx="10" fill="#061A29" stroke="#6CB687" stroke-width="2"/>
+  <rect x="30" y="30" width="340" height="28" rx="10" fill="#0E382B"/>
+  <text x="200" y="50" fill="#6CB687" font-size="12" font-weight="bold" text-anchor="middle" font-family="monospace">[ QUEST COMPLETE: THE BLOODLINE AWAKENS ]</text>
+  <text x="50" y="80" fill="#E6DFD5" font-size="11" font-family="sans-serif">Skill Unlocked: <tspan fill="#6CB687" font-weight="bold">Shadow Extraction (Lv. 1)</tspan></text>
+  <text x="50" y="102" fill="#00F0FF" font-size="11" font-family="sans-serif">5 Shadow Soldiers registered to Legion.</text>
+  <text x="50" y="124" fill="#FFDCC4" font-size="10" font-style="italic" font-family="sans-serif">Stage 1 Trial Passed. Welcome, Young Monarch.</text>
+  <rect x="40" y="370" width="320" height="44" rx="8" fill="#1B382B" stroke="#6CB687" stroke-width="1.5"/>
+  <text x="200" y="389" fill="#BCE0CF" font-size="11" font-weight="bold" text-anchor="middle" font-family="sans-serif">CHAPTER 15: THE MONARCH'S HEIR — END</text>
+  <text x="200" y="404" fill="#6CB687" font-size="9" font-weight="bold" text-anchor="middle" font-family="sans-serif">✓ Final Page Reached · Marked as READ</text>
+  <rect x="270" y="12" width="118" height="20" rx="4" fill="#163325" stroke="#3E825F" stroke-width="1"/>
+  <text x="329" y="26" fill="#6CB687" font-size="10" font-weight="bold" text-anchor="middle" font-family="monospace">PAGE 8 / 8 (FINAL)</text>
+</svg>
+                  </div>
+
+                </div>
+
+                <!-- Floating Manhwa Settings Button -->
+                <button class="floating-manhwa-btn" id="floatingManhwaBtn" onclick="toggleManhwaControlsSheet()" title="Manhwa Layout & Scale">
+                  <svg style="width:20px;height:20px;" viewBox="0 0 24 24"><path fill="currentColor" d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg>
+                </button>
+              </div>
+
+              <!-- Shared Immersive Overlay Top Bar -->
               <div class="reader-immersive-top-bar" id="readerImmersiveTopBar">
-                <button class="phone-icon-btn" onclick="navigateToScreen('detail')">
+                <button class="phone-icon-btn" onclick="handleTopBarBack()">
                   <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
                 </button>
                 <div style="text-align:center;">
-                  <div style="font-size:0.82rem;font-weight:700;color:var(--on-surface);">Chapter 42</div>
-                  <div style="font-size:0.7rem;color:var(--on-surface-var);">Shadow Slave</div>
+                  <div style="font-size:0.82rem;font-weight:700;color:var(--on-surface);" id="readerImmersiveTitle">Chapter 42: The Ember Archive</div>
+                  <div style="font-size:0.7rem;color:var(--on-surface-var);" id="readerImmersiveSubtitle">Shadow Slave · FreeWebNovel (EN)</div>
                 </div>
-                <button class="phone-icon-btn" onclick="toggleTypographySheet()">
+                <button class="phone-icon-btn" id="readerImmersiveActionBtn" onclick="handleImmersiveActionClick()">
                   <span style="font-family:serif;font-weight:700;font-size:1.1rem;">Aa</span>
                 </button>
               </div>
 
-              <!-- Immersive Overlay Bottom Bar -->
+              <!-- Shared Immersive Overlay Bottom Bar -->
               <div class="reader-immersive-bottom-bar" id="readerImmersiveBottomBar">
-                <button class="reader-chapter-stepper-btn" onclick="openNovelReaderAtChapter(41)">← Ch. 41</button>
+                <button class="reader-chapter-stepper-btn" id="readerPrevChapterBtn" onclick="handleReaderPrevChapter()">← Ch. 41</button>
                 <div style="flex:1;display:flex;flex-direction:column;gap:2px;align-items:center;">
                   <input type="range" class="slider-range" id="readerSliderBar" min="0" max="100" value="68" oninput="onReaderSliderChange(this.value)">
                   <span style="font-size:0.7rem;color:var(--on-surface-var);font-family:monospace;" id="readerSliderLabel">68% · [0.68f]</span>
                 </div>
-                <button class="reader-chapter-stepper-btn" onclick="openNovelReaderAtChapter(43)">Ch. 43 →</button>
+                <button class="reader-chapter-stepper-btn" id="readerNextChapterBtn" onclick="handleReaderNextChapter()">Ch. 43 →</button>
               </div>
-
-              <!-- Floating Aa Typography Button -->
-              <button class="floating-typography-btn" id="floatingAaBtn" onclick="toggleTypographySheet()" title="Typography & Spacing">
-                <span>Aa</span>
-              </button>
 
             </div>
           </div>
-
         </div>
 
         <!-- Phone Bottom 3-Tab Navigation Bar -->
@@ -2608,6 +3441,67 @@
           &nbsp;&nbsp;<span class="code-token-prop">novelParagraphSpacingDp</span>: Int = <span class="code-token-val" id="codeSnippetParaSpacing">14</span>,<br>
           &nbsp;&nbsp;<span class="code-token-prop">novelHorizontalPaddingDp</span>: Int = <span class="code-token-val" id="codeSnippetHorizPadding">20</span><br>
           )
+        </div>
+      </div>
+
+            <!-- CARD 5: UNIFIED READER CONTRACT & ARCHITECTURE MATRIX -->
+      <div class="inspector-card">
+        <div class="card-header-row">
+          <div>
+            <div class="card-title">Unified Reader Architecture (docs/specs/reader.md)</div>
+            <div class="card-subtitle">Shared Route & ViewModel across NOVEL and MANHWA variants</div>
+          </div>
+        </div>
+
+        <div class="contrast-table-wrapper" style="margin-top:10px;">
+          <table class="contrast-table">
+            <thead>
+              <tr>
+                <th style="width:24%;">Contract Axis</th>
+                <th style="width:38%;">ContentType.NOVEL (NovelTextEngine)</th>
+                <th style="width:38%;">ContentType.MANHWA (ManhwaPageList)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="font-weight:700;">Shared Route</td>
+                <td colspan="2" style="text-align:center;background:var(--surface-container);font-family:monospace;font-size:0.75rem;">
+                  ReaderRoute(sourceId, seriesUrl, chapterUrl, contentType)
+                </td>
+              </tr>
+              <tr>
+                <td style="font-weight:700;">Sealed Variant</td>
+                <td><code>ChapterContent.Text(html)</code></td>
+                <td><code>ChapterContent.Pages(imageUrls)</code></td>
+              </tr>
+              <tr>
+                <td style="font-weight:700;">Compose Renderer</td>
+                <td>Native <code>LazyColumn</code> of styled <code>NovelBlock</code></td>
+                <td><code>LazyColumn</code> of <code>AsyncImage</code> items</td>
+              </tr>
+              <tr>
+                <td style="font-weight:700;">Progress Model</td>
+                <td>Continuous normalized <code>[0f, 1f]</code> float persisted by <code>(sourceId, chapterUrl)</code></td>
+                <td>Current integer page index (<code>1..N</code>) in-memory only (never restored on fresh load)</td>
+              </tr>
+              <tr>
+                <td style="font-weight:700;">Read Trigger Rule</td>
+                <td>Scrolled <code>&gt;= 90%</code> of total chapter height</td>
+                <td>Marked read <strong>strictly when final page (N-1) becomes current</strong> (earlier pages never trigger read)</td>
+              </tr>
+              <tr>
+                <td style="font-weight:700;">Placeholder Contract</td>
+                <td>N/A (Prose text flow)</td>
+                <td>Measurable <code>heightIn(min = 150.dp)</code> preserved under loading and error painter</td>
+              </tr>
+              <tr>
+                <td style="font-weight:700;">Payload Mismatch</td>
+                <td colspan="2" style="font-size:0.72rem;">
+                  Cached payload bypassed → 1 forced network fetch → retryable unexpected-content error if variant still disagrees
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -3010,12 +3904,12 @@
         topBar.style.display = "flex";
         bottomNav.style.display = "none";
       } else if (screenKey === "reader") {
-        topBarTitle.textContent = "Ch. 42: The Ember Archive";
         backBtn.style.display = "flex";
         settingsBtn.style.display = "none";
-        aaBtn.style.display = "flex";
+        aaBtn.style.display = "none";
         topBar.style.display = "none"; // Reader uses its own immersive top bar
         bottomNav.style.display = "none";
+        setReaderContentType(currentContentType);
       }
 
       // Close bottom drawers if open
@@ -3030,8 +3924,51 @@
       }
     }
 
+    let currentDetailSeriesId = "shadow-slave";
+
     function openSeriesDetail(seriesId) {
+      currentDetailSeriesId = seriesId || "shadow-slave";
       navigateToScreen("detail");
+
+      // If Solo Leveling, update detail hero and CTA
+      const heroTitle = document.querySelector(".series-hero-title");
+      const heroAuthor = document.querySelector(".series-hero-author");
+      const progressHeadline = document.querySelector(".progress-card-headline");
+      const ctaBtn = document.querySelector(".progress-card-cta-btn");
+      const coverArt = document.querySelector(".series-hero-cover svg");
+
+      if (currentDetailSeriesId === "solo-leveling") {
+        heroTitle.textContent = "Solo Leveling: Ragnarok";
+        heroAuthor.textContent = "Daul · AsuraScans (EN)";
+        progressHeadline.textContent = "Chapter 15: The Monarch's Heir";
+        ctaBtn.innerHTML = `
+          <svg style="width:18px;height:18px;" viewBox="0 0 24 24"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
+          <span>Continue Ch. 15 · Manhwa (Pages)</span>
+        `;
+        ctaBtn.onclick = () => navigateToReader("MANHWA");
+        coverArt.innerHTML = `
+          <rect width="120" height="180" fill="#1C1824"/>
+          <path d="M40 90 L60 40 L80 90 Z" fill="#9D72FF" opacity="0.6"/>
+          <text x="60" y="125" fill="#E6DFD5" font-size="9" font-weight="bold" text-anchor="middle" font-family="sans-serif">SOLO LEVELING: R</text>
+          <text x="60" y="140" fill="#A89F93" font-size="8" text-anchor="middle" font-family="sans-serif">Daul · Manhwa</text>
+        `;
+      } else {
+        heroTitle.textContent = "Shadow Slave";
+        heroAuthor.textContent = "Guiltythree · FreeWebNovel (EN)";
+        progressHeadline.textContent = "Chapter 42: The Ember Archive";
+        ctaBtn.innerHTML = `
+          <svg style="width:18px;height:18px;" viewBox="0 0 24 24"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
+          <span>Continue Ch. 42 · 68%</span>
+        `;
+        ctaBtn.onclick = () => openNovelReaderAtProgress(0.68);
+        coverArt.innerHTML = `
+          <rect width="120" height="180" fill="#2A2218"/>
+          <circle cx="60" cy="70" r="32" fill="#D98A4E" opacity="0.2"/>
+          <path d="M60 45 L75 85 L45 85 Z" fill="#D98A4E" opacity="0.8"/>
+          <text x="60" y="125" fill="#E6DFD5" font-size="11" font-weight="bold" text-anchor="middle" font-family="sans-serif">SHADOW SLAVE</text>
+          <text x="60" y="140" fill="#A89F93" font-size="8" text-anchor="middle" font-family="sans-serif">Guiltythree</text>
+        `;
+      }
     }
 
     function openNovelReaderAtChapter(chapterNum) {
@@ -3161,6 +4098,123 @@
     }
 
     /* ------------------------------------------------------------------
+       UNIFIED READER CONTROLLER (ContentType.NOVEL & ContentType.MANHWA)
+       ------------------------------------------------------------------ */
+    let currentContentType = "NOVEL"; // "NOVEL" | "MANHWA"
+
+    // Manhwa Reader State
+    let manhwaCurrentPage = 0; // 0..7
+    let manhwaLayoutMode = "webtoon"; // "webtoon" | "paged-ltr" | "paged-rtl"
+    let manhwaContentScale = "fit-width"; // "fit-width" | "fit-height" | "original"
+    let isPage4Placeholder = false;
+    let isPage6Error = false;
+    let isMismatchSimulated = false;
+    let isManhwaRead = false;
+
+    function navigateToReader(contentType) {
+      currentContentType = contentType || "NOVEL";
+      navigateToScreen("reader");
+      setReaderContentType(currentContentType);
+    }
+
+    function setReaderContentType(type) {
+      currentContentType = type;
+
+      const novelSubView = document.getElementById("novelReaderSubView");
+      const manhwaSubView = document.getElementById("manhwaReaderSubView");
+      const modeBtnNovel = document.getElementById("modeBtnNovel");
+      const modeBtnManhwa = document.getElementById("modeBtnManhwa");
+      const topBarTitle = document.getElementById("phoneTopBarTitle");
+      const immersiveTitle = document.getElementById("readerImmersiveTitle");
+      const immersiveSubtitle = document.getElementById("readerImmersiveSubtitle");
+      const prevBtn = document.getElementById("readerPrevChapterBtn");
+      const nextBtn = document.getElementById("readerNextChapterBtn");
+      const actionBtn = document.getElementById("readerImmersiveActionBtn");
+      const slider = document.getElementById("readerSliderBar");
+      const sliderLabel = document.getElementById("readerSliderLabel");
+
+      // Update quick switcher nav buttons
+      document.querySelectorAll(".screen-jump-btn").forEach(btn => {
+        const target = btn.getAttribute("data-screen-btn");
+        if (target === "reader-novel") {
+          btn.classList.toggle("active", activeScreenKey === "reader" && currentContentType === "NOVEL");
+        } else if (target === "reader-manhwa") {
+          btn.classList.toggle("active", activeScreenKey === "reader" && currentContentType === "MANHWA");
+        }
+      });
+
+      if (type === "NOVEL") {
+        novelSubView.style.display = "flex";
+        manhwaSubView.style.display = "none";
+        modeBtnNovel.classList.add("active");
+        modeBtnManhwa.classList.remove("active");
+
+        topBarTitle.textContent = "Ch. 42: The Ember Archive";
+        immersiveTitle.textContent = "Chapter 42: The Ember Archive";
+        immersiveSubtitle.textContent = "Shadow Slave · FreeWebNovel (EN)";
+        prevBtn.textContent = "← Ch. 41";
+        nextBtn.textContent = "Ch. 43 →";
+        actionBtn.innerHTML = '<span style="font-family:serif;font-weight:700;font-size:1.1rem;">Aa</span>';
+        actionBtn.onclick = toggleTypographySheet;
+
+        // Restore novel slider state
+        const scrollTop = novelCanvas.scrollTop;
+        const scrollHeight = novelCanvas.scrollHeight - novelCanvas.clientHeight;
+        const ratio = scrollHeight > 0 ? Math.min(Math.max(scrollTop / scrollHeight, 0), 1) : 0.68;
+        slider.min = 0;
+        slider.max = 100;
+        slider.value = Math.round(ratio * 100);
+        sliderLabel.textContent = `${Math.round(ratio * 100)}% · [${ratio.toFixed(2)}f]`;
+      } else {
+        novelSubView.style.display = "none";
+        manhwaSubView.style.display = "flex";
+        modeBtnNovel.classList.remove("active");
+        modeBtnManhwa.classList.add("active");
+
+        topBarTitle.textContent = "Ch. 15: The Monarch's Heir";
+        immersiveTitle.textContent = "Chapter 15: The Monarch's Heir";
+        immersiveSubtitle.textContent = "Solo Leveling: Ragnarok · AsuraScans (EN)";
+        prevBtn.textContent = "← Ch. 14";
+        nextBtn.textContent = "Ch. 16 →";
+        actionBtn.innerHTML = '<svg style="width:18px;height:18px;" viewBox="0 0 24 24"><path fill="currentColor" d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg>';
+        actionBtn.onclick = toggleManhwaControlsSheet;
+
+        slider.min = 1;
+        slider.max = 8;
+        slider.value = manhwaCurrentPage + 1;
+        sliderLabel.textContent = `Page ${manhwaCurrentPage + 1} of 8`;
+
+        updateManhwaPageDisplay(manhwaCurrentPage);
+      }
+    }
+
+    function handleImmersiveActionClick() {
+      if (currentContentType === "NOVEL") {
+        toggleTypographySheet();
+      } else {
+        toggleManhwaControlsSheet();
+      }
+    }
+
+    function handleReaderPrevChapter() {
+      if (currentContentType === "NOVEL") {
+        openNovelReaderAtChapter(41);
+      } else {
+        jumpToManhwaPage(0);
+        showToast("Opened Chapter 14 (Manhwa)");
+      }
+    }
+
+    function handleReaderNextChapter() {
+      if (currentContentType === "NOVEL") {
+        openNovelReaderAtChapter(43);
+      } else {
+        jumpToManhwaPage(0);
+        showToast("Opened Chapter 16 (Manhwa)");
+      }
+    }
+
+    /* ------------------------------------------------------------------
        NOVEL TEXT ENGINE (READER CANVAS & SCROLL TRACKER)
        ------------------------------------------------------------------ */
     const novelCanvas = document.getElementById("novelCanvas");
@@ -3173,6 +4227,7 @@
     });
 
     function updateReaderScrollDisplay(ratio) {
+      if (currentContentType !== "NOVEL") return;
       const pct = Math.round(ratio * 100);
       document.getElementById("readerProgressPercentText").textContent = pct + "%";
       document.getElementById("readerProgressNormalizedText").textContent = `[${ratio.toFixed(2)}f]`;
@@ -3190,13 +4245,19 @@
     }
 
     function onReaderSliderChange(value) {
-      const ratio = value / 100;
-      const scrollHeight = novelCanvas.scrollHeight - novelCanvas.clientHeight;
-      novelCanvas.scrollTop = scrollHeight * ratio;
-      updateReaderScrollDisplay(ratio);
+      if (currentContentType === "NOVEL") {
+        const ratio = value / 100;
+        const scrollHeight = novelCanvas.scrollHeight - novelCanvas.clientHeight;
+        novelCanvas.scrollTop = scrollHeight * ratio;
+        updateReaderScrollDisplay(ratio);
+      } else {
+        const pageIdx = parseInt(value) - 1;
+        jumpToManhwaPage(pageIdx);
+      }
     }
 
     function restoreReaderProgress(ratio) {
+      setReaderContentType("NOVEL");
       const scrollHeight = novelCanvas.scrollHeight - novelCanvas.clientHeight;
       novelCanvas.scrollTo({
         top: scrollHeight * ratio,
@@ -3206,18 +4267,215 @@
       showToast(`Restored position to ${(ratio * 100).toFixed(0)}%`);
     }
 
-    function handleReaderCanvasTap(event) {
-      // Toggle immersive chrome if not clicking a link/button
-      if (event.target.tagName.toLowerCase() === 'button') return;
+    /* ------------------------------------------------------------------
+       MANHWA PAGE LIST (MANHWA CONTROLS & FINAL-PAGE READ RULE)
+       ------------------------------------------------------------------ */
+    const manhwaCanvas = document.getElementById("manhwaCanvas");
 
-      isReaderChromeVisible = !isReaderChromeVisible;
-      const topBar = document.getElementById("readerImmersiveTopBar");
-      const bottomBar = document.getElementById("readerImmersiveBottomBar");
-      const aaBtn = document.getElementById("floatingAaBtn");
+    function setManhwaLayoutMode(mode) {
+      manhwaLayoutMode = mode;
+      manhwaCanvas.classList.remove("layout-webtoon", "layout-paged-ltr", "layout-paged-rtl");
+      manhwaCanvas.classList.add("layout-" + mode);
 
-      topBar.classList.toggle("hidden", !isReaderChromeVisible);
-      bottomBar.classList.toggle("hidden", !isReaderChromeVisible);
-      aaBtn.classList.toggle("hidden", !isReaderChromeVisible);
+      document.querySelectorAll(".segmented-pill-container #btnLayoutWebtoon, #btnLayoutPagedLtr, #btnLayoutPagedRtl").forEach(b => {
+        b.classList.remove("active");
+      });
+
+      if (mode === "webtoon") document.getElementById("btnLayoutWebtoon").classList.add("active");
+      else if (mode === "paged-ltr") document.getElementById("btnLayoutPagedLtr").classList.add("active");
+      else if (mode === "paged-rtl") document.getElementById("btnLayoutPagedRtl").classList.add("active");
+
+      jumpToManhwaPage(manhwaCurrentPage);
+      showToast(`Manhwa Layout: ${mode.toUpperCase()}`);
+    }
+
+    function setManhwaContentScale(scale) {
+      manhwaContentScale = scale;
+      manhwaCanvas.classList.remove("scale-fit-width", "scale-fit-height", "scale-original");
+      manhwaCanvas.classList.add("scale-" + scale);
+
+      document.querySelectorAll(".segmented-pill-container #btnScaleWidth, #btnScaleHeight, #btnScaleOriginal").forEach(b => {
+        b.classList.remove("active");
+      });
+
+      if (scale === "fit-width") document.getElementById("btnScaleWidth").classList.add("active");
+      else if (scale === "fit-height") document.getElementById("btnScaleHeight").classList.add("active");
+      else if (scale === "original") document.getElementById("btnScaleOriginal").classList.add("active");
+
+      showToast(`ContentScale: ${scale.toUpperCase()}`);
+    }
+
+    function jumpToManhwaPage(pageIdx) {
+      manhwaCurrentPage = Math.max(0, Math.min(pageIdx, 7));
+      const targetItem = document.getElementById("manhwaPageItem" + (manhwaCurrentPage + 1));
+
+      if (targetItem) {
+        if (manhwaLayoutMode === "webtoon") {
+          targetItem.scrollIntoView({ behavior: "smooth", block: "start" });
+        } else {
+          targetItem.scrollIntoView({ behavior: "smooth", inline: "center" });
+        }
+      }
+
+      updateManhwaPageDisplay(manhwaCurrentPage);
+    }
+
+    function updateManhwaPageDisplay(pageIdx) {
+      manhwaCurrentPage = pageIdx;
+      document.getElementById("manhwaCurrentPageNum").textContent = pageIdx + 1;
+
+      // Update Slider in bottom bar if in Manhwa mode
+      if (currentContentType === "MANHWA") {
+        document.getElementById("readerSliderBar").value = pageIdx + 1;
+        document.getElementById("readerSliderLabel").textContent = `Page ${pageIdx + 1} of 8`;
+      }
+
+      // Update quick jump chips
+      for (let i = 1; i <= 8; i++) {
+        const chip = document.getElementById("chipPage" + i);
+        if (chip) chip.classList.toggle("active", (i - 1) === pageIdx);
+      }
+
+      // FINAL PAGE READ RULE (docs/specs/reader.md):
+      // "When the final image page becomes current, mark the chapter read.
+      // An earlier page becoming current must not mark the chapter read solely because of that page change."
+      const badge = document.getElementById("manhwaCompletionBadge");
+      if (pageIdx === 7) {
+        isManhwaRead = true;
+        badge.textContent = "READ ✓ (Final Page)";
+        badge.classList.add("read-done");
+      } else if (!isManhwaRead) {
+        badge.textContent = "IN-PROGRESS";
+        badge.classList.remove("read-done");
+      }
+    }
+
+    // Scroll listener for Manhwa Canvas to track active page
+    manhwaCanvas.addEventListener("scroll", () => {
+      if (currentContentType !== "MANHWA") return;
+
+      const pageItems = document.querySelectorAll(".manhwa-page-item");
+      const canvasRect = manhwaCanvas.getBoundingClientRect();
+
+      let closestIdx = 0;
+      let minDistance = Infinity;
+
+      pageItems.forEach((item, idx) => {
+        const itemRect = item.getBoundingClientRect();
+        let dist = 0;
+        if (manhwaLayoutMode === "webtoon") {
+          dist = Math.abs(itemRect.top - canvasRect.top);
+        } else {
+          dist = Math.abs(itemRect.left - canvasRect.left);
+        }
+
+        if (dist < minDistance) {
+          minDistance = dist;
+          closestIdx = idx;
+        }
+      });
+
+      if (closestIdx !== manhwaCurrentPage) {
+        updateManhwaPageDisplay(closestIdx);
+      }
+    });
+
+    // SPEC SIMULATION 1: Measurable Placeholder on Page 4
+    let originalPage4Html = "";
+
+    function toggleManhwaPlaceholder() {
+      isPage4Placeholder = !isPage4Placeholder;
+      const btn = document.getElementById("togglePlaceholderBtn");
+      const container = document.getElementById("manhwaPage4Content");
+
+      if (isPage4Placeholder) {
+        btn.classList.add("active");
+        container.innerHTML = `
+          <div class="manhwa-placeholder-card">
+            <div class="manhwa-spinner"></div>
+            <div style="font-weight:700;color:var(--primary);font-size:0.8rem;">AsyncImage Loading... [min-height: 220px]</div>
+            <div style="font-size:0.7rem;color:var(--on-surface-var);">
+              LazyColumn scroll range includes placeholder before image loads to prevent scroll jumps (docs/specs/reader.md).
+            </div>
+            <button class="sim-toggle-pill active" onclick="toggleManhwaPlaceholder()">Click to Complete Load</button>
+          </div>
+        `;
+        jumpToManhwaPage(3);
+        showToast("Page 4: Measurable Loading Placeholder active");
+      } else {
+        btn.classList.remove("active");
+        container.innerHTML = originalPage4Html;
+        showToast("Page 4: Loaded natural image dimensions");
+      }
+    }
+
+    // SPEC SIMULATION 2: Failed Image Error State on Page 6
+    let originalPage6Html = "";
+
+    function toggleManhwaError() {
+      isPage6Error = !isPage6Error;
+      const btn = document.getElementById("toggleErrorBtn");
+      const container = document.getElementById("manhwaPage6Content");
+
+      if (isPage6Error) {
+        btn.classList.add("danger-active");
+        container.innerHTML = `
+          <div class="manhwa-error-card">
+            <svg style="width:32px;height:32px;color:var(--error);" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+            <div style="font-weight:700;color:var(--error);font-size:0.8rem;">Image Load Failed (HTTP 504 Gateway Timeout)</div>
+            <div style="font-size:0.7rem;color:var(--on-surface-var);">
+              Error painter retains minimum height (220px) under failure, preventing scroll range collapse (docs/specs/reader.md).
+            </div>
+            <button class="manhwa-retry-btn" onclick="retryPage6Image()">
+              <svg style="width:14px;height:14px;" viewBox="0 0 24 24"><path fill="currentColor" d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+              <span>Retry Image (↻)</span>
+            </button>
+          </div>
+        `;
+        jumpToManhwaPage(5);
+        showToast("Page 6: Error state active with preserved min-height");
+      } else {
+        btn.classList.remove("danger-active");
+        container.innerHTML = originalPage6Html;
+        showToast("Page 6: Image recovered successfully");
+      }
+    }
+
+    function retryPage6Image() {
+      showToast("Retrying Page 6 image download...");
+      setTimeout(() => {
+        toggleManhwaError();
+      }, 400);
+    }
+
+    // SPEC SIMULATION 3: Content Mismatch Error & Recovery
+    function toggleManhwaMismatch() {
+      isMismatchSimulated = !isMismatchSimulated;
+      const banner = document.getElementById("manhwaMismatchBanner");
+      const btn = document.getElementById("toggleMismatchBtn");
+
+      if (isMismatchSimulated) {
+        banner.style.display = "flex";
+        btn.classList.add("danger-active");
+        showToast("Simulated payload variant mismatch error");
+      } else {
+        banner.style.display = "none";
+        btn.classList.remove("danger-active");
+        showToast("Payload mismatch resolved");
+      }
+    }
+
+    function retryMismatchRecovery() {
+      showToast("Bypassing cache: 1 forced network fetch re-attempted...");
+      setTimeout(() => {
+        toggleManhwaMismatch();
+        showToast("Matching ChapterContent.Pages(imageUrls) retrieved!");
+      }, 600);
+    }
+
+    function toggleManhwaControlsSheet() {
+      // Toggle controls visibility or show toast
+      showToast("Manhwa Layout & Scale toolbar active at top");
     }
 
     /* ------------------------------------------------------------------
@@ -3326,6 +4584,10 @@
       setAppTheme("WARM_DARK");
       renderBrowseCatalog();
       updateReaderScrollDisplay(0.68);
+      const p4El = document.getElementById("manhwaPage4Content");
+      if (p4El) originalPage4Html = p4El.innerHTML;
+      const p6El = document.getElementById("manhwaPage6Content");
+      if (p6El) originalPage6Html = p6El.innerHTML;
     });
   </script>
 </body>
