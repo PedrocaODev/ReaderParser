@@ -5,6 +5,7 @@ import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.mutablePreferencesOf
 import androidx.datastore.preferences.core.stringPreferencesKey
+import com.opus.readerparser.domain.model.AppTheme
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
@@ -92,5 +93,25 @@ class SettingsStoreTest {
         store.edit { it[key] = "LIGHT" }
 
         assertEquals("LIGHT", store.data.first()[key])
+    }
+
+    @Test
+    fun `setTheme WARM_DARK round-trips through SettingsRepositoryImpl`() = runTest {
+        val fakeDataStore = EditableFakeDataStore()
+        val store = SettingsStore(fakeDataStore)
+        val repo = SettingsRepositoryImpl(store)
+
+        repo.setTheme(AppTheme.WARM_DARK)
+        assertEquals(AppTheme.WARM_DARK, repo.observeSettings().first().theme)
+    }
+
+    @Test
+    fun `setTheme SEPIA round-trips through SettingsRepositoryImpl`() = runTest {
+        val fakeDataStore = EditableFakeDataStore()
+        val store = SettingsStore(fakeDataStore)
+        val repo = SettingsRepositoryImpl(store)
+
+        repo.setTheme(AppTheme.SEPIA)
+        assertEquals(AppTheme.SEPIA, repo.observeSettings().first().theme)
     }
 }

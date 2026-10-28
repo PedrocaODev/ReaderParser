@@ -10,6 +10,7 @@ import com.opus.readerparser.domain.model.Series
 @Composable
 fun BrowseScreen(
     onNavigateToSeries: (Series) -> Unit,
+    onNavigateToSettings: () -> Unit = {},
     viewModel: BrowseViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -25,5 +26,9 @@ fun BrowseScreen(
         }
     }
 
-    BrowseContent(state = state, onAction = viewModel::onAction)
+    BrowseContent(
+        state = state,
+        onAction = viewModel::onAction,
+        onNavigateToSettings = onNavigateToSettings,
+    )
 }

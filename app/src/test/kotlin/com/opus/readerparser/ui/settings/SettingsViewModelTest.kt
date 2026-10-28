@@ -44,6 +44,24 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun `SetTheme WARM_DARK updates state`() = runTest {
+        vm.state.test {
+            awaitItem()
+            vm.onAction(SettingsAction.SetTheme(AppTheme.WARM_DARK))
+            assertThat(awaitItem().settings.theme).isEqualTo(AppTheme.WARM_DARK)
+        }
+    }
+
+    @Test
+    fun `SetTheme SEPIA updates state`() = runTest {
+        vm.state.test {
+            awaitItem()
+            vm.onAction(SettingsAction.SetTheme(AppTheme.SEPIA))
+            assertThat(awaitItem().settings.theme).isEqualTo(AppTheme.SEPIA)
+        }
+    }
+
+    @Test
     fun `SetNovelFontSize updates state`() = runTest {
         vm.state.test {
             awaitItem()

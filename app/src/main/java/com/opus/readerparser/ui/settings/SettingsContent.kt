@@ -42,6 +42,14 @@ import com.opus.readerparser.ui.theme.ReaderParserTheme
 
 private val novelFontFamilies = listOf("Default", "Serif", "Monospace")
 
+fun AppTheme.displayName(): String = when (this) {
+    AppTheme.SYSTEM -> "System"
+    AppTheme.LIGHT -> "Light"
+    AppTheme.DARK -> "Dark"
+    AppTheme.WARM_DARK -> "Warm Dark"
+    AppTheme.SEPIA -> "Sepia"
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsContent(
@@ -73,7 +81,7 @@ fun SettingsContent(
                     )
                     AppTheme.entries.forEach { theme ->
                         RadioRow(
-                            label = theme.name.lowercase().replaceFirstChar { it.uppercase() },
+                            label = theme.displayName(),
                             selected = state.settings.theme == theme,
                             onClick = { onAction(SettingsAction.SetTheme(theme)) },
                         )
