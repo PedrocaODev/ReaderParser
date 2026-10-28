@@ -9,14 +9,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
@@ -39,8 +39,9 @@ import com.opus.readerparser.domain.model.AppTheme
 import com.opus.readerparser.domain.model.ManhwaLayout
 import com.opus.readerparser.domain.model.ManhwaZoom
 import com.opus.readerparser.ui.theme.ReaderParserTheme
+import kotlin.math.roundToInt
 
-private val novelFontFamilies = listOf("Default", "Serif", "Monospace")
+private val novelFontFamilies = listOf("Serif", "Sans-Serif", "Monospace", "Default")
 
 fun AppTheme.displayName(): String = when (this) {
     AppTheme.SYSTEM -> "System"
@@ -103,8 +104,8 @@ fun SettingsContent(
                     Slider(
                         value = state.settings.novelFontSize.toFloat(),
                         onValueChange = { onAction(SettingsAction.SetNovelFontSize(it.toInt())) },
-                        valueRange = 12f..24f,
-                        steps = 11,
+                        valueRange = 12f..32f,
+                        steps = 19,
                         modifier = Modifier.testTag("font_size_slider"),
                     )
                     Spacer(Modifier.height(8.dp))
@@ -145,6 +146,45 @@ fun SettingsContent(
                             }
                         }
                     }
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = "Line height: ${String.format(java.util.Locale.US, "%.1f", state.settings.novelLineHeightMultiplier)}x",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Slider(
+                        value = state.settings.novelLineHeightMultiplier,
+                        onValueChange = { onAction(SettingsAction.SetNovelLineHeightMultiplier((it * 10f).roundToInt() / 10f)) },
+                        valueRange = 1.2f..2.0f,
+                        steps = 7,
+                        modifier = Modifier.testTag("line_height_slider"),
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = "Paragraph spacing: ${state.settings.novelParagraphSpacingDp} dp",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Slider(
+                        value = state.settings.novelParagraphSpacingDp.toFloat(),
+                        onValueChange = { onAction(SettingsAction.SetNovelParagraphSpacingDp(it.roundToInt())) },
+                        valueRange = 4f..28f,
+                        steps = 23,
+                        modifier = Modifier.testTag("paragraph_spacing_slider"),
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = "Horizontal padding: ${state.settings.novelHorizontalPaddingDp} dp",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Slider(
+                        value = state.settings.novelHorizontalPaddingDp.toFloat(),
+                        onValueChange = { onAction(SettingsAction.SetNovelHorizontalPaddingDp(it.roundToInt())) },
+                        valueRange = 8f..40f,
+                        steps = 31,
+                        modifier = Modifier.testTag("horizontal_padding_slider"),
+                    )
                 }
             }
 

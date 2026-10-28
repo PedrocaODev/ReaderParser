@@ -14,6 +14,9 @@ sealed interface SettingsAction {
     data class SetTheme(val theme: AppTheme) : SettingsAction
     data class SetNovelFontSize(val size: Int) : SettingsAction
     data class SetNovelFontFamily(val family: String) : SettingsAction
+    data class SetNovelLineHeightMultiplier(val multiplier: Float) : SettingsAction
+    data class SetNovelParagraphSpacingDp(val dp: Int) : SettingsAction
+    data class SetNovelHorizontalPaddingDp(val dp: Int) : SettingsAction
     data class SetManhwaLayout(val layout: ManhwaLayout) : SettingsAction
     data class SetManhwaZoom(val zoom: ManhwaZoom) : SettingsAction
 }

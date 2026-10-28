@@ -1,6 +1,7 @@
 package com.opus.readerparser.ui.settings
 
 import androidx.compose.ui.graphics.Color
+import com.opus.readerparser.domain.model.AppSettings
 import com.opus.readerparser.domain.model.AppTheme
 import com.opus.readerparser.ui.theme.SepiaColorScheme
 import com.opus.readerparser.ui.theme.WarmDarkColorScheme
@@ -9,6 +10,21 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class SettingsContentTest {
+
+    @Test
+    fun `AppSettings typography defaults and ranges match spec`() {
+        val settings = AppSettings()
+        assertEquals(18, settings.novelFontSize)
+        assertEquals("Serif", settings.novelFontFamily)
+        assertEquals(1.6f, settings.novelLineHeightMultiplier)
+        assertEquals(14, settings.novelParagraphSpacingDp)
+        assertEquals(20, settings.novelHorizontalPaddingDp)
+
+        assertEquals(12..32, AppSettings.NOVEL_FONT_SIZE_RANGE)
+        assertEquals(1.2f..2.0f, AppSettings.NOVEL_LINE_HEIGHT_RANGE)
+        assertEquals(4..28, AppSettings.NOVEL_PARAGRAPH_SPACING_RANGE)
+        assertEquals(8..40, AppSettings.NOVEL_HORIZONTAL_PADDING_RANGE)
+    }
 
     @Test
     fun `AppTheme entries contains all themes in order`() {

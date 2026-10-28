@@ -11,6 +11,9 @@ interface SettingsRepository {
     suspend fun setTheme(theme: AppTheme)
     suspend fun setNovelFontSize(size: Int)
     suspend fun setNovelFontFamily(family: String)
+    suspend fun setNovelLineHeightMultiplier(multiplier: Float)
+    suspend fun setNovelParagraphSpacingDp(dp: Int)
+    suspend fun setNovelHorizontalPaddingDp(dp: Int)
     suspend fun setManhwaLayout(layout: ManhwaLayout)
     suspend fun setManhwaZoom(zoom: ManhwaZoom)
 }
