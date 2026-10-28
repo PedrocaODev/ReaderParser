@@ -10,6 +10,8 @@ import com.opus.readerparser.domain.model.FilterList
 import com.opus.readerparser.domain.model.Series
 import com.opus.readerparser.domain.model.SeriesPage
 import com.opus.readerparser.testutil.TestFixtures
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 
 /**
  * Hand-rolled fake [Source] for repository tests.
@@ -42,6 +44,7 @@ open class FakeSource(
     var searchResult: SeriesPage = SeriesPage(emptyList(), false)
     var seriesDetailsResult: (Series) -> Series = { it }
     var chapterListResult: List<Chapter> = emptyList()
+    var progressiveChapterEmissions: List<List<Chapter>>? = null
 
     /**
      * When `null` (default), [getChapterContent] auto-returns
@@ -90,6 +93,20 @@ open class FakeSource(
     override open suspend fun getChapterList(series: Series): List<Chapter> {
         getChapterListCalls.add(series)
         return chapterListResult
+    }
+
+    override open fun fetchChapterListProgressive(series: Series): Flow<List<Chapter>> {
+        val emissions = progressiveChapterEmissions
+        return if (emissions != null) {
+            flow {
+                getChapterListCalls.add(series)
+                for (emission in emissions) {
+                    emit(emission)
+                }
+            }
+        } else {
+            super.fetchChapterListProgressive(series)
+        }
     }
 
     override open suspend fun getChapterContent(chapter: Chapter): ChapterContent {

@@ -7,6 +7,8 @@ import com.opus.readerparser.domain.model.Filter
 import com.opus.readerparser.domain.model.FilterList
 import com.opus.readerparser.domain.model.Series
 import com.opus.readerparser.domain.model.SeriesPage
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 
 /**
  * Central contract that all site plugins implement.
@@ -48,6 +50,14 @@ interface Source {
 
     /** Returns all chapters for the given [series], in reading order. */
     suspend fun getChapterList(series: Series): List<Chapter>
+
+    /**
+     * Progressively emits chapter lists for [series] (e.g., first page immediately,
+     * followed by the full chapter list once remaining pages finish loading).
+     */
+    fun fetchChapterListProgressive(series: Series): Flow<List<Chapter>> = flow {
+        emit(getChapterList(series))
+    }
 
     /** Returns the content of a single [chapter]. */
     suspend fun getChapterContent(chapter: Chapter): ChapterContent

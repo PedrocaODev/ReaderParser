@@ -14,6 +14,14 @@ import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.statement.bodyAsText
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.last
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
@@ -246,14 +254,78 @@ class FreeWebNovel(
         private const val chapterListAjaxPageSize = 200
     }
 
-    override suspend fun getChapterList(series: Series): List<Chapter> {
-        val page1Ajax = fetchOptionalChapterListAjax(series.url, 1)
-        if (page1Ajax?.html?.isNotBlank() == true) {
-            return buildChapterListFromAjax(series, page1Ajax)
+    override fun fetchChapterListProgressive(series: Series): Flow<List<Chapter>> = flow {
+        val firstPage = fetchOptionalChapterListAjax(series.url, 1)
+        if (firstPage == null || firstPage.html.isBlank()) {
+            val doc = fetchDoc(series.url)
+            emit(doc.select(chapterListSelector()).map { chapterFromElement(it, series) })
+            return@flow
         }
 
-        val doc = fetchDoc(series.url)
-        return doc.select(chapterListSelector()).map { chapterFromElement(it, series) }
+        val page1Chapters = parseChaptersFragment(firstPage.html, series)
+        if (page1Chapters.isEmpty()) {
+            throw IllegalStateException("Expected chapters on page 1 for ${series.url}, found 0")
+        }
+
+        val chaptersByUrl = LinkedHashMap<String, Chapter>()
+        for (chapter in page1Chapters) {
+            chaptersByUrl.putIfAbsent(chapter.url, chapter)
+        }
+        emit(chaptersByUrl.values.toList())
+
+        val totalPage = firstPage.totalPage.coerceAtLeast(1)
+        if (totalPage > 1) {
+            val semaphore = Semaphore(4)
+            val remainingPages = coroutineScope {
+                (2..totalPage).map { page ->
+                    async {
+                        semaphore.withPermit {
+                            val payload = fetchOptionalChapterListAjax(series.url, page)
+                                ?: throw IllegalStateException(
+                                    "Failed to load continuation page $page of $totalPage for ${series.url}"
+                                )
+                            if (payload.html.isBlank()) {
+                                throw IllegalStateException(
+                                    "Continuation page $page of $totalPage had blank HTML for ${series.url}"
+                                )
+                            }
+                            val pageChapters = parseChaptersFragment(payload.html, series)
+                            if (pageChapters.isEmpty()) {
+                                throw IllegalStateException(
+                                    "Continuation page $page of $totalPage contained no new chapters for ${series.url}"
+                                )
+                            }
+                            page to pageChapters
+                        }
+                    }
+                }.awaitAll()
+            }
+
+            for ((page, pageChapters) in remainingPages.sortedBy { it.first }) {
+                var addedOnPage = 0
+                for (chapter in pageChapters) {
+                    if (chaptersByUrl.putIfAbsent(chapter.url, chapter) == null) {
+                        addedOnPage++
+                    }
+                }
+                if (addedOnPage == 0) {
+                    throw IllegalStateException(
+                        "Continuation page $page of $totalPage contained no new chapters for ${series.url}"
+                    )
+                }
+            }
+            emit(chaptersByUrl.values.toList())
+        }
+    }
+
+    override suspend fun getChapterList(series: Series): List<Chapter> =
+        fetchChapterListProgressive(series).last()
+
+    private fun parseChaptersFragment(html: String, series: Series): List<Chapter> {
+        val ajaxDoc = Jsoup.parse(html, series.url)
+        // ponytail: AJAX html fragment has bare <li> rows, no wrapping <ul id="idData">
+        return ajaxDoc.select("a.con[href*=\"/chapter-\"]")
+            .map { chapterFromElement(it, series) }
     }
 
     private suspend fun fetchChapterListAjax(seriesUrl: String, page: Int): ChapterListAjaxResponse? {
@@ -268,29 +340,6 @@ class FreeWebNovel(
         return decodeChapterListAjaxResponse(responseBody)
     }
 
-    private suspend fun buildChapterListFromAjax(series: Series, page1: ChapterListAjaxResponse): List<Chapter> {
-        val allChapters = mutableListOf<Chapter>()
-        // ponytail: url dedup is cheaper than full Chapter equality
-        val seenUrls = mutableSetOf<String>()
-
-        appendAjaxChapters(series, page1.html, allChapters, seenUrls)
-
-        for (page in 2..page1.totalPage.coerceAtLeast(1)) {
-            val ajaxResponse = fetchOptionalChapterListAjax(series.url, page)
-                ?: throw IllegalStateException("Failed to load continuation page $page of ${page1.totalPage} for ${series.url}")
-            check(ajaxResponse.html.isNotBlank()) {
-                "Continuation page $page of ${page1.totalPage} had blank HTML for ${series.url}"
-            }
-            val beforeCount = allChapters.size
-            appendAjaxChapters(series, ajaxResponse.html, allChapters, seenUrls)
-            check(allChapters.size > beforeCount) {
-                "Continuation page $page of ${page1.totalPage} contained no new chapters for ${series.url}"
-            }
-        }
-
-        return allChapters
-    }
-
     private suspend fun fetchOptionalChapterListAjax(
         seriesUrl: String,
         page: Int,
@@ -300,23 +349,6 @@ class FreeWebNovel(
         throw e
     } catch (_: Exception) {
         null
-    }
-
-    private fun appendAjaxChapters(
-        series: Series,
-        html: String,
-        allChapters: MutableList<Chapter>,
-        seenUrls: MutableSet<String>,
-    ) {
-        val ajaxDoc = Jsoup.parse(html, series.url)
-        // ponytail: AJAX html fragment has bare <li> rows, no wrapping <ul id="idData">
-        ajaxDoc.select("a.con[href*=\"/chapter-\"]")
-            .map { chapterFromElement(it, series) }
-            .filter { it.url !in seenUrls }
-            .forEach {
-                seenUrls += it.url
-                allChapters += it
-            }
     }
 
     private fun decodeChapterListAjaxResponse(body: String): ChapterListAjaxResponse? = try {
