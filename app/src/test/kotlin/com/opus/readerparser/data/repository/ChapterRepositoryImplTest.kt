@@ -40,6 +40,7 @@ class ChapterRepositoryImplTest {
     private class FakeChapterDao : ChapterDao {
 
         private val store = mutableListOf<ChapterEntity>()
+        val upsertSnapshots = mutableListOf<List<ChapterEntity>>()
 
         override fun observeChapters(sourceId: Long, seriesUrl: String) =
             flowOf(store.filter { it.sourceId == sourceId && it.seriesUrl == seriesUrl })
@@ -54,6 +55,7 @@ class ChapterRepositoryImplTest {
                 }
                 if (idx >= 0) store[idx] = chapter else store.add(chapter)
             }
+            upsertSnapshots.add(store.toList())
         }
 
         override suspend fun markRead(sourceId: Long, url: String, read: Boolean) {
@@ -793,5 +795,70 @@ class ChapterRepositoryImplTest {
         assertEquals(true, stored!!.read)
         assertEquals(0.5f, stored.progress, 0.001f)
         assertEquals(true, stored.downloaded)
+    }
+
+    @Test
+    fun `refreshChapters persists initial page 1 emission and final complete emission while preserving chapter user state`() = runTest {
+        val ch1 = testChapter.copy(url = "https://test.invalid/chapter/1", number = 1f)
+        val ch2 = testChapter.copy(url = "https://test.invalid/chapter/2", number = 2f)
+        val ch3 = testChapter.copy(url = "https://test.invalid/chapter/3", number = 3f)
+        val ch4 = testChapter.copy(url = "https://test.invalid/chapter/4", number = 4f)
+
+        // Seed fakeDao with existing chapters having user state
+        val existing1 = ch1.toEntity().copy(read = true, progress = 0.5f, downloaded = true)
+        val existing3 = ch3.toEntity().copy(read = true, progress = 0.9f, downloaded = false)
+        fakeDao.upsertAll(listOf(existing1, existing3))
+
+        fakeDao.upsertSnapshots.clear()
+
+        fakeSource.progressiveChapterEmissions = listOf(
+            listOf(ch1, ch2),
+            listOf(ch1, ch2, ch3, ch4),
+        )
+
+        repository.refreshChapters(testSeries)
+
+        assertEquals(2, fakeDao.upsertSnapshots.size)
+
+        // Snapshot 1: [ch1, ch2] with ch1 user state preserved
+        val snap1 = fakeDao.upsertSnapshots[0]
+        assertEquals(2, snap1.size)
+        val snap1Ch1 = snap1.find { it.url == ch1.url }
+        assertNotNull(snap1Ch1)
+        assertEquals(true, snap1Ch1!!.read)
+        assertEquals(0.5f, snap1Ch1.progress, 0.001f)
+        assertEquals(true, snap1Ch1.downloaded)
+        val snap1Ch2 = snap1.find { it.url == ch2.url }
+        assertNotNull(snap1Ch2)
+        assertEquals(false, snap1Ch2!!.read)
+        assertEquals(0f, snap1Ch2.progress, 0.001f)
+        assertEquals(false, snap1Ch2.downloaded)
+
+        // Snapshot 2: [ch1, ch2, ch3, ch4] with both ch1 and ch3 user state preserved
+        val snap2 = fakeDao.upsertSnapshots[1]
+        assertEquals(4, snap2.size)
+        val snap2Ch1 = snap2.find { it.url == ch1.url }
+        assertNotNull(snap2Ch1)
+        assertEquals(true, snap2Ch1!!.read)
+        assertEquals(0.5f, snap2Ch1.progress, 0.001f)
+        assertEquals(true, snap2Ch1.downloaded)
+        val snap2Ch3 = snap2.find { it.url == ch3.url }
+        assertNotNull(snap2Ch3)
+        assertEquals(true, snap2Ch3!!.read)
+        assertEquals(0.9f, snap2Ch3.progress, 0.001f)
+        assertEquals(false, snap2Ch3.downloaded)
+
+        // Final DAO state
+        val finalCh1 = fakeDao.getByUrl(testSeries.sourceId, ch1.url)
+        assertNotNull(finalCh1)
+        assertEquals(true, finalCh1!!.read)
+        assertEquals(0.5f, finalCh1.progress, 0.001f)
+        assertEquals(true, finalCh1.downloaded)
+
+        val finalCh3 = fakeDao.getByUrl(testSeries.sourceId, ch3.url)
+        assertNotNull(finalCh3)
+        assertEquals(true, finalCh3!!.read)
+        assertEquals(0.9f, finalCh3.progress, 0.001f)
+        assertEquals(false, finalCh3.downloaded)
     }
 }
