@@ -26,7 +26,7 @@ The ViewModel must not resolve `SourceRegistry` or concrete sources.
 
 ## Renderers and payload mismatch
 
-Render `ChapterContent.Text` in the JavaScript-disabled HTML/text renderer.
+Render `ChapterContent.Text` with native Compose `NovelTextEngine` (`LazyColumn` rendering parsed `NovelBlock` headings, paragraphs with inline spans, and scene-break dividers).
 Render `ChapterContent.Pages` as a vertical image list in reading order.
 Check `DownloadStore.read(chapter)` before network retrieval for either route type.
 Matching downloaded Text for NOVEL or Pages for MANHWA displays immediately without network access.
@@ -46,8 +46,8 @@ Back invokes navigation back.
 
 Clamp renderer-reported text progress to `[0f, 1f]`.
 Persist each distinct value by `(sourceId, chapterUrl)`.
-After WebView content layout finishes, restore the scroll position corresponding to stored normalized progress.
-Mark a text chapter read immediately after successful display.
+NovelTextEngine restores the scroll position to the target block index corresponding to stored normalized progress.
+Mark a text chapter read when progress reaches `>= 0.90f` or when the reader reaches the bottom of the chapter content (`1.0f`).
 
 ## Page progress and read state
 

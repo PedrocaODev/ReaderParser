@@ -38,6 +38,15 @@ class SettingsViewModel @Inject constructor(
             is SettingsAction.SetNovelFontFamily -> viewModelScope.launch {
                 settingsRepository.setNovelFontFamily(action.family)
             }
+            is SettingsAction.SetNovelLineHeightMultiplier -> viewModelScope.launch {
+                settingsRepository.setNovelLineHeightMultiplier(action.multiplier)
+            }
+            is SettingsAction.SetNovelParagraphSpacingDp -> viewModelScope.launch {
+                settingsRepository.setNovelParagraphSpacingDp(action.dp)
+            }
+            is SettingsAction.SetNovelHorizontalPaddingDp -> viewModelScope.launch {
+                settingsRepository.setNovelHorizontalPaddingDp(action.dp)
+            }
             is SettingsAction.SetManhwaLayout -> viewModelScope.launch {
                 settingsRepository.setManhwaLayout(action.layout)
             }
