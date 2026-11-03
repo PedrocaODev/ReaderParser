@@ -1,0 +1,70 @@
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 6 * * 1'
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: actions
+            build-mode: none
+          - language: java-kotlin
+            build-mode: manual
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+
+      - name: Set up JDK 17
+        if: matrix.build-mode == 'manual'
+        uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: temurin
+
+      - name: Setup Gradle
+        if: matrix.build-mode == 'manual'
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.event_name == 'pull_request' }}
+
+      - name: Setup Android SDK
+        if: matrix.build-mode == 'manual'
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+
+      - name: Install SDK packages
+        if: matrix.build-mode == 'manual'
+        run: |
+          sdkmanager --install "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Manual build
+        if: matrix.build-mode == 'manual'
+        run: ./gradlew :app:assembleDebug
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{matrix.language}}"
