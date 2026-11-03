@@ -329,4 +329,174 @@ class ChapterDaoTest {
         assertThat(chapter.progress).isEqualTo(0f)
         assertThat(chapter.downloaded).isFalse()
     }
+
+    @Test
+    fun replaceChaptersForSeries_preservesStateWhenUrlsRotateWithUniqueNonNegativeNumber() = runTest {
+        database.seriesDao().upsert(seriesEntity())
+        dao.upsertAll(
+            listOf(
+                chapterEntity(
+                    url = "https://example.com/series/1/ch/old-1",
+                    number = 1f,
+                    read = true,
+                    progress = 0.6f,
+                    downloaded = true,
+                ),
+            ),
+        )
+
+        val remoteChapters = listOf(
+            chapterEntity(
+                url = "https://example.com/series/1/ch/new-1",
+                number = 1f,
+                read = false,
+                progress = 0f,
+                downloaded = false,
+            ),
+        )
+
+        dao.replaceChaptersForSeries(
+            sourceId = 1L,
+            seriesUrl = "https://example.com/series/1",
+            remoteChapters = remoteChapters,
+        )
+
+        assertThat(dao.getByUrl(1L, "https://example.com/series/1/ch/old-1")).isNull()
+        val newChapter = dao.getByUrl(1L, "https://example.com/series/1/ch/new-1")
+        assertThat(newChapter).isNotNull()
+        assertThat(newChapter!!.read).isTrue()
+        assertThat(newChapter.progress).isEqualTo(0.6f)
+        assertThat(newChapter.downloaded).isTrue()
+    }
+
+    @Test
+    fun replaceChaptersForSeries_doesNotMatchByNumberWhenNegativeOrDuplicate() = runTest {
+        database.seriesDao().upsert(seriesEntity())
+        dao.upsertAll(
+            listOf(
+                chapterEntity(
+                    url = "https://example.com/series/1/ch/old-neg",
+                    number = -1f,
+                    read = true,
+                    progress = 0.8f,
+                    downloaded = true,
+                ),
+                chapterEntity(
+                    url = "https://example.com/series/1/ch/old-dup-5",
+                    number = 5f,
+                    read = true,
+                    progress = 0.9f,
+                    downloaded = true,
+                ),
+                chapterEntity(
+                    url = "https://example.com/series/1/ch/old-dup-6a",
+                    number = 6f,
+                    read = true,
+                    progress = 0.4f,
+                    downloaded = true,
+                ),
+                chapterEntity(
+                    url = "https://example.com/series/1/ch/old-dup-6b",
+                    number = 6f,
+                    read = true,
+                    progress = 0.7f,
+                    downloaded = false,
+                ),
+            ),
+        )
+
+        val remoteChapters = listOf(
+            chapterEntity(
+                url = "https://example.com/series/1/ch/new-neg",
+                number = -1f,
+                read = false,
+                progress = 0f,
+                downloaded = false,
+            ),
+            chapterEntity(
+                url = "https://example.com/series/1/ch/new-dup-5a",
+                number = 5f,
+                read = false,
+                progress = 0f,
+                downloaded = false,
+            ),
+            chapterEntity(
+                url = "https://example.com/series/1/ch/new-dup-5b",
+                number = 5f,
+                read = false,
+                progress = 0f,
+                downloaded = false,
+            ),
+            chapterEntity(
+                url = "https://example.com/series/1/ch/new-dup-6",
+                number = 6f,
+                read = false,
+                progress = 0f,
+                downloaded = false,
+            ),
+        )
+
+        dao.replaceChaptersForSeries(
+            sourceId = 1L,
+            seriesUrl = "https://example.com/series/1",
+            remoteChapters = remoteChapters,
+        )
+
+        assertThat(dao.getByUrl(1L, "https://example.com/series/1/ch/old-neg")).isNull()
+        assertThat(dao.getByUrl(1L, "https://example.com/series/1/ch/old-dup-5")).isNull()
+        assertThat(dao.getByUrl(1L, "https://example.com/series/1/ch/old-dup-6a")).isNull()
+        assertThat(dao.getByUrl(1L, "https://example.com/series/1/ch/old-dup-6b")).isNull()
+
+        val newNeg = dao.getByUrl(1L, "https://example.com/series/1/ch/new-neg")
+        assertThat(newNeg).isNotNull()
+        assertThat(newNeg!!.read).isFalse()
+        assertThat(newNeg.progress).isEqualTo(0f)
+        assertThat(newNeg.downloaded).isFalse()
+
+        val newDup5a = dao.getByUrl(1L, "https://example.com/series/1/ch/new-dup-5a")
+        assertThat(newDup5a).isNotNull()
+        assertThat(newDup5a!!.read).isFalse()
+        assertThat(newDup5a.progress).isEqualTo(0f)
+        assertThat(newDup5a.downloaded).isFalse()
+
+        val newDup5b = dao.getByUrl(1L, "https://example.com/series/1/ch/new-dup-5b")
+        assertThat(newDup5b).isNotNull()
+        assertThat(newDup5b!!.read).isFalse()
+        assertThat(newDup5b.progress).isEqualTo(0f)
+        assertThat(newDup5b.downloaded).isFalse()
+
+        val newDup6 = dao.getByUrl(1L, "https://example.com/series/1/ch/new-dup-6")
+        assertThat(newDup6).isNotNull()
+        assertThat(newDup6!!.read).isFalse()
+        assertThat(newDup6.progress).isEqualTo(0f)
+        assertThat(newDup6.downloaded).isFalse()
+    }
+
+    @Test
+    fun replaceChaptersForSeries_doesNotDeleteOrResetWhenRemoteChaptersIsEmpty() = runTest {
+        database.seriesDao().upsert(seriesEntity())
+        dao.upsertAll(
+            listOf(
+                chapterEntity(
+                    url = "https://example.com/series/1/ch/1",
+                    number = 1f,
+                    read = true,
+                    progress = 0.5f,
+                    downloaded = true,
+                ),
+            ),
+        )
+
+        dao.replaceChaptersForSeries(
+            sourceId = 1L,
+            seriesUrl = "https://example.com/series/1",
+            remoteChapters = emptyList(),
+        )
+
+        val chapter = dao.getByUrl(1L, "https://example.com/series/1/ch/1")
+        assertThat(chapter).isNotNull()
+        assertThat(chapter!!.read).isTrue()
+        assertThat(chapter.progress).isEqualTo(0.5f)
+        assertThat(chapter.downloaded).isTrue()
+    }
 }

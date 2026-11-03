@@ -29,7 +29,7 @@ import com.opus.readerparser.ui.reader.ReaderScreen
 import com.opus.readerparser.ui.series.SeriesScreen
 import com.opus.readerparser.ui.settings.SettingsScreen
 
-private val bottomNavRoutes = setOf(
+internal val bottomNavRoutes = setOf(
     Destinations.LIBRARY,
     Destinations.BROWSE,
     Destinations.DOWNLOADS,
@@ -116,10 +116,17 @@ fun AppNavGraph(onNavGraphReady: (NavController) -> Unit = {}) {
                     onNavigateToSeries = { series ->
                         navController.navigate(Destinations.series(series.sourceId, series.url))
                     },
+                    onNavigateToSettings = {
+                        navController.navigate(Destinations.SETTINGS)
+                    },
                 )
             }
             composable(Destinations.DOWNLOADS) {
-                DownloadsScreen()
+                DownloadsScreen(
+                    onNavigateToSettings = {
+                        navController.navigate(Destinations.SETTINGS)
+                    },
+                )
             }
             composable(Destinations.SETTINGS) {
                 SettingsScreen()

@@ -30,25 +30,46 @@ interface ChapterDao {
         seriesUrl: String,
         remoteChapters: List<ChapterEntity>,
     ) {
+        if (remoteChapters.isEmpty()) return
+
         val existing = getChaptersForSeries(sourceId, seriesUrl)
-        val existingMap = existing.associateBy { it.url }
+        val existingByUrl = existing.associateBy { it.url }
+        val remoteUrls = remoteChapters.map { it.url }.toSet()
+
+        val unmatchedExistingByNumber = existing
+            .filter { it.url !in remoteUrls && it.number >= 0f }
+            .groupBy { it.number }
+            .mapValues { (_, list) -> list.singleOrNull() }
+            .filterValues { it != null }
+            .mapValues { it.value!! }
+
+        val unmatchedIncomingNumberCounts = remoteChapters
+            .filter { it.url !in existingByUrl && it.number >= 0f }
+            .groupingBy { it.number }
+            .eachCount()
 
         val merged = remoteChapters.map { entity ->
-            val existingChapter = existingMap[entity.url]
-            if (existingChapter != null) {
+            val prev = existingByUrl[entity.url]
+                ?: if (entity.number >= 0f && unmatchedIncomingNumberCounts[entity.number] == 1) {
+                    unmatchedExistingByNumber[entity.number]
+                } else {
+                    null
+                }
+            if (prev != null) {
                 entity.copy(
-                    read = existingChapter.read,
-                    progress = existingChapter.progress,
-                    downloaded = existingChapter.downloaded,
+                    read = prev.read,
+                    progress = prev.progress,
+                    downloaded = prev.downloaded,
                 )
             } else {
                 entity
             }
         }
 
-        val remoteUrls = remoteChapters.map { it.url }.toSet()
         val toDelete = existing.filter { it.url !in remoteUrls }
-        deleteChapters(toDelete)
+        if (toDelete.isNotEmpty()) {
+            deleteChapters(toDelete)
+        }
 
         upsertAll(merged)
     }

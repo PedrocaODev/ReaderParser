@@ -34,3 +34,7 @@ relations:
 | Action | A UI event forwarded to the ViewModel. |
 | Effect | A one-time presentation event such as navigation or a snackbar. |
 | Vault | The canonical project knowledge under docs, with typed Akashic nodes and relations. |
+| Chapter user state | The user's local reading state for a chapter (read status, scroll progress, and downloaded status), preserved across chapter-list refreshes even when a source rotates chapter URLs. |
+| Progressive chapter list | A multi-stage chapter list retrieval that emits the initial page of chapters immediately and completes remaining pages concurrently. |
+| Novel text engine | The native reader renderer that displays structured chapter prose in a continuous vertical scroll with user-controlled typography. |
+| Warm dark theme | A low-strain dark color palette using warm charcoal and espresso surfaces with muted cream text instead of pure black and white. |

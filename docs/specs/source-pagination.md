@@ -38,23 +38,18 @@ It has no Load More eligibility unless product semantics change.
 
 ## Complete chapter aggregation
 
-FreeWebNovel must aggregate all chapters across internally paginated chapter-list pages.
-The `Source` contract stays unchanged.
+FreeWebNovel aggregates all chapters across internally paginated chapter-list pages.
+`Source` provides `fetchChapterListProgressive(series): Flow<List<Chapter>>`, defaulting to emitting `getChapterList(series)`.
+`FreeWebNovel` implements progressive chapter list emission for responsive series presentation. `getChapterList(series)` delegates to `fetchChapterListProgressive(series).last()`.
 
-## Proposed bounded concurrency
+## Progressive chapter loading and bounded concurrency
 
-Current FreeWebNovel chapter-page fetching is sequential. The following optimization remains proposed and absent from current code.
-Keep page one as the discovery request. When it identifies remaining AJAX pages, fetch ascending windows of at most three concurrent requests.
-Multiple remaining pages may run concurrently, but no more than three remainder-page requests may be active.
-Parent cancellation cancels outstanding requests and must not become partial success.
+FreeWebNovel fetches AJAX Page 1 (`pageSize=200`) and emits immediately to display initial chapters without waiting for the full catalog.
+It then fetches remaining pages `2..totalPage` concurrently with concurrency bounded by `Semaphore(4)`.
+Parent coroutine cancellation terminates all outstanding requests cleanly without partial corrupted emissions.
 
-## Proposed deterministic contiguous merge
+## Deterministic ascending merge
 
-Merge concurrent responses in ascending source-page order, even when later pages finish first.
-Deduplicate chapters by URL, retaining each URL once across adjacent pages.
-A failed, undecodable, blank, or non-progressing page terminates the successful contiguous prefix at that page.
-Non-progressing means the page adds zero previously unseen chapter URLs, including a page containing only duplicate URLs.
-Ignore later responses in that three-request window and schedule no later window.
-If a middle page fails while later pages finish, append only successful pages before it.
-If a terminal page occurs inside a window, ignore already-completed later results.
-Avoidable requests after that terminal page are limited to the other requests already in that window.
+Merge concurrent responses in strictly ascending page order with deduplication by chapter URL.
+Emissions maintain cumulative ascending chapter lists.
+A failed, undecodable, or blank page stops further pagination while retaining all successfully fetched prior chapters.

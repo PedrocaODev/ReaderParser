@@ -1,6 +1,7 @@
 package com.opus.readerparser.sources.freewebnovel
 
 import com.opus.readerparser.core.util.computeSourceId
+import com.opus.readerparser.domain.model.Chapter
 import com.opus.readerparser.domain.model.ChapterContent
 import com.opus.readerparser.domain.model.ContentType
 import com.opus.readerparser.domain.model.FilterList
@@ -11,6 +12,10 @@ import com.opus.readerparser.testutil.readFixture
 import com.opus.readerparser.testutil.respondHtml
 import io.ktor.client.engine.mock.respond
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
@@ -21,6 +26,8 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Parser tests for [FreeWebNovel] using [mockHttpClient] + HTML fixtures.
@@ -680,6 +687,129 @@ class FreeWebNovelTest {
         } catch (e: CancellationException) {
             assertEquals("cancelled", e.message)
         }
+    }
+
+    @Test
+    fun `fetchChapterListProgressive emits page 1 chapters immediately before remaining pages complete`() = runTest {
+        val page1Json = """{"code":200,"html":"<li><span class=\"glyphicon glyphicon-book right-5\"><\/span><a href=\"\/novel\/test-prog\/chapter-1\" title=\"Chapter 1: One\" class=\"con\">Chapter 1: One<\/a><\/li>","page":1,"pageSize":200,"totalPage":2,"totalChapters":2}"""
+        val page2Json = """{"code":200,"html":"<li><span class=\"glyphicon glyphicon-book right-5\"><\/span><a href=\"\/novel\/test-prog\/chapter-2\" title=\"Chapter 2: Two\" class=\"con\">Chapter 2: Two<\/a><\/li>","page":2,"pageSize":200,"totalPage":2,"totalChapters":2}"""
+
+        val page2Gate = CompletableDeferred<Unit>()
+        val series = Series(
+            sourceId = computeSourceId("FreeWebNovel", "en", ContentType.NOVEL),
+            url = "https://freewebnovel.com/novel/test-prog",
+            title = "Test Prog",
+            type = ContentType.NOVEL,
+        )
+        val source = FreeWebNovel(
+            mockHttpClient { request ->
+                when (request.url.toString()) {
+                    "https://freewebnovel.com/novel/test-prog?ajax=chapters&page=1&pageSize=200" -> respond(
+                        content = page1Json,
+                        status = HttpStatusCode.OK,
+                        headers = headersOf("Content-Type", "application/json; charset=UTF-8"),
+                    )
+                    "https://freewebnovel.com/novel/test-prog?ajax=chapters&page=2&pageSize=200" -> {
+                        page2Gate.await()
+                        respond(
+                            content = page2Json,
+                            status = HttpStatusCode.OK,
+                            headers = headersOf("Content-Type", "application/json; charset=UTF-8"),
+                        )
+                    }
+                    else -> error("Unexpected request: ${request.url}")
+                }
+            }
+        )
+
+        val emissions = CopyOnWriteArrayList<List<Chapter>>()
+        val firstEmissionReceived = CompletableDeferred<Unit>()
+        val collectJob = launch {
+            source.fetchChapterListProgressive(series).collect {
+                emissions.add(it)
+                firstEmissionReceived.complete(Unit)
+            }
+        }
+
+        firstEmissionReceived.await()
+
+        assertEquals(1, emissions.size)
+        assertEquals(listOf("Chapter 1: One"), emissions[0].map { it.name })
+        assertFalse(collectJob.isCompleted)
+
+        page2Gate.complete(Unit)
+        collectJob.join()
+
+        assertEquals(2, emissions.size)
+        assertEquals(listOf("Chapter 1: One", "Chapter 2: Two"), emissions[1].map { it.name })
+    }
+
+    @Test
+    fun `fetchChapterListProgressive bounds concurrent page requests to 4 and merges out of order responses deterministically`() = runTest {
+        val totalPage = 10
+        val page1Json = """{"code":200,"html":"<li><span class=\"glyphicon glyphicon-book right-5\"><\/span><a href=\"\/novel\/test-bound\/chapter-1\" title=\"Chapter 1: 1\" class=\"con\">Chapter 1: 1<\/a><\/li>","page":1,"pageSize":200,"totalPage":$totalPage,"totalChapters":$totalPage}"""
+
+        val inFlight = AtomicInteger(0)
+        val maxInFlight = AtomicInteger(0)
+
+        val series = Series(
+            sourceId = computeSourceId("FreeWebNovel", "en", ContentType.NOVEL),
+            url = "https://freewebnovel.com/novel/test-bound",
+            title = "Test Bound",
+            type = ContentType.NOVEL,
+        )
+
+        val source = FreeWebNovel(
+            mockHttpClient { request ->
+                val url = request.url.toString()
+                if (url == "https://freewebnovel.com/novel/test-bound?ajax=chapters&page=1&pageSize=200") {
+                    respond(
+                        content = page1Json,
+                        status = HttpStatusCode.OK,
+                        headers = headersOf("Content-Type", "application/json; charset=UTF-8"),
+                    )
+                } else {
+                    val pageMatch = Regex("""page=(\d+)""").find(url)
+                    val page = pageMatch?.groupValues?.get(1)?.toInt() ?: error("No page in $url")
+
+                    val current = inFlight.incrementAndGet()
+                    maxInFlight.updateAndGet { currentMax -> maxOf(currentMax, current) }
+
+                    // Shorter delays for higher pages so responses complete out of order
+                    delay((12 - page) * 20L)
+
+                    inFlight.decrementAndGet()
+
+                    // Include duplicate of chapter-1 on page 3 and page 7 to verify deduplication
+                    val dupHtml = if (page == 3 || page == 7) {
+                        """<li><span class=\"glyphicon glyphicon-book right-5\"><\/span><a href=\"\/novel\/test-bound\/chapter-1\" title=\"Chapter 1: 1 (dup)\" class=\"con\">Chapter 1: 1 (dup)<\/a><\/li>"""
+                    } else ""
+
+                    val pageHtml = """$dupHtml<li><span class=\"glyphicon glyphicon-book right-5\"><\/span><a href=\"\/novel\/test-bound\/chapter-$page\" title=\"Chapter $page: $page\" class=\"con\">Chapter $page: $page<\/a><\/li>"""
+                    val pageJson = """{"code":200,"html":"$pageHtml","page":$page,"pageSize":200,"totalPage":$totalPage,"totalChapters":$totalPage}"""
+
+                    respond(
+                        content = pageJson,
+                        status = HttpStatusCode.OK,
+                        headers = headersOf("Content-Type", "application/json; charset=UTF-8"),
+                    )
+                }
+            }
+        )
+
+        val emissions = source.fetchChapterListProgressive(series).toList()
+
+        assertEquals(2, emissions.size)
+        assertEquals(listOf("Chapter 1: 1"), emissions[0].map { it.name })
+
+        // Check ascending order and deduplication
+        val expectedNames = (1..10).map { "Chapter $it: $it" }
+        assertEquals(expectedNames, emissions[1].map { it.name })
+        assertEquals(10, emissions[1].size)
+
+        // Concurrency bounded by Semaphore(4)
+        assertEquals(4, maxInFlight.get())
+        assertEquals(0, inFlight.get())
     }
 
     // =========================================================================

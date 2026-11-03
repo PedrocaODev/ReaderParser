@@ -54,6 +54,9 @@ Delete on a `COMPLETED` Downloads item removes its files from `DownloadStore`, s
 ## Refresh preserves chapter state
 
 When `ChapterRepository.refreshChapters(series)` fetches and upserts remote chapters, preserve existing local `read`, `progress`, and `downloaded` values.
+In `ChapterDao.replaceChaptersForSeries`, return early without modifying the database if `remoteChapters` is empty.
+Match existing chapter user state by exact `url` first. Fall back to unique non-negative chapter `number >= 0f` within `(sourceId, seriesUrl)` when URLs change between source updates.
+`ChapterRepositoryImpl.refreshChapters` snapshots pre-refresh state across progressive emissions to ensure continuous preservation during multi-page loads.
 An existing `read=true` remains true. Existing progress 0.75 remains 0.75. Existing `downloaded=true` remains true.
 New remote chapters default to `read=false`, `progress=0f`, and `downloaded=false`.
 Remove stale local chapter rows that no longer exist in the remote chapter list.

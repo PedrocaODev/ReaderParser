@@ -19,11 +19,31 @@ class FakeSettingsRepository : SettingsRepository {
     }
 
     override suspend fun setNovelFontSize(size: Int) {
-        _settings.value = _settings.value.copy(novelFontSize = size)
+        _settings.value = _settings.value.copy(
+            novelFontSize = size.coerceIn(AppSettings.NOVEL_FONT_SIZE_RANGE),
+        )
     }
 
     override suspend fun setNovelFontFamily(family: String) {
         _settings.value = _settings.value.copy(novelFontFamily = family)
+    }
+
+    override suspend fun setNovelLineHeightMultiplier(multiplier: Float) {
+        _settings.value = _settings.value.copy(
+            novelLineHeightMultiplier = multiplier.coerceIn(AppSettings.NOVEL_LINE_HEIGHT_RANGE),
+        )
+    }
+
+    override suspend fun setNovelParagraphSpacingDp(dp: Int) {
+        _settings.value = _settings.value.copy(
+            novelParagraphSpacingDp = dp.coerceIn(AppSettings.NOVEL_PARAGRAPH_SPACING_RANGE),
+        )
+    }
+
+    override suspend fun setNovelHorizontalPaddingDp(dp: Int) {
+        _settings.value = _settings.value.copy(
+            novelHorizontalPaddingDp = dp.coerceIn(AppSettings.NOVEL_HORIZONTAL_PADDING_RANGE),
+        )
     }
 
     override suspend fun setManhwaLayout(layout: ManhwaLayout) {

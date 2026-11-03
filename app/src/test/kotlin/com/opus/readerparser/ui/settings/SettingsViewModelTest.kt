@@ -44,6 +44,24 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun `SetTheme WARM_DARK updates state`() = runTest {
+        vm.state.test {
+            awaitItem()
+            vm.onAction(SettingsAction.SetTheme(AppTheme.WARM_DARK))
+            assertThat(awaitItem().settings.theme).isEqualTo(AppTheme.WARM_DARK)
+        }
+    }
+
+    @Test
+    fun `SetTheme SEPIA updates state`() = runTest {
+        vm.state.test {
+            awaitItem()
+            vm.onAction(SettingsAction.SetTheme(AppTheme.SEPIA))
+            assertThat(awaitItem().settings.theme).isEqualTo(AppTheme.SEPIA)
+        }
+    }
+
+    @Test
     fun `SetNovelFontSize updates state`() = runTest {
         vm.state.test {
             awaitItem()
@@ -56,8 +74,35 @@ class SettingsViewModelTest {
     fun `SetNovelFontFamily updates state`() = runTest {
         vm.state.test {
             awaitItem()
-            vm.onAction(SettingsAction.SetNovelFontFamily("Serif"))
-            assertThat(awaitItem().settings.novelFontFamily).isEqualTo("Serif")
+            vm.onAction(SettingsAction.SetNovelFontFamily("Monospace"))
+            assertThat(awaitItem().settings.novelFontFamily).isEqualTo("Monospace")
+        }
+    }
+
+    @Test
+    fun `SetNovelLineHeightMultiplier updates state`() = runTest {
+        vm.state.test {
+            awaitItem()
+            vm.onAction(SettingsAction.SetNovelLineHeightMultiplier(1.8f))
+            assertThat(awaitItem().settings.novelLineHeightMultiplier).isEqualTo(1.8f)
+        }
+    }
+
+    @Test
+    fun `SetNovelParagraphSpacingDp updates state`() = runTest {
+        vm.state.test {
+            awaitItem()
+            vm.onAction(SettingsAction.SetNovelParagraphSpacingDp(20))
+            assertThat(awaitItem().settings.novelParagraphSpacingDp).isEqualTo(20)
+        }
+    }
+
+    @Test
+    fun `SetNovelHorizontalPaddingDp updates state`() = runTest {
+        vm.state.test {
+            awaitItem()
+            vm.onAction(SettingsAction.SetNovelHorizontalPaddingDp(28))
+            assertThat(awaitItem().settings.novelHorizontalPaddingDp).isEqualTo(28)
         }
     }
 

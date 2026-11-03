@@ -101,11 +101,11 @@ Room schema changes require explicit migrations. Release behavior must not rely 
 Android starts App and Hilt creates the object graph.
 Screens send actions to ViewModels, which call domain repositories.
 Repositories serve local state, refresh through a Source, or combine both.
-Remote work resolves `SourceRegistry[sourceId]`, fetches/parses domain models, and persists or merges results.
+Remote work resolves `SourceRegistry[sourceId]`, fetches/parses domain models, and persists or merges results. Chapter listings support progressive loading via `Source.fetchChapterListProgressive` for responsive multi-page series.
 Suspend results and reactive flows return state to presentation.
 Workers reuse the repository/source/storage graph outside UI lifecycle.
 Reader navigation carries explicit content type. Reader selects the renderer once from ChapterContent.
-Text uses a JavaScript-disabled WebView. Pages uses a vertical image renderer.
+Text uses native Compose NovelTextEngine (LazyColumn of parsed NovelBlock items). Pages uses a vertical or paged image renderer.
 
 ## Decisions and trade-offs
 

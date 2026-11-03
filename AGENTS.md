@@ -1,6 +1,6 @@
 # ReaderParser project index
 
-ReaderParser is a personal Android novel/manhwa reader. Project knowledge lives in [docs/index.md](docs/index.md).
+ReaderParser is an Android novel/manhwa reader. Project knowledge lives in [docs/index.md](docs/index.md).
 Start with the referenced file/test and nearest local AGENTS before broader retrieval.
 
 - For layers/contracts/invariants, read [architecture](docs/architecture.md).
@@ -25,7 +25,6 @@ Start with the referenced file/test and nearest local AGENTS before broader retr
 
 Use `akashic query docs --seed architecture-readerparser --mode current` for architecture context.
 Use canonical seeds from docs/index.md. Installed 0.2.0 does not filter current guidance by status alone.
-If graphify-out/graph.json exists, query it before broad raw navigation. Details are in development.md.
 
 Use grill-with-docs → to-spec → to-tickets → implement as material work requires.
 Project glossary/specs/durable knowledge belong in docs. Tickets belong in GitHub, overriding skill storage defaults.
@@ -40,4 +39,14 @@ Ask before changing Source, identity/PK/FK behavior, adding a top-level layer/mo
 or replacing Hilt or Ktor's engine.
 Keep domain platform-free, ViewModels source-free, one Reader/two ChapterContent variants, stable `(sourceId,url)` identity,
 private downloads, and no production runBlocking. Full contracts are in [docs/architecture.md](docs/architecture.md).
-Scope excludes cloud/accounts/sync, redistribution/hosting, multi-user behavior, browser shells, and non-Android platforms unless requested.
+Scope excludes cloud/accounts, multi-user behavior, browser shells, and non-Android platforms unless requested.
+
+## Direct push protection
+
+Repository policy protection blocks direct pushes to protected branches, including `main`.
+Do not push directly to protected branches.
+Deliver all changes through branches and pull requests:
+- Delegate git delivery to `integrator`.
+- Push changes to a dedicated branch.
+- Open a pull request with `gh pr create`.
+- Use `babysit-pr` to watch CI and complete authorized merges.

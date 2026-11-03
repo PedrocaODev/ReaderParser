@@ -57,7 +57,7 @@ Failure emits `ShowError(message)` without assigning the requested membership va
 The historical `ShowError` snackbar handler was marked TODO. Preserve that limitation separately from the ViewModel effect contract.
 Current SeriesScreen uses one Reader callback. Old two-callback novel/manhwa routing is historical.
 ReaderViewModel consumes saved source/series/chapter/contentType, validates payloads, observes chapters, persists text progress, and marks read.
-ReaderContent branches once into text WebView or vertical pages with shared immersive controls and theme-aware CSS.
+ReaderContent branches once into native Compose NovelTextEngine (LazyColumn of NovelBlock headings, paragraphs, and dividers with customizable typography) or vertical pages with shared immersive controls.
 ReaderAction includes SetProgress, SetPage, PreviousChapter, NextChapter, OpenChapterList, DownloadChapter, SelectChapter, and Retry.
 Effects include NavigateToChapter, ShowChapterList, ShowError, and ShowSnackbar. ReaderChapterListSheet supplies selection.
 DownloadEnqueuer handles single-chapter enqueue. The complete content/progress/mismatch contract is in [Reader specs](../specs/reader.md).
@@ -72,9 +72,9 @@ Test tags downloads_list, loading, and error_message support loading/error/empty
 Some historical map descriptions identify unwired snackbar TODOs. Preserve that limitation without claiming current full error-host integration.
 SettingsViewModel observes SettingsRepository into AppSettings plus isLoading and delegates one action per preference setter.
 It waits for repository flow confirmation rather than optimistic field assignment. No separate error state/effects are specified for mutations.
-Controls select theme, font family Default/Serif/Monospace, font size 12–24 sp at one-sp steps, manhwa layout, and zoom.
+Controls select theme (SYSTEM, LIGHT, DARK, WARM_DARK, SEPIA), font family (Serif, Sans-Serif, Monospace, Default), font size 12–32 sp, line height multiplier 1.2–2.0x, paragraph spacing 4–28 dp, horizontal padding 8–40 dp, manhwa layout, and zoom.
 Private SectionHeader, SectionDivider/HorizontalDivider, and selectable RadioRow support the settings form.
-Test tags settings_list and font_size_slider support UI verification.
+Test tags settings_list, font_size_slider, and typography sliders support UI verification.
 Persisted manhwa layout/zoom choices do not prove all modes are implemented by the current vertical Reader renderer.
 
 ## Navigation and deep links
@@ -83,7 +83,7 @@ ui/navigation/Destinations defines LIBRARY, BROWSE, DOWNLOADS, SETTINGS, SERIES,
 Series requires sourceId and seriesUrl. Reader requires sourceId, seriesUrl, chapterUrl, and contentType.
 series()/reader() encode URL arguments with Uri.encode. NavType.LongType and StringType provide route arguments to saved state.
 AppNavGraph owns rememberNavController, Scaffold, NavHost, and typed screen callbacks. Start destination is LIBRARY.
-Library/Browse/Downloads have bottom NavigationBar tabs. Series/Reader/Settings hide the bar.
+Library, Browse, and Downloads show bottom NavigationBar tabs, each providing a top-bar Settings icon button. Browse header provides a source selector dropdown. Series, Reader, and Settings hide the navigation bar.
 Tabs use launchSingleTop and restoreState with popUpTo start destination/saveState to preserve tabs without duplicate routes.
 Reader chapter navigation replaces the current Reader entry through inclusive popUpTo and preserves content type.
 Back callbacks use popBackStack.
@@ -93,10 +93,9 @@ Malformed source IDs or insufficient path segments are ignored. Valid links open
 
 ## Theme ownership and limits
 
-ui/theme/Color.kt defines 40 light/dark colors, 20 per scheme with paired on-color tokens.
-Theme.kt maps LIGHT/DARK/SYSTEM to light/dark schemes using isSystemInDarkTheme for SYSTEM and passes AppTypography.
-Type.kt owns default Typography and NovelReaderBodyStyle, a Serif 16sp/26sp fallback independent of general typography.
-Reader preferences may override font size/family at runtime. Theme stays independent of navigation.
-Content previews wrap ReaderParserTheme with its SYSTEM default.
-Historical maps describe activity-level observation of persisted theme. Current MainActivity calls ReaderParserTheme with its default,
-so persisted theme selection must not be described as verified live activity wiring.
+ui/theme/Color.kt defines tokens for Light, Dark, Warm Dark, and Sepia schemes.
+Theme.kt maps SYSTEM, LIGHT, DARK, WARM_DARK, and SEPIA to their respective color schemes using isSystemInDarkTheme for SYSTEM and passes AppTypography.
+Type.kt owns default Typography and NovelReaderBodyStyle.
+Reader preferences override font size, font family, line height, paragraph spacing, and horizontal padding at runtime. Theme stays independent of navigation.
+Content previews wrap ReaderParserTheme.
+MainActivity observes SettingsRepository.observeSettings() to apply the selected theme dynamically across the app.

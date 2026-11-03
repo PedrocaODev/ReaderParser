@@ -62,6 +62,7 @@ Akashic status alone does not select current guidance in installed 0.2.0. Use th
 - [Samsung Search index](specs/samsung-search-index.md)
 - [Repository governance](specs/repository-governance.md)
 - [Agent lanes](specs/agent-lanes.md)
+- [Chapter state preservation, progressive novel loading, native novel text engine, and warm dark design system](specs/novel-reader-and-design-system.md)
 
 Read [Specification evolution](evidence/specification-evolution.md) for superseded intent and partial optimization gaps.
 Read [ADR candidates](evidence/openspec-adr-candidates.md) for accepted/proposed decision distinctions.

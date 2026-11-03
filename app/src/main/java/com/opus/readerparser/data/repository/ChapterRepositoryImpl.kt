@@ -3,6 +3,7 @@ package com.opus.readerparser.data.repository
 import android.util.Log
 import com.opus.readerparser.core.util.SourceMetadataCache
 import com.opus.readerparser.data.local.database.dao.ChapterDao
+import com.opus.readerparser.data.local.database.entities.ChapterEntity
 import com.opus.readerparser.data.local.database.mappers.toChapterWithState
 import com.opus.readerparser.data.local.database.mappers.toDomain
 import com.opus.readerparser.data.local.database.mappers.toEntity
@@ -36,13 +37,20 @@ class ChapterRepositoryImpl @Inject constructor(
         val cacheKey = chapterListCacheKey(series.sourceId, series.url)
         chapterListCache.get(cacheKey)?.let { return }
 
-        val remote = sourceRegistry[series.sourceId].getChapterList(series)
-        val remoteEntities = remote.map { it.toEntity() }
+        val source = sourceRegistry[series.sourceId]
+        val initialExisting = chapterDao.getChaptersForSeries(series.sourceId, series.url)
+        var latestChapters = emptyList<Chapter>()
 
-        chapterDao.replaceChaptersForSeries(series.sourceId, series.url, remoteEntities)
+        source.fetchChapterListProgressive(series).collect { remoteChapters ->
+            val remoteEntities = mapToEntitiesPreservingState(remoteChapters, initialExisting)
+            chapterDao.replaceChaptersForSeries(series.sourceId, series.url, remoteEntities)
+            if (remoteChapters.isNotEmpty()) {
+                latestChapters = remoteChapters
+            }
+        }
 
-        if (remote.isNotEmpty()) {
-            chapterListCache.put(cacheKey, remote.toList())
+        if (latestChapters.isNotEmpty()) {
+            chapterListCache.put(cacheKey, latestChapters.toList())
         }
     }
 
@@ -97,3 +105,42 @@ private fun defaultChapterListCache(): SourceMetadataCache<List<Chapter>> = Sour
     maxEntries = 20,
     ttlMs = java.util.concurrent.TimeUnit.MINUTES.toMillis(2),
 )
+
+private fun mapToEntitiesPreservingState(
+    remoteChapters: List<Chapter>,
+    initialExisting: List<ChapterEntity>,
+): List<ChapterEntity> {
+    val existingByUrl = initialExisting.associateBy { it.url }
+    val remoteUrls = remoteChapters.map { it.url }.toSet()
+
+    val unmatchedExistingByNumber = initialExisting
+        .filter { it.url !in remoteUrls && it.number >= 0f }
+        .groupBy { it.number }
+        .mapValues { (_, list) -> list.singleOrNull() }
+        .filterValues { it != null }
+        .mapValues { it.value!! }
+
+    val unmatchedIncomingNumberCounts = remoteChapters
+        .filter { it.url !in existingByUrl && it.number >= 0f }
+        .groupingBy { it.number }
+        .eachCount()
+
+    return remoteChapters.map { chapter ->
+        val entity = chapter.toEntity()
+        val prev = existingByUrl[entity.url]
+            ?: if (entity.number >= 0f && unmatchedIncomingNumberCounts[entity.number] == 1) {
+                unmatchedExistingByNumber[entity.number]
+            } else {
+                null
+            }
+        if (prev != null) {
+            entity.copy(
+                read = prev.read,
+                progress = prev.progress,
+                downloaded = prev.downloaded,
+            )
+        } else {
+            entity
+        }
+    }
+}

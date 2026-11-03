@@ -1,12 +1,13 @@
 package com.opus.readerparser.ui.reader
 
-import android.webkit.WebView
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -30,6 +31,7 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -42,86 +44,197 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.ColorPainter
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
+import coil3.compose.LocalPlatformContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.unit.sp
 import coil3.ImageLoader
 import coil3.SingletonImageLoader
 import coil3.compose.AsyncImage
-import coil3.compose.LocalPlatformContext
+import com.opus.readerparser.domain.model.AppSettings
 import com.opus.readerparser.domain.model.ContentType
 import com.opus.readerparser.domain.model.ManhwaLayout
 import com.opus.readerparser.domain.model.ManhwaZoom
-import com.opus.readerparser.ui.theme.BackgroundDark
-import com.opus.readerparser.ui.theme.BackgroundLight
-import com.opus.readerparser.ui.theme.OnBackgroundDark
-import com.opus.readerparser.ui.theme.OnBackgroundLight
-import com.opus.readerparser.ui.theme.PrimaryDark
-import com.opus.readerparser.ui.theme.PrimaryLight
 import com.opus.readerparser.ui.theme.ReaderParserTheme
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlin.math.abs
 
-private fun Color.toHexString(): String =
-    String.format("#%06X", this.toArgb() and 0xFFFFFF)
+private fun headingScale(level: Int): Float = when (level) {
+    1 -> 1.4f
+    2 -> 1.25f
+    3 -> 1.15f
+    else -> 1.05f
+}
 
-private fun buildNovelHtml(
+@Composable
+fun NovelTextEngine(
+    chapterKey: String,
     html: String,
-    isDarkTheme: Boolean,
-    novelFontSize: Int,
-    novelFontFamily: String,
-): String {
-    val bgColor = if (isDarkTheme) BackgroundDark.toHexString() else BackgroundLight.toHexString()
-    val textColor = if (isDarkTheme) OnBackgroundDark.toHexString() else OnBackgroundLight.toHexString()
-    val linkColor = if (isDarkTheme) PrimaryDark.toHexString() else PrimaryLight.toHexString()
-    val fontFamilyCss = when (novelFontFamily.lowercase()) {
-        "sans-serif", "sans" -> "sans-serif"
-        "monospace", "mono" -> "monospace"
-        "serif" -> "serif"
-        else -> "Georgia, serif"
+    settings: AppSettings,
+    progress: Float,
+    onProgressChanged: (Float) -> Unit,
+    onTap: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val blocks = remember(html) { parseNovelHtml(html) }
+    if (blocks.isEmpty()) {
+        Box(
+            modifier = modifier
+                .background(MaterialTheme.colorScheme.background)
+                .testTag("novel_webview")
+                .testTag("novel_reader"),
+        )
+        return
     }
 
-    return """
-        <html>
-        <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <style>
-            body {
-                background-color: $bgColor;
-                color: $textColor;
-                font-family: $fontFamilyCss;
-                font-size: ${novelFontSize}px;
-                line-height: 1.6;
-                padding: 16px;
-                margin: 0;
+    var hasRestoredScroll by rememberSaveable(chapterKey) { mutableStateOf(false) }
+    var restoredIndex by rememberSaveable(chapterKey) {
+        mutableIntStateOf(if (progress > 0f) targetBlockIndexForProgress(progress, blocks.size) else 0)
+    }
+
+    val listState = rememberLazyListState(
+        initialFirstVisibleItemIndex = if (!hasRestoredScroll && progress > 0f) {
+            targetBlockIndexForProgress(progress, blocks.size)
+        } else {
+            0
+        },
+    )
+
+    LaunchedEffect(chapterKey, blocks.size, progress) {
+        if (!hasRestoredScroll && blocks.isNotEmpty()) {
+            if (progress > 0f) {
+                val targetIndex = targetBlockIndexForProgress(progress, blocks.size)
+                restoredIndex = targetIndex
+                if (listState.firstVisibleItemIndex != targetIndex) {
+                    listState.scrollToItem(targetIndex)
+                }
+                hasRestoredScroll = true
+            } else {
+                restoredIndex = 0
+                hasRestoredScroll = true
             }
-            img { max-width: 100%; }
-            a { color: $linkColor; }
-        </style>
-        </head>
-        <body>$html</body>
-        </html>
-    """.trimIndent()
+        }
+    }
+
+    var userHasScrolled by remember(chapterKey) { mutableStateOf(false) }
+
+    LaunchedEffect(listState, blocks.size, hasRestoredScroll) {
+        if (!hasRestoredScroll || blocks.isEmpty()) return@LaunchedEffect
+        snapshotFlow {
+            val layoutInfo = listState.layoutInfo
+            val visibleItems = layoutInfo.visibleItemsInfo
+            if (visibleItems.isEmpty()) return@snapshotFlow null
+            val firstIdx = listState.firstVisibleItemIndex
+            val firstOffset = listState.firstVisibleItemScrollOffset
+            val scrolling = listState.isScrollInProgress
+            if (!userHasScrolled) {
+                if (scrolling || firstIdx != restoredIndex || firstOffset != 0) {
+                    userHasScrolled = true
+                } else {
+                    return@snapshotFlow null
+                }
+            }
+            val firstItem = visibleItems.first()
+            val lastItem = visibleItems.last()
+            val bottomReached = !listState.canScrollForward ||
+                (lastItem.index == blocks.lastIndex && lastItem.offset + lastItem.size <= layoutInfo.viewportEndOffset)
+            calculateNovelScrollProgress(
+                firstVisibleIndex = firstIdx,
+                firstVisibleOffset = firstOffset,
+                firstVisibleSize = firstItem.size,
+                lastVisibleIndex = lastItem.index,
+                lastVisibleBottomReached = bottomReached,
+                totalBlocks = blocks.size,
+            )
+        }
+            .filterNotNull()
+            .distinctUntilChanged()
+            .collect { currentProgress ->
+                onProgressChanged(currentProgress)
+            }
+    }
+
+    val fontFamily = remember(settings.novelFontFamily) {
+        resolveNovelFontFamily(settings.novelFontFamily)
+    }
+    val fontSizeSp = settings.novelFontSize.sp
+    val lineHeightSp = (settings.novelFontSize * settings.novelLineHeightMultiplier).sp
+
+    Box(modifier = modifier.testTag("novel_webview")) {
+        LazyColumn(
+            state = listState,
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+                .pointerInput(onTap) {
+                    detectTapGestures(onTap = { onTap() })
+                }
+                .testTag("novel_reader"),
+            contentPadding = PaddingValues(
+                horizontal = settings.novelHorizontalPaddingDp.dp,
+                vertical = 24.dp,
+            ),
+            verticalArrangement = Arrangement.spacedBy(settings.novelParagraphSpacingDp.dp),
+        ) {
+            itemsIndexed(
+                items = blocks,
+                key = { index, _ -> index },
+            ) { _, block ->
+                when (block) {
+                    is NovelBlock.Heading -> {
+                        val scale = headingScale(block.level)
+                        Text(
+                            text = block.text,
+                            color = MaterialTheme.colorScheme.onBackground,
+                            fontFamily = fontFamily,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = (settings.novelFontSize * scale).sp,
+                            lineHeight = (settings.novelFontSize * scale * 1.3f).sp,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 8.dp, bottom = 4.dp),
+                        )
+                    }
+                    is NovelBlock.Paragraph -> {
+                        Text(
+                            text = block.text,
+                            color = MaterialTheme.colorScheme.onBackground,
+                            fontFamily = fontFamily,
+                            fontSize = fontSizeSp,
+                            lineHeight = lineHeightSp,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                    is NovelBlock.Divider -> {
+                        HorizontalDivider(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                        )
+                    }
+                }
+            }
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -173,18 +286,16 @@ fun ReaderContent(
                     }
                 }
                 state.contentType == ContentType.NOVEL && state.html.isNotEmpty() -> {
-                    NovelWebView(
+                    NovelTextEngine(
+                        chapterKey = state.chapter?.url ?: "",
                         html = state.html,
-                        isDarkTheme = isDarkTheme,
-                        novelFontSize = state.settings.novelFontSize,
-                        novelFontFamily = state.settings.novelFontFamily,
+                        settings = state.settings,
                         progress = state.progress,
                         onProgressChanged = { progress ->
                             onAction(ReaderAction.SetProgress(progress))
                         },
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .testTag("novel_webview"),
+                        onTap = { showControls = !showControls },
+                        modifier = Modifier.fillMaxSize(),
                     )
                 }
                 state.contentType == ContentType.MANHWA && state.pages.isNotEmpty() -> {
@@ -304,87 +415,6 @@ fun ReaderContent(
                     )
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun NovelWebView(
-    html: String,
-    isDarkTheme: Boolean,
-    novelFontSize: Int,
-    novelFontFamily: String,
-    progress: Float,
-    onProgressChanged: (Float) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val context = LocalContext.current
-    val styledHtml = remember(html, isDarkTheme, novelFontSize, novelFontFamily) {
-        buildNovelHtml(html, isDarkTheme, novelFontSize, novelFontFamily)
-    }
-    var lastLoadedHtml by remember { mutableStateOf("") }
-    var restoreProgress by remember { mutableFloatStateOf(-1f) }
-    var webViewRef by remember { mutableStateOf<WebView?>(null) }
-
-    AndroidView(
-        factory = {
-            WebView(context).apply {
-                webViewRef = this
-                settings.apply {
-                    javaScriptEnabled = false
-                    builtInZoomControls = false
-                }
-                webViewClient = object : android.webkit.WebViewClient() {
-                    override fun onPageFinished(view: WebView?, url: String?) {
-                        super.onPageFinished(view, url)
-                        if (restoreProgress > 0f && view != null) {
-                            view.post {
-                                val contentHeightPx = view.contentHeight * view.resources.displayMetrics.density
-                                val viewHeightPx = view.height.toFloat()
-                                val targetScroll = ((contentHeightPx - viewHeightPx).coerceAtLeast(0f) * restoreProgress).toInt()
-                                view.scrollTo(0, targetScroll)
-                                restoreProgress = -1f
-                            }
-                        }
-                    }
-                }
-                setOnScrollChangeListener { _, _, scrollY, _, _ ->
-                    val contentHeightPx = contentHeight * resources.displayMetrics.density
-                    val viewHeightPx = height.toFloat()
-                    val maxScroll = (contentHeightPx - viewHeightPx).coerceAtLeast(0f)
-                    val currentProgress = if (maxScroll > 0f) {
-                        scrollY.toFloat() / maxScroll
-                    } else {
-                        0f
-                    }
-                    val clamped = currentProgress.coerceIn(0f, 1f)
-                    onProgressChanged(clamped)
-                }
-            }
-        },
-        update = { webView ->
-            if (styledHtml != lastLoadedHtml) {
-                lastLoadedHtml = styledHtml
-                restoreProgress = progress
-                webView.loadDataWithBaseURL(
-                    "https://app.local",
-                    styledHtml,
-                    "text/html",
-                    "UTF-8",
-                    null,
-                )
-            }
-        },
-        modifier = modifier,
-    )
-
-    DisposableEffect(Unit) {
-        onDispose {
-            webViewRef?.apply {
-                stopLoading()
-                destroy()
-            }
-            webViewRef = null
         }
     }
 }
