@@ -89,7 +89,7 @@ def verify_prototype(prototype_path: Path) -> int:
         "WARM_DARK": ["#181614", "#211E1B", "#2A2521", "#E6DFD5", "#A89F93", "#D98A4E", "#7A9A8B"],
         "SEPIA": ["#F4ECD8", "#EFE4C8", "#E4D5B7", "#2C221E", "#5C4B3B", "#8C5327", "#4F6D5A"],
         "LIGHT": ["#FAF8F5", "#FFFFFF", "#F0ECE1", "#1C1B1A", "#605C56", "#B86528"],
-        "DARK": ["#121212", "#1E1E1E", "#282828", "#E6E1E5", "#938F99", "#D0BCFF"],
+        "DARK": ["#111318", "#191C22", "#22262F", "#E2E2E9", "#939AA6", "#A2C8FF", "#BBC7DB"],
     }
 
     all_tokens_passed = True
@@ -102,12 +102,14 @@ def verify_prototype(prototype_path: Path) -> int:
         else:
             print(f"[PASS] Theme {theme} ({len(tokens)} required tokens verified)")
 
-    # 2. Verify Unified Reader Engines
+    # 2. Verify Unified Reader Engines & Design System Concepts
     required_engine_terms = [
-        ("NovelTextEngine", "NovelTextEngine"),
-        ("ContentType.NOVEL", "ContentType.NOVEL"),
-        ("ManhwaPageList", "ManhwaPageList"),
-        ("ContentType.MANHWA", "ContentType.MANHWA"),
+        ("Foundational Primitives", "Foundational Primitives"),
+        ("Domain Components", "Domain Components"),
+        ("Typography, Shape & Spacing Tokens", "Typography, Shape & Spacing Tokens"),
+        ("Component Inventory", "Component Inventory"),
+        ("Novel Reader", "Novel Reader"),
+        ("Manhwa Reader", "Manhwa Reader"),
         ("Webtoon", "Webtoon"),
         ("Paged LTR", "Paged LTR"),
         ("Paged RTL", "Paged RTL"),
