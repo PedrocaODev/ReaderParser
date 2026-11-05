@@ -26,18 +26,27 @@ data class SeriesUiState(
     val unreadOnly: Boolean = false,
     val sortAscending: Boolean = false,
 ) {
-    val readChapterCount: Int get() = chapters.count { it.read }
-    val totalChapterCount: Int get() = chapters.size
-    val resumeState: ReadingResumeState get() = computeResumeState(chapters)
-    val displayedChapters: List<ChapterWithState>
-        get() {
-            val filtered = if (unreadOnly) chapters.filter { !it.read } else chapters
-            return if (sortAscending) {
-                filtered.sortedBy { it.chapter.number }
-            } else {
-                filtered.sortedByDescending { it.chapter.number }
-            }
-        }
+    val readChapterCount: Int = chapters.count { it.read }
+    val totalChapterCount: Int = chapters.size
+    val resumeState: ReadingResumeState = computeResumeState(chapters)
+    val displayedChapters: List<ChapterWithState> = computeDisplayedChapters(
+        chapters = chapters,
+        unreadOnly = unreadOnly,
+        sortAscending = sortAscending,
+    )
+}
+
+internal fun computeDisplayedChapters(
+    chapters: List<ChapterWithState>,
+    unreadOnly: Boolean,
+    sortAscending: Boolean,
+): List<ChapterWithState> {
+    val filtered = if (unreadOnly) chapters.filter { !it.read } else chapters
+    return if (sortAscending) {
+        filtered.sortedBy { it.chapter.number }
+    } else {
+        filtered.sortedByDescending { it.chapter.number }
+    }
 }
 
 internal fun computeResumeState(chapters: List<ChapterWithState>): ReadingResumeState {

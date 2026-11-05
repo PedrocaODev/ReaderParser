@@ -42,13 +42,8 @@ import com.opus.readerparser.domain.model.ChapterWithState
 import com.opus.readerparser.domain.model.ContentType
 import com.opus.readerparser.domain.model.Series
 import com.opus.readerparser.ui.components.AppTopBar
-import com.opus.readerparser.ui.components.ChapterActionSheet
-import com.opus.readerparser.ui.components.ChapterRow
-import com.opus.readerparser.ui.components.ChapterSectionHeader
 import com.opus.readerparser.ui.components.ErrorRetryStateView
 import com.opus.readerparser.ui.components.LoadingStateView
-import com.opus.readerparser.ui.components.ReadingProgressCard
-import com.opus.readerparser.ui.components.SeriesHeroCard
 import com.opus.readerparser.ui.theme.AppSpacing
 import com.opus.readerparser.ui.theme.ReaderParserTheme
 

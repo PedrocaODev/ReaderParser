@@ -1,4 +1,4 @@
-package com.opus.readerparser.ui.components
+package com.opus.readerparser.ui.series
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -39,7 +39,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
@@ -50,7 +49,10 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.opus.readerparser.domain.model.ChapterWithState
 import com.opus.readerparser.domain.model.Series
-import com.opus.readerparser.ui.series.ReadingResumeState
+import com.opus.readerparser.ui.components.ChipFilter
+import com.opus.readerparser.ui.components.DownloadedBadge
+import com.opus.readerparser.ui.components.StatusBadge
+import com.opus.readerparser.ui.components.formatChapterNumber
 import com.opus.readerparser.ui.theme.AppSpacing
 import com.opus.readerparser.ui.theme.PillShape
 import java.text.SimpleDateFormat
@@ -86,8 +88,8 @@ fun SeriesHeroCard(
                     model = series.coverUrl,
                     contentDescription = series.title,
                     contentScale = ContentScale.Crop,
-                    placeholder = ColorPainter(Color.LightGray),
-                    error = ColorPainter(Color.Gray),
+                    placeholder = ColorPainter(MaterialTheme.colorScheme.surfaceContainerHigh),
+                    error = ColorPainter(MaterialTheme.colorScheme.surfaceContainerHigh),
                     modifier = Modifier
                         .size(width = 96.dp, height = 140.dp)
                         .clip(MaterialTheme.shapes.medium)
@@ -530,12 +532,21 @@ fun ChapterRow(
                         horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(
-                            text = "${(chapterWithState.progress * 100).toInt()}%",
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.testTag("progress_indicator"),
-                        )
+                        Surface(
+                            shape = PillShape,
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.testTag("chapter_progress_pill"),
+                        ) {
+                            Text(
+                                text = "${(chapterWithState.progress * 100).toInt()}%",
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier
+                                    .padding(horizontal = AppSpacing.sm, vertical = 2.dp)
+                                    .testTag("progress_indicator"),
+                            )
+                        }
                         LinearProgressIndicator(
                             progress = { chapterWithState.progress.coerceIn(0f, 1f) },
                             modifier = Modifier
