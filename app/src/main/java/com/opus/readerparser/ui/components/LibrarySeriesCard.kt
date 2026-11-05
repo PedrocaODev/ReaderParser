@@ -140,8 +140,8 @@ fun LibrarySeriesCard(
 
                 val percent = (progressRatio.coerceIn(0f, 1f) * 100).roundToInt()
                 val progressText = when {
-                    totalChapters > 0 -> "Ch. ${formatChapterNumber(currentChapterNumber ?: 1f)} / $totalChapters · $percent%"
-                    currentChapterNumber != null -> "Ch. ${formatChapterNumber(currentChapterNumber)} · $percent%"
+                    totalChapters > 0 -> "Ch. ${formatLibraryChapterNumber(currentChapterNumber ?: 1f)} / $totalChapters · $percent%"
+                    currentChapterNumber != null -> "Ch. ${formatLibraryChapterNumber(currentChapterNumber)} · $percent%"
                     else -> "$percent%"
                 }
 
@@ -176,7 +176,7 @@ fun LibrarySeriesCard(
     }
 }
 
-private fun formatChapterNumber(number: Float): String =
+private fun formatLibraryChapterNumber(number: Float): String =
     if (number % 1f == 0f) number.toInt().toString() else number.toString()
 
 @Composable
