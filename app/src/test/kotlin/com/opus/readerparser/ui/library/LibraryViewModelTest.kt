@@ -3,8 +3,11 @@ package com.opus.readerparser.ui.library
 import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
 import com.opus.readerparser.domain.SeriesRepository
+import com.opus.readerparser.domain.model.ChapterWithState
 import com.opus.readerparser.domain.model.LibrarySearchResult
 import com.opus.readerparser.domain.model.Series
+import com.opus.readerparser.domain.model.SeriesStatus
+import com.opus.readerparser.fakes.FakeChapterRepository
 import com.opus.readerparser.fakes.FakeSeriesRepository
 import com.opus.readerparser.testutil.MainDispatcherRule
 import com.opus.readerparser.testutil.TestFixtures
@@ -515,5 +518,265 @@ class LibraryViewModelTest {
         assertThat(vm.state.value.isLoading).isFalse()
         assertThat(vm.state.value.error).isNull()
         assertThat(vm.state.value.series).containsExactly(series1, series2, nonDownloaded)
+    }
+
+    // -----------------------------------------------------------------
+    // Design System Slice tests (Issue #77): Summary, Filter, Sort
+    // -----------------------------------------------------------------
+
+    @Test
+    fun `per-series summary derived accurately from chapter repository states`() = runTest {
+        val chapterRepo = FakeChapterRepository()
+        val libraryVm = LibraryViewModel(repo, chapterRepo)
+
+        val series = TestFixtures.testSeries(title = "Omniscient Reader", url = "https://test.invalid/orv")
+        val ch1 = ChapterWithState(
+            chapter = TestFixtures.testChapter(seriesUrl = series.url, url = "https://test.invalid/orv/1", number = 1f),
+            read = true,
+            downloaded = true,
+            progress = 1.0f,
+        )
+        val ch2 = ChapterWithState(
+            chapter = TestFixtures.testChapter(seriesUrl = series.url, url = "https://test.invalid/orv/2", number = 2f),
+            read = false,
+            downloaded = true,
+            progress = 0.5f,
+        )
+        val ch3 = ChapterWithState(
+            chapter = TestFixtures.testChapter(seriesUrl = series.url, url = "https://test.invalid/orv/3", number = 3f),
+            read = false,
+            downloaded = false,
+            progress = 0.0f,
+        )
+
+        chapterRepo.setChapters(series.url, listOf(ch1, ch2, ch3))
+        repo.addToLibrary(series)
+        advanceUntilIdle()
+
+        val items = libraryVm.state.value.items
+        assertThat(items).hasSize(1)
+        val item = items.single()
+        assertThat(item.series).isEqualTo(series)
+        assertThat(item.totalChapters).isEqualTo(3)
+        assertThat(item.readCount).isEqualTo(1)
+        assertThat(item.unreadCount).isEqualTo(2)
+        assertThat(item.downloadedCount).isEqualTo(2)
+        assertThat(item.hasInProgressChapter).isTrue()
+        assertThat(item.progressRatio).isWithin(0.01f).of(1f / 3f)
+        assertThat(item.currentChapterNumber).isEqualTo(2f)
+    }
+
+    @Test
+    fun `live filterCounts computed across ALL, READING, DOWNLOADED, COMPLETED`() = runTest {
+        val chapterRepo = FakeChapterRepository()
+        val libraryVm = LibraryViewModel(repo, chapterRepo)
+
+        val unreadSeries = TestFixtures.testSeries(title = "Unread", url = "https://test.invalid/unread")
+        val readingSeries = TestFixtures.testSeries(title = "Reading", url = "https://test.invalid/reading")
+        val downloadedSeries = TestFixtures.testSeries(title = "Downloaded", url = "https://test.invalid/downloaded")
+        val completedSeries = TestFixtures.testSeries(title = "Completed", url = "https://test.invalid/completed")
+
+        chapterRepo.setChapters(
+            unreadSeries.url,
+            listOf(
+                ChapterWithState(
+                    chapter = TestFixtures.testChapter(seriesUrl = unreadSeries.url, url = "https://test.invalid/u/1", number = 1f),
+                    read = false,
+                    downloaded = false,
+                    progress = 0f,
+                ),
+            ),
+        )
+
+        chapterRepo.setChapters(
+            readingSeries.url,
+            listOf(
+                ChapterWithState(
+                    chapter = TestFixtures.testChapter(seriesUrl = readingSeries.url, url = "https://test.invalid/r/1", number = 1f),
+                    read = true,
+                    downloaded = false,
+                    progress = 1f,
+                ),
+                ChapterWithState(
+                    chapter = TestFixtures.testChapter(seriesUrl = readingSeries.url, url = "https://test.invalid/r/2", number = 2f),
+                    read = false,
+                    downloaded = false,
+                    progress = 0f,
+                ),
+            ),
+        )
+
+        chapterRepo.setChapters(
+            downloadedSeries.url,
+            listOf(
+                ChapterWithState(
+                    chapter = TestFixtures.testChapter(seriesUrl = downloadedSeries.url, url = "https://test.invalid/d/1", number = 1f),
+                    read = false,
+                    downloaded = true,
+                    progress = 0f,
+                ),
+            ),
+        )
+
+        chapterRepo.setChapters(
+            completedSeries.url,
+            listOf(
+                ChapterWithState(
+                    chapter = TestFixtures.testChapter(seriesUrl = completedSeries.url, url = "https://test.invalid/c/1", number = 1f),
+                    read = true,
+                    downloaded = false,
+                    progress = 1f,
+                ),
+            ),
+        )
+
+        repo.addToLibrary(unreadSeries)
+        repo.addToLibrary(readingSeries)
+        repo.addToLibrary(downloadedSeries)
+        repo.addToLibrary(completedSeries)
+        advanceUntilIdle()
+
+        val counts = libraryVm.state.value.filterCounts
+        assertThat(counts[LibraryFilter.ALL]).isEqualTo(4)
+        assertThat(counts[LibraryFilter.READING]).isEqualTo(1)
+        assertThat(counts[LibraryFilter.DOWNLOADED]).isEqualTo(1)
+        assertThat(counts[LibraryFilter.COMPLETED]).isEqualTo(1)
+    }
+
+    @Test
+    fun `SetFilter action filters items and series`() = runTest {
+        val chapterRepo = FakeChapterRepository()
+        val libraryVm = LibraryViewModel(repo, chapterRepo)
+
+        val unreadSeries = TestFixtures.testSeries(title = "Unread", url = "https://test.invalid/unread")
+        val readingSeries = TestFixtures.testSeries(title = "Reading", url = "https://test.invalid/reading")
+        val downloadedSeries = TestFixtures.testSeries(title = "Downloaded", url = "https://test.invalid/downloaded")
+        val completedSeries = TestFixtures.testSeries(title = "Completed", url = "https://test.invalid/completed")
+
+        chapterRepo.setChapters(
+            unreadSeries.url,
+            listOf(
+                ChapterWithState(
+                    chapter = TestFixtures.testChapter(seriesUrl = unreadSeries.url, url = "https://test.invalid/u/1", number = 1f),
+                    read = false,
+                    downloaded = false,
+                    progress = 0f,
+                ),
+            ),
+        )
+
+        chapterRepo.setChapters(
+            readingSeries.url,
+            listOf(
+                ChapterWithState(
+                    chapter = TestFixtures.testChapter(seriesUrl = readingSeries.url, url = "https://test.invalid/r/1", number = 1f),
+                    read = true,
+                    downloaded = false,
+                    progress = 1f,
+                ),
+                ChapterWithState(
+                    chapter = TestFixtures.testChapter(seriesUrl = readingSeries.url, url = "https://test.invalid/r/2", number = 2f),
+                    read = false,
+                    downloaded = false,
+                    progress = 0f,
+                ),
+            ),
+        )
+
+        chapterRepo.setChapters(
+            downloadedSeries.url,
+            listOf(
+                ChapterWithState(
+                    chapter = TestFixtures.testChapter(seriesUrl = downloadedSeries.url, url = "https://test.invalid/d/1", number = 1f),
+                    read = false,
+                    downloaded = true,
+                    progress = 0f,
+                ),
+            ),
+        )
+
+        chapterRepo.setChapters(
+            completedSeries.url,
+            listOf(
+                ChapterWithState(
+                    chapter = TestFixtures.testChapter(seriesUrl = completedSeries.url, url = "https://test.invalid/c/1", number = 1f),
+                    read = true,
+                    downloaded = false,
+                    progress = 1f,
+                ),
+            ),
+        )
+
+        repo.addToLibrary(unreadSeries)
+        repo.addToLibrary(readingSeries)
+        repo.addToLibrary(downloadedSeries)
+        repo.addToLibrary(completedSeries)
+        advanceUntilIdle()
+
+        libraryVm.onAction(LibraryAction.SetFilter(LibraryFilter.READING))
+        advanceUntilIdle()
+        assertThat(libraryVm.state.value.series).containsExactly(readingSeries)
+
+        libraryVm.onAction(LibraryAction.SetFilter(LibraryFilter.DOWNLOADED))
+        advanceUntilIdle()
+        assertThat(libraryVm.state.value.series).containsExactly(downloadedSeries)
+
+        libraryVm.onAction(LibraryAction.SetFilter(LibraryFilter.COMPLETED))
+        advanceUntilIdle()
+        assertThat(libraryVm.state.value.series).containsExactly(completedSeries)
+
+        libraryVm.onAction(LibraryAction.SetFilter(LibraryFilter.ALL))
+        advanceUntilIdle()
+        assertThat(libraryVm.state.value.series).containsExactly(unreadSeries, readingSeries, downloadedSeries, completedSeries)
+    }
+
+    @Test
+    fun `combining SetSortBy TITLE_ASC and SetFilter sorts filtered subset`() = runTest {
+        val chapterRepo = FakeChapterRepository()
+        val libraryVm = LibraryViewModel(repo, chapterRepo)
+
+        val zebra = TestFixtures.testSeries(title = "Zebra Reading", url = "https://test.invalid/z")
+        val apple = TestFixtures.testSeries(title = "Apple Reading", url = "https://test.invalid/a")
+        val unread = TestFixtures.testSeries(title = "Banana Unread", url = "https://test.invalid/b")
+
+        val readingChapters = listOf(
+            ChapterWithState(
+                chapter = TestFixtures.testChapter(url = "https://test.invalid/ch1", number = 1f),
+                read = true,
+                downloaded = false,
+                progress = 1f,
+            ),
+            ChapterWithState(
+                chapter = TestFixtures.testChapter(url = "https://test.invalid/ch2", number = 2f),
+                read = false,
+                downloaded = false,
+                progress = 0f,
+            ),
+        )
+
+        chapterRepo.setChapters(zebra.url, readingChapters)
+        chapterRepo.setChapters(apple.url, readingChapters)
+        chapterRepo.setChapters(
+            unread.url,
+            listOf(
+                ChapterWithState(
+                    chapter = TestFixtures.testChapter(url = "https://test.invalid/ch3", number = 1f),
+                    read = false,
+                    downloaded = false,
+                    progress = 0f,
+                ),
+            ),
+        )
+
+        repo.addToLibrary(zebra)
+        repo.addToLibrary(apple)
+        repo.addToLibrary(unread)
+        advanceUntilIdle()
+
+        libraryVm.onAction(LibraryAction.SetFilter(LibraryFilter.READING))
+        libraryVm.onAction(LibraryAction.SetSortBy(LibrarySortOption.TITLE_ASC))
+        advanceUntilIdle()
+
+        assertThat(libraryVm.state.value.series.map { it.title }).containsExactly("Apple Reading", "Zebra Reading").inOrder()
     }
 }

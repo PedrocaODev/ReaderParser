@@ -1,47 +1,48 @@
 package com.opus.readerparser.ui.library
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Sort
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.opus.readerparser.domain.model.ContentType
 import com.opus.readerparser.domain.model.Series
-import com.opus.readerparser.ui.components.SeriesCatalogGrid
+import com.opus.readerparser.ui.components.AppTopBar
+import com.opus.readerparser.ui.components.ChipFilterRow
+import com.opus.readerparser.ui.components.EmptyStateView
+import com.opus.readerparser.ui.components.ErrorRetryStateView
+import com.opus.readerparser.ui.components.FilterChipOption
+import com.opus.readerparser.ui.components.LibrarySeriesCard
+import com.opus.readerparser.ui.components.LoadingStateView
+import com.opus.readerparser.ui.components.RadioRow
+import com.opus.readerparser.ui.components.SearchInputPill
+import com.opus.readerparser.ui.theme.AppSpacing
 import com.opus.readerparser.ui.theme.ReaderParserTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -49,42 +50,31 @@ import com.opus.readerparser.ui.theme.ReaderParserTheme
 fun LibraryContent(
     state: LibraryUiState,
     onAction: (LibraryAction) -> Unit,
+    modifier: Modifier = Modifier,
     onNavigateToSettings: () -> Unit = {},
+    onOpenSettings: () -> Unit = onNavigateToSettings,
+    onBrowseSources: (() -> Unit)? = null,
     snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
 ) {
-    var showSortMenu by remember { mutableStateOf(false) }
+    var showSortSheet by remember { mutableStateOf(false) }
 
     Scaffold(
+        modifier = modifier,
         topBar = {
-            TopAppBar(
-                title = { Text("Library") },
+            AppTopBar(
+                title = "Library",
                 actions = {
-                    IconButton(onClick = onNavigateToSettings) {
-                        Icon(Icons.Filled.Settings, contentDescription = "Settings")
+                    IconButton(
+                        onClick = { showSortSheet = true },
+                        modifier = Modifier.testTag("sort_button"),
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort")
                     }
-                    Box {
-                        IconButton(onClick = { showSortMenu = true }) {
-                            Icon(Icons.Filled.Sort, contentDescription = "Sort")
-                        }
-                        DropdownMenu(
-                            expanded = showSortMenu,
-                            onDismissRequest = { showSortMenu = false },
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text("Default") },
-                                onClick = {
-                                    onAction(LibraryAction.SetSortBy(LibrarySortBy.DEFAULT))
-                                    showSortMenu = false
-                                },
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Title") },
-                                onClick = {
-                                    onAction(LibraryAction.SetSortBy(LibrarySortBy.TITLE))
-                                    showSortMenu = false
-                                },
-                            )
-                        }
+                    IconButton(
+                        onClick = onOpenSettings,
+                        modifier = Modifier.testTag("settings_button"),
+                    ) {
+                        Icon(Icons.Filled.Settings, contentDescription = "Settings")
                     }
                 },
             )
@@ -96,80 +86,142 @@ fun LibraryContent(
                 .fillMaxSize()
                 .padding(innerPadding),
         ) {
-            // Search bar
-            OutlinedTextField(
-                value = state.searchQuery,
-                onValueChange = { onAction(LibraryAction.SetSearchQuery(it)) },
+            SearchInputPill(
+                query = state.searchQuery,
+                onQueryChange = { onAction(LibraryAction.SetSearchQuery(it)) },
+                placeholder = "Search library...",
+                onSearch = { onAction(LibraryAction.SetSearchQuery(state.searchQuery)) },
+                onClear = { onAction(LibraryAction.SetSearchQuery("")) },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
-                    .testTag("search_field"),
-                placeholder = { Text("Search library…") },
-                leadingIcon = {
-                    Icon(Icons.Filled.Search, contentDescription = "Search")
-                },
-                trailingIcon = {
-                    if (state.searchQuery.isNotEmpty()) {
-                        IconButton(onClick = { onAction(LibraryAction.SetSearchQuery("")) }) {
-                            Icon(
-                                Icons.Filled.Clear,
-                                contentDescription = "Clear search",
-                                modifier = Modifier.size(20.dp),
-                            )
-                        }
-                    }
-                },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(
-                    onSearch = { onAction(LibraryAction.SetSearchQuery(state.searchQuery)) },
-                ),
-                colors = OutlinedTextFieldDefaults.colors(),
+                    .padding(horizontal = AppSpacing.md, vertical = AppSpacing.xs),
+            )
+
+            val filterOptions = remember(state.filterCounts) {
+                LibraryFilter.entries.map { filter ->
+                    FilterChipOption(
+                        value = filter,
+                        label = filter.label,
+                        count = state.filterCounts[filter] ?: 0,
+                        testTag = "filter_chip_${filter.name.lowercase()}",
+                    )
+                }
+            }
+            ChipFilterRow(
+                options = filterOptions,
+                selectedValue = state.selectedFilter,
+                onSelect = { onAction(LibraryAction.SetFilter(it)) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = AppSpacing.md, vertical = AppSpacing.xs)
+                    .testTag("library_filter_row"),
             )
 
             Box(modifier = Modifier.weight(1f)) {
+                val displayItems = if (state.items.isNotEmpty() || state.series.isEmpty()) {
+                    state.items
+                } else {
+                    state.series.map { LibrarySeriesItem(series = it) }
+                }
+
                 when {
                     state.isLoading -> {
-                        CircularProgressIndicator(
-                            modifier = Modifier
-                                .align(Alignment.Center)
-                                .testTag("loading"),
-                        )
+                        LoadingStateView()
                     }
                     state.error != null -> {
-                        Column(
-                            modifier = Modifier.align(Alignment.Center),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                        ) {
-                            Text(
-                                text = state.error,
-                                modifier = Modifier.testTag("error_message"),
-                                color = MaterialTheme.colorScheme.error,
-                                textAlign = TextAlign.Center,
+                        ErrorRetryStateView(
+                            message = state.error,
+                            onRetry = { onAction(LibraryAction.SetSearchQuery(state.searchQuery)) },
+                        )
+                    }
+                    displayItems.isEmpty() -> {
+                        if (state.searchQuery.isNotBlank() || state.selectedFilter != LibraryFilter.ALL) {
+                            EmptyStateView(
+                                title = "No matching series",
+                                subtitle = if (state.searchQuery.isNotBlank()) {
+                                    "No series match \"${state.searchQuery}\"."
+                                } else {
+                                    "No series match the selected filter."
+                                },
+                                actionLabel = "Clear Filters",
+                                onActionClick = {
+                                    if (state.searchQuery.isNotBlank()) onAction(LibraryAction.SetSearchQuery(""))
+                                    if (state.selectedFilter != LibraryFilter.ALL) onAction(LibraryAction.SetFilter(LibraryFilter.ALL))
+                                },
+                            )
+                        } else {
+                            EmptyStateView(
+                                title = "Your library is empty",
+                                subtitle = "Browse sources to add series to your collection.",
+                                actionLabel = if (onBrowseSources != null) "Browse Sources" else null,
+                                onActionClick = onBrowseSources,
                             )
                         }
                     }
-                    state.series.isEmpty() -> {
-                        Text(
-                            text = if (state.searchQuery.isNotEmpty())
-                                "No series match \"${state.searchQuery}\"."
-                            else
-                                "Your library is empty.\nBrowse sources to add series.",
-                            modifier = Modifier
-                                .align(Alignment.Center)
-                                .padding(32.dp),
-                            textAlign = TextAlign.Center,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
                     else -> {
-                        SeriesCatalogGrid(
-                            series = state.series,
-                            onSeriesClick = { series -> onAction(LibraryAction.OpenSeries(series)) },
-                            onSeriesLongClick = { series -> onAction(LibraryAction.RemoveFromLibrary(series)) },
-                        )
+                        LazyVerticalGrid(
+                            columns = GridCells.Adaptive(minSize = 104.dp),
+                            contentPadding = PaddingValues(AppSpacing.md),
+                            horizontalArrangement = Arrangement.spacedBy(AppSpacing.md),
+                            verticalArrangement = Arrangement.spacedBy(AppSpacing.md),
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .testTag("series_list"),
+                        ) {
+                            items(
+                                items = displayItems,
+                                key = { "${it.series.sourceId}|${it.series.url}" },
+                            ) { item ->
+                                LibrarySeriesCard(
+                                    item = item,
+                                    onClick = { onAction(LibraryAction.OpenSeries(item.series)) },
+                                    onLongClick = { onAction(LibraryAction.RemoveFromLibrary(item.series)) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                            }
+                        }
                     }
+                }
+            }
+        }
+
+        if (showSortSheet) {
+            ModalBottomSheet(
+                onDismissRequest = { showSortSheet = false },
+                modifier = Modifier.testTag("sort_bottom_sheet"),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = AppSpacing.xl),
+                ) {
+                    Text(
+                        text = "Sort Library",
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(horizontal = AppSpacing.lg, vertical = AppSpacing.sm),
+                    )
+                    RadioRow(
+                        label = "Default (Recently Added)",
+                        selected = state.sortBy == LibrarySortOption.RECENTLY_ADDED,
+                        onClick = {
+                            onAction(LibraryAction.SetSortBy(LibrarySortOption.RECENTLY_ADDED))
+                            showSortSheet = false
+                        },
+                        modifier = Modifier
+                            .padding(horizontal = AppSpacing.lg)
+                            .testTag("sort_option_default"),
+                    )
+                    RadioRow(
+                        label = "Title (A–Z)",
+                        selected = state.sortBy == LibrarySortOption.TITLE_ASC,
+                        onClick = {
+                            onAction(LibraryAction.SetSortBy(LibrarySortOption.TITLE_ASC))
+                            showSortSheet = false
+                        },
+                        modifier = Modifier
+                            .padding(horizontal = AppSpacing.lg)
+                            .testTag("sort_option_title"),
+                    )
                 }
             }
         }
