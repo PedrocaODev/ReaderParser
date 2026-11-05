@@ -1,4 +1,4 @@
-package com.opus.readerparser.ui.components
+package com.opus.readerparser.ui.downloads
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -32,13 +32,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.opus.readerparser.domain.model.ContentType
 import com.opus.readerparser.domain.model.DownloadItem
 import com.opus.readerparser.domain.model.DownloadState
 import com.opus.readerparser.domain.model.DownloadStorageBreakdown
 import com.opus.readerparser.domain.model.DownloadedSeriesItem
-import com.opus.readerparser.domain.model.formatStorageBytes
+import com.opus.readerparser.ui.components.QueueStateBadge
+import com.opus.readerparser.ui.components.formatStorageBytes
 import com.opus.readerparser.ui.theme.PillShape
 
 @Composable
@@ -255,7 +258,10 @@ fun DownloadQueueItemCard(
             ) {
                 when (item.state) {
                     DownloadState.QUEUED, DownloadState.RUNNING -> {
-                        TextButton(onClick = onCancel) {
+                        TextButton(
+                            onClick = onCancel,
+                            modifier = Modifier.semantics { contentDescription = "Cancel download" },
+                        ) {
                             Text("Cancel")
                         }
                     }
@@ -267,7 +273,10 @@ fun DownloadQueueItemCard(
                             Text("Retry")
                         }
                         Spacer(Modifier.width(8.dp))
-                        TextButton(onClick = onCancel) {
+                        TextButton(
+                            onClick = onCancel,
+                            modifier = Modifier.semantics { contentDescription = "Cancel download" },
+                        ) {
                             Text("Cancel")
                         }
                     }
@@ -275,6 +284,7 @@ fun DownloadQueueItemCard(
                         OutlinedButton(
                             onClick = onDelete,
                             shape = PillShape,
+                            modifier = Modifier.semantics { contentDescription = "Delete download" },
                         ) {
                             Text("Delete")
                         }
@@ -288,7 +298,7 @@ fun DownloadQueueItemCard(
 @Composable
 fun DownloadedSeriesCard(
     item: DownloadedSeriesItem,
-    onClearSeriesDownloads: (String) -> Unit,
+    onClearSeriesDownloads: (sourceId: Long, seriesUrl: String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Card(
@@ -331,10 +341,16 @@ fun DownloadedSeriesCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                Text(
+                    text = formatStorageBytes(item.totalBytes),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.testTag("series_bytes_${item.seriesId}"),
+                )
             }
 
             OutlinedButton(
-                onClick = { onClearSeriesDownloads(item.seriesId) },
+                onClick = { onClearSeriesDownloads(item.sourceId, item.seriesUrl) },
                 shape = PillShape,
                 modifier = Modifier.testTag("clear_series_${item.seriesId}"),
             ) {

@@ -10,6 +10,13 @@ import kotlinx.coroutines.flow.MutableStateFlow
 class FakeDownloadRepository : DownloadRepository {
 
     var storageBreakdown: DownloadStorageBreakdown = DownloadStorageBreakdown()
+    val seriesBytes: MutableMap<Pair<Long, String>, Long> = mutableMapOf()
+    var getStorageBreakdownCallCount: Int = 0
+    var getSeriesBytesCallCount: Int = 0
+
+    fun setSeriesBytes(sourceId: Long, seriesUrl: String, bytes: Long) {
+        seriesBytes[sourceId to seriesUrl] = bytes
+    }
 
     private val _queue = MutableStateFlow<List<DownloadItem>>(emptyList())
 
@@ -80,5 +87,13 @@ class FakeDownloadRepository : DownloadRepository {
         }
     }
 
-    override suspend fun getStorageBreakdown(): DownloadStorageBreakdown = storageBreakdown
+    override suspend fun getStorageBreakdown(): DownloadStorageBreakdown {
+        getStorageBreakdownCallCount++
+        return storageBreakdown
+    }
+
+    override suspend fun getSeriesBytes(sourceId: Long, seriesUrl: String): Long {
+        getSeriesBytesCallCount++
+        return seriesBytes[sourceId to seriesUrl] ?: 0L
+    }
 }

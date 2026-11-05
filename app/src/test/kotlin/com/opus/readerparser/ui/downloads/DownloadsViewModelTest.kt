@@ -157,6 +157,8 @@ class DownloadsViewModelTest {
             ),
         )
 
+        repo.setSeriesBytes(1L, series.url, 42_000_000L)
+
         vm.state.test {
             awaitItem() // initial
 
@@ -165,10 +167,13 @@ class DownloadsViewModelTest {
             val updated = awaitItem()
             assertThat(updated.downloadedSeries).hasSize(1)
             val seriesItem = updated.downloadedSeries.first()
+            assertThat(seriesItem.sourceId).isEqualTo(1L)
+            assertThat(seriesItem.seriesUrl).isEqualTo(series.url)
             assertThat(seriesItem.seriesTitle).isEqualTo("Solo Leveling")
             assertThat(seriesItem.contentType).isEqualTo(ContentType.MANHWA)
             assertThat(seriesItem.downloadedChapterCount).isEqualTo(2)
             assertThat(seriesItem.chapterRangeSummary).isEqualTo("2 chapters · Ch. 1–2")
+            assertThat(seriesItem.totalBytes).isEqualTo(42_000_000L)
         }
     }
 
@@ -220,7 +225,7 @@ class DownloadsViewModelTest {
                 availableBytes = 64_000_000_000L,
             )
 
-            vm.onAction(DownloadsAction.ClearSeriesDownloads(series.url))
+            vm.onAction(DownloadsAction.ClearSeriesDownloads(series.sourceId, series.url))
 
             val cleared = awaitItem()
             assertThat(cleared.downloadedSeries).isEmpty()
@@ -231,5 +236,111 @@ class DownloadsViewModelTest {
         assertThat(repo.deleteDownloadCalls).contains(1L to ch2.url)
         assertThat(chapterRepo.markDownloadedCalls).contains(ch1 to false)
         assertThat(chapterRepo.markDownloadedCalls).contains(ch2 to false)
+    }
+
+    @Test
+    fun `ClearSeriesDownloads scopes deletion strictly to matching sourceId and seriesUrl`() = runTest {
+        val series1 = Series(
+            sourceId = 1L,
+            url = "https://test.invalid/series/solo",
+            title = "Solo Leveling",
+            type = ContentType.MANHWA,
+        )
+        val ch1 = Chapter(
+            seriesUrl = series1.url,
+            sourceId = 1L,
+            url = "https://test.invalid/ch/1",
+            name = "Chapter 1",
+            number = 1f,
+        )
+
+        chapterRepo.setChapters(
+            series1.url,
+            listOf(ChapterWithState(ch1, read = false, downloaded = true, progress = 0f)),
+        )
+        seriesRepo.addToLibrary(series1)
+
+        repo.setQueue(
+            listOf(
+                DownloadItem(
+                    sourceId = 1L,
+                    chapterUrl = "https://test.invalid/ch/1",
+                    seriesTitle = "Solo Leveling",
+                    chapterName = "Chapter 1",
+                    state = DownloadState.COMPLETED,
+                    progress = 1.0f,
+                ),
+                DownloadItem(
+                    sourceId = 2L,
+                    chapterUrl = "https://test.invalid/ch/1",
+                    seriesTitle = "Solo Leveling",
+                    chapterName = "Chapter 1",
+                    state = DownloadState.COMPLETED,
+                    progress = 1.0f,
+                ),
+            ),
+        )
+
+        vm.state.test {
+            val initial = awaitItem()
+            assertThat(initial.downloadedSeries).hasSize(2)
+
+            vm.onAction(DownloadsAction.ClearSeriesDownloads(1L, series1.url))
+
+            val clearedState = awaitItem()
+            assertThat(clearedState.downloadedSeries.map { it.sourceId }).contains(2L)
+            assertThat(clearedState.downloadedSeries.map { it.sourceId }).doesNotContain(1L)
+            cancelAndIgnoreRemainingEvents()
+        }
+
+        assertThat(repo.deleteDownloadCalls).contains(1L to "https://test.invalid/ch/1")
+        assertThat(repo.deleteDownloadCalls).doesNotContain(2L to "https://test.invalid/ch/1")
+    }
+
+    @Test
+    fun `high-frequency RUNNING progress updates do not trigger repeated getStorageBreakdown or getSeriesBytes calls`() = runTest {
+        val chapterUrl = "https://test.invalid/ch/run"
+        val initialItem = DownloadItem(
+            sourceId = 1L,
+            chapterUrl = chapterUrl,
+            seriesTitle = "Solo Leveling",
+            chapterName = "Chapter 1",
+            state = DownloadState.RUNNING,
+            progress = 0.1f,
+        )
+        repo.setQueue(listOf(initialItem))
+
+        vm.state.test {
+            val firstState = awaitItem()
+            assertThat(firstState.downloads.first().progress).isEqualTo(0.1f)
+
+            val breakdownCallsBefore = repo.getStorageBreakdownCallCount
+            val seriesBytesCallsBefore = repo.getSeriesBytesCallCount
+
+            // Emit three RUNNING progress updates
+            repo.updateQueueState(1L, chapterUrl, DownloadState.RUNNING, 0.35f)
+            val p1 = awaitItem()
+            assertThat(p1.downloads.first().progress).isEqualTo(0.35f)
+
+            repo.updateQueueState(1L, chapterUrl, DownloadState.RUNNING, 0.70f)
+            val p2 = awaitItem()
+            assertThat(p2.downloads.first().progress).isEqualTo(0.70f)
+
+            repo.updateQueueState(1L, chapterUrl, DownloadState.RUNNING, 0.95f)
+            val p3 = awaitItem()
+            assertThat(p3.downloads.first().progress).isEqualTo(0.95f)
+
+            // Verify breakdown and series bytes calls did not increase during RUNNING progress updates
+            assertThat(repo.getStorageBreakdownCallCount).isEqualTo(breakdownCallsBefore)
+            assertThat(repo.getSeriesBytesCallCount).isEqualTo(seriesBytesCallsBefore)
+
+            // Transition to COMPLETED
+            repo.updateQueueState(1L, chapterUrl, DownloadState.COMPLETED, 1.0f)
+            val p4 = awaitItem()
+            assertThat(p4.downloads.first().state).isEqualTo(DownloadState.COMPLETED)
+
+            // Storage breakdown should have been requested when state changed to COMPLETED
+            assertThat(repo.getStorageBreakdownCallCount).isEqualTo(breakdownCallsBefore + 1)
+        }
     }
 }

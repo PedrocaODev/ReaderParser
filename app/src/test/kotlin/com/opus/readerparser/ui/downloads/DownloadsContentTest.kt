@@ -5,9 +5,9 @@ import com.opus.readerparser.domain.model.DEFAULT_AVAILABLE_STORAGE_BYTES
 import com.opus.readerparser.domain.model.DownloadItem
 import com.opus.readerparser.domain.model.DownloadState
 import com.opus.readerparser.domain.model.DownloadedSeriesItem
-import com.opus.readerparser.domain.model.formatChapterNumber
-import com.opus.readerparser.domain.model.formatChapterRangeSummary
-import com.opus.readerparser.domain.model.formatStorageBytes
+import com.opus.readerparser.ui.components.formatChapterNumber
+import com.opus.readerparser.ui.components.formatChapterRangeSummary
+import com.opus.readerparser.ui.components.formatStorageBytes
 import com.opus.readerparser.ui.navigation.Destinations
 import com.opus.readerparser.ui.navigation.bottomNavRoutes
 import org.junit.Assert.assertEquals
@@ -43,11 +43,13 @@ class DownloadsContentTest {
             progress = 1.0f,
         )
         val seriesItem = DownloadedSeriesItem(
-            seriesId = "s1",
+            sourceId = 1L,
+            seriesUrl = "https://example.com/s1",
             seriesTitle = "Solo Leveling",
             contentType = ContentType.MANHWA,
             downloadedChapterCount = 10,
             chapterRangeSummary = "10 chapters · Ch. 1–10",
+            totalBytes = 30_000_000L,
         )
         val state = DownloadsUiState(
             downloads = listOf(item),
@@ -62,6 +64,9 @@ class DownloadsContentTest {
         assertEquals(item, state.downloads.first())
         assertEquals(1, state.downloadedSeries.size)
         assertEquals(seriesItem, state.downloadedSeries.first())
+        assertEquals(1L, seriesItem.sourceId)
+        assertEquals("https://example.com/s1", seriesItem.seriesUrl)
+        assertEquals(30_000_000L, seriesItem.totalBytes)
         assertEquals(42_800_000L, state.storageBreakdown.usedBytes)
         assertEquals(64_000_000_000L, state.storageBreakdown.availableBytes)
     }
@@ -103,13 +108,15 @@ class DownloadsContentTest {
         val cancel = DownloadsAction.Cancel(1L, "c1")
         val retry = DownloadsAction.Retry(1L, "c1")
         val delete = DownloadsAction.Delete(1L, "c1")
-        val clearSeries = DownloadsAction.ClearSeriesDownloads("series-1")
+        val clearSeries = DownloadsAction.ClearSeriesDownloads(1L, "https://example.com/series-1")
         val retryLoad = DownloadsAction.RetryLoad
 
         assertEquals(1L, cancel.sourceId)
         assertEquals("c1", retry.chapterUrl)
         assertEquals("c1", delete.chapterUrl)
-        assertEquals("series-1", clearSeries.seriesId)
+        assertEquals(1L, clearSeries.sourceId)
+        assertEquals("https://example.com/series-1", clearSeries.seriesUrl)
+        assertEquals("1:https://example.com/series-1", clearSeries.seriesId)
         assertEquals(DownloadsAction.RetryLoad, retryLoad)
     }
 }

@@ -91,6 +91,9 @@ class DownloadRepositoryImpl @Inject constructor(
     override suspend fun getStorageBreakdown(): DownloadStorageBreakdown =
         downloadStore.getStorageBreakdown()
 
+    override suspend fun getSeriesBytes(sourceId: Long, seriesUrl: String): Long =
+        downloadStore.getSeriesBytes(sourceId, seriesUrl)
+
     private fun DownloadQueueWithDetails.toDomain() = DownloadItem(
         sourceId = sourceId,
         chapterUrl = chapterUrl,

@@ -27,7 +27,13 @@ sealed interface DownloadsAction {
     data class Cancel(val sourceId: Long, val chapterUrl: String) : DownloadsAction
     data class Retry(val sourceId: Long, val chapterUrl: String) : DownloadsAction
     data class Delete(val sourceId: Long, val chapterUrl: String) : DownloadsAction
-    data class ClearSeriesDownloads(val seriesId: String) : DownloadsAction
+    data class ClearSeriesDownloads(
+        val sourceId: Long,
+        val seriesUrl: String,
+    ) : DownloadsAction {
+        constructor(seriesId: String) : this(sourceId = 0L, seriesUrl = seriesId)
+        val seriesId: String get() = if (sourceId != 0L) "$sourceId:$seriesUrl" else seriesUrl
+    }
     data object RetryLoad : DownloadsAction
 }
 

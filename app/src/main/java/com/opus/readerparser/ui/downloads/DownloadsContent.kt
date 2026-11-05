@@ -26,13 +26,10 @@ import com.opus.readerparser.domain.model.DownloadItem
 import com.opus.readerparser.domain.model.DownloadState
 import com.opus.readerparser.domain.model.DownloadedSeriesItem
 import com.opus.readerparser.ui.components.AppTopBar
-import com.opus.readerparser.ui.components.DownloadQueueItemCard
-import com.opus.readerparser.ui.components.DownloadedSeriesCard
 import com.opus.readerparser.ui.components.EmptyStateView
 import com.opus.readerparser.ui.components.ErrorRetryStateView
 import com.opus.readerparser.ui.components.LoadingStateView
 import com.opus.readerparser.ui.components.SectionHeader
-import com.opus.readerparser.ui.components.StorageBreakdownCard
 import com.opus.readerparser.ui.theme.ReaderParserTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -118,12 +115,12 @@ fun DownloadsContent(
 
                         items(
                             state.downloadedSeries,
-                            key = { "series|${it.seriesId}" },
+                            key = { "series|${it.sourceId}|${it.seriesUrl}" },
                         ) { seriesItem ->
                             DownloadedSeriesCard(
                                 item = seriesItem,
-                                onClearSeriesDownloads = { id ->
-                                    onAction(DownloadsAction.ClearSeriesDownloads(id))
+                                onClearSeriesDownloads = { sourceId, seriesUrl ->
+                                    onAction(DownloadsAction.ClearSeriesDownloads(sourceId, seriesUrl))
                                 },
                             )
                         }
@@ -187,11 +184,13 @@ private fun DownloadsContentPopulatedPreview() {
     )
     val series = listOf(
         DownloadedSeriesItem(
-            seriesId = "s1",
+            sourceId = 1L,
+            seriesUrl = "s1",
             seriesTitle = "Shadow Slave",
             contentType = ContentType.NOVEL,
             downloadedChapterCount = 4,
             chapterRangeSummary = "4 chapters · Ch. 40–43",
+            totalBytes = 12_800_000L,
         ),
     )
     ReaderParserTheme {

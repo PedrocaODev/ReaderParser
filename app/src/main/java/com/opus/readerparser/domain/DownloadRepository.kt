@@ -36,4 +36,9 @@ interface DownloadRepository {
      * Returns the aggregate local storage breakdown of downloaded content.
      */
     suspend fun getStorageBreakdown(): DownloadStorageBreakdown = DownloadStorageBreakdown()
+
+    /**
+     * Returns the local storage bytes used by the specified series.
+     */
+    suspend fun getSeriesBytes(sourceId: Long, seriesUrl: String): Long = 0L
 }
