@@ -38,7 +38,6 @@ import com.opus.readerparser.ui.components.ChipFilterRow
 import com.opus.readerparser.ui.components.EmptyStateView
 import com.opus.readerparser.ui.components.ErrorRetryStateView
 import com.opus.readerparser.ui.components.FilterChipOption
-import com.opus.readerparser.ui.components.LibrarySeriesCard
 import com.opus.readerparser.ui.components.LoadingStateView
 import com.opus.readerparser.ui.components.RadioRow
 import com.opus.readerparser.ui.components.SearchInputPill

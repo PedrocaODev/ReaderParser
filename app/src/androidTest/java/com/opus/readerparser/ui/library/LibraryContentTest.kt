@@ -232,6 +232,31 @@ class LibraryContentTest {
     }
 
     @Test
+    fun librarySeriesCard_formatsFractionalChapterNumberWithSharedFormatter() {
+        val series = Series(sourceId = 1L, url = "url1", title = "Fractional Progress Series", type = ContentType.NOVEL)
+        val item = LibrarySeriesItem(
+            series = series,
+            unreadCount = 10,
+            downloadedCount = 0,
+            currentChapterNumber = 42.5f,
+            totalChapters = 100,
+            progressRatio = 0.425f,
+        )
+
+        composeRule.setContent {
+            ReaderParserTheme {
+                LibraryContent(
+                    state = LibraryUiState(items = listOf(item)),
+                    onAction = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("series_card_progress_text").assertIsDisplayed()
+        composeRule.onNodeWithText("Ch. 42.5 / 100 · 43%").assertIsDisplayed()
+    }
+
+    @Test
     fun compactGrid_rendersCardsInSingleColumn() {
         val series = listOf(
             Series(sourceId = 1L, url = "url1", title = "First", type = ContentType.NOVEL),
