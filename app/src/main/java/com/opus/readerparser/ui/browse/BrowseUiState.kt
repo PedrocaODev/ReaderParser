@@ -5,6 +5,12 @@ import com.opus.readerparser.domain.model.SourceInfo
 
 enum class BrowseMode { POPULAR, LATEST, SEARCH }
 
+fun BrowseMode.displayLabel(): String = when (this) {
+    BrowseMode.POPULAR -> "Popular"
+    BrowseMode.LATEST -> "Latest"
+    BrowseMode.SEARCH -> "Search"
+}
+
 data class BrowseUiState(
     val sources: List<SourceInfo> = emptyList(),
     val selectedSourceId: Long? = null,
@@ -16,7 +22,12 @@ data class BrowseUiState(
     val hasNextPage: Boolean = false,
     val currentPage: Int = 1,
     val searchQuery: String = "",
-)
+    val inLibraryUrls: Set<String> = emptySet(),
+    val inLibraryKeys: Set<Pair<Long, String>> = emptySet(),
+) {
+    fun isSeriesInLibrary(item: Series): Boolean =
+        (item.sourceId to item.url) in inLibraryKeys || item.url in inLibraryUrls
+}
 
 sealed interface BrowseAction {
     data class SelectSource(val sourceId: Long) : BrowseAction
