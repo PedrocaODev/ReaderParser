@@ -4,8 +4,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.opus.readerparser.domain.ChapterRepository
 import com.opus.readerparser.domain.SeriesRepository
-import com.opus.readerparser.domain.model.Chapter
-import com.opus.readerparser.domain.model.ChapterContent
 import com.opus.readerparser.domain.model.ChapterWithState
 import com.opus.readerparser.domain.model.LibrarySearchResult
 import com.opus.readerparser.domain.model.Series
@@ -35,11 +33,6 @@ class LibraryViewModel @Inject constructor(
     private val seriesRepository: SeriesRepository,
     private val chapterRepository: ChapterRepository,
 ) : ViewModel() {
-
-    constructor(seriesRepository: SeriesRepository) : this(
-        seriesRepository = seriesRepository,
-        chapterRepository = EmptyChapterRepository,
-    )
 
     private val _state = MutableStateFlow(LibraryUiState())
     val state: StateFlow<LibraryUiState> = _state.asStateFlow()
@@ -204,10 +197,9 @@ class LibraryViewModel @Inject constructor(
     ) {
         val filterCounts = computeLibraryFilterCounts(allLibraryItems)
 
+        val itemsByKey = allLibraryItems.associateBy { it.series.sourceId to it.series.url }
         val mapped = searchSeriesList.map { searchSeries ->
-            val existing = allLibraryItems.firstOrNull {
-                it.series.sourceId == searchSeries.sourceId && it.series.url == searchSeries.url
-            }
+            val existing = itemsByKey[searchSeries.sourceId to searchSeries.url]
             existing?.copy(series = searchSeries) ?: LibrarySeriesItem(series = searchSeries)
         }
         val filtered = mapped.filter { it.matchesFilter(selectedFilter) }
@@ -293,21 +285,5 @@ class LibraryViewModel @Inject constructor(
             readCount = readCount,
             hasInProgressChapter = hasInProgressChapter,
         )
-    }
-
-    private object EmptyChapterRepository : ChapterRepository {
-        override fun observeChapters(series: Series): Flow<List<ChapterWithState>> =
-            flowOf(emptyList())
-
-        override suspend fun refreshChapters(series: Series) {}
-        override suspend fun findByUrl(sourceId: Long, url: String): Chapter? = null
-        override suspend fun getContent(chapter: Chapter, forceNetwork: Boolean): ChapterContent =
-            ChapterContent.Text("")
-
-        override suspend fun markRead(chapter: Chapter, read: Boolean) {}
-        override suspend fun markPreviousAsRead(series: Series, targetChapterNumber: Float) {}
-        override suspend fun markAllRead(series: Series, read: Boolean) {}
-        override suspend fun setProgress(chapter: Chapter, progress: Float) {}
-        override suspend fun markDownloaded(chapter: Chapter, downloaded: Boolean) {}
     }
 }

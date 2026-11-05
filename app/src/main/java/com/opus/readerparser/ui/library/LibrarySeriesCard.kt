@@ -1,4 +1,4 @@
-package com.opus.readerparser.ui.components
+package com.opus.readerparser.ui.library
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -38,7 +38,9 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.opus.readerparser.domain.model.ContentType
 import com.opus.readerparser.domain.model.Series
-import com.opus.readerparser.ui.library.LibrarySeriesItem
+import com.opus.readerparser.ui.components.DownloadedBadge
+import com.opus.readerparser.ui.components.UnreadBadge
+import com.opus.readerparser.ui.components.formatChapterNumber
 import com.opus.readerparser.ui.theme.AppSpacing
 import com.opus.readerparser.ui.theme.CoverAspectRatio
 import com.opus.readerparser.ui.theme.ReaderParserTheme
@@ -140,8 +142,8 @@ fun LibrarySeriesCard(
 
                 val percent = (progressRatio.coerceIn(0f, 1f) * 100).roundToInt()
                 val progressText = when {
-                    totalChapters > 0 -> "Ch. ${formatLibraryChapterNumber(currentChapterNumber ?: 1f)} / $totalChapters · $percent%"
-                    currentChapterNumber != null -> "Ch. ${formatLibraryChapterNumber(currentChapterNumber)} · $percent%"
+                    totalChapters > 0 -> "Ch. ${formatChapterNumber(currentChapterNumber ?: 1f)} / $totalChapters · $percent%"
+                    currentChapterNumber != null -> "Ch. ${formatChapterNumber(currentChapterNumber)} · $percent%"
                     else -> "$percent%"
                 }
 
@@ -175,9 +177,6 @@ fun LibrarySeriesCard(
         }
     }
 }
-
-private fun formatLibraryChapterNumber(number: Float): String =
-    if (number % 1f == 0f) number.toInt().toString() else number.toString()
 
 @Composable
 fun MiniProgressBar(
