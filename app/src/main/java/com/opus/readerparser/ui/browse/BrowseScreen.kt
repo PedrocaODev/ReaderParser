@@ -29,6 +29,7 @@ fun BrowseScreen(
     BrowseContent(
         state = state,
         onAction = viewModel::onAction,
+        onOpenSettings = onNavigateToSettings,
         onNavigateToSettings = onNavigateToSettings,
     )
 }

@@ -54,6 +54,16 @@ class BrowseViewModel @Inject constructor(
             _state.update { it.copy(selectedSourceId = first.id) }
             autoFetchCurrentMode(first.id, BrowseMode.POPULAR)
         }
+        viewModelScope.launch {
+            seriesRepository.observeLibrary().collect { library ->
+                _state.update {
+                    it.copy(
+                        inLibraryUrls = library.mapTo(linkedSetOf()) { s -> s.url },
+                        inLibraryKeys = library.mapTo(linkedSetOf()) { s -> s.sourceId to s.url },
+                    )
+                }
+            }
+        }
     }
 
     fun onAction(action: BrowseAction) {
