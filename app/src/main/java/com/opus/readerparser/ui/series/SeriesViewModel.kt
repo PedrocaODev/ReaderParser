@@ -101,6 +101,16 @@ class SeriesViewModel @Inject constructor(
                 }
             }
             is SeriesAction.ShowRangePicker -> _state.update { it.copy(showRangePicker = true) }
+            is SeriesAction.ToggleUnreadFilter -> _state.update { it.copy(unreadOnly = !it.unreadOnly) }
+            is SeriesAction.ToggleSortOrder -> _state.update { it.copy(sortAscending = !it.sortAscending) }
+            is SeriesAction.DownloadChapter -> viewModelScope.launch {
+                try {
+                    downloadEnqueuer.enqueueChapter(sourceId, action.chapter.url)
+                    _effects.send(SeriesEffect.ShowSnackbar("Queued ${action.chapter.name} for download"))
+                } catch (e: Exception) {
+                    _effects.send(SeriesEffect.ShowError(e.message ?: "Failed to queue download"))
+                }
+            }
             is SeriesAction.DismissRangePicker -> _state.update { it.copy(showRangePicker = false) }
             is SeriesAction.DownloadRange -> viewModelScope.launch {
                 val chapters = _state.value.chapters
