@@ -6,12 +6,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.opus.readerparser.domain.model.DownloadState
 import com.opus.readerparser.domain.model.SeriesStatus
+import com.opus.readerparser.ui.theme.AppSpacing
 import com.opus.readerparser.ui.theme.PillShape
-import com.opus.readerparser.ui.theme.SuccessColor
 
 @Composable
 fun UnreadBadge(
@@ -29,7 +28,7 @@ fun UnreadBadge(
         Text(
             text = "$count unread",
             style = MaterialTheme.typography.labelSmall,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+            modifier = Modifier.padding(horizontal = AppSpacing.sm, vertical = 2.dp),
         )
     }
 }
@@ -48,7 +47,7 @@ fun DownloadedBadge(
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+            modifier = Modifier.padding(horizontal = AppSpacing.sm, vertical = 2.dp),
         )
     }
 }
@@ -75,7 +74,7 @@ fun StatusBadge(
         Text(
             text = formattedStatus,
             style = MaterialTheme.typography.labelSmall,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+            modifier = Modifier.padding(horizontal = AppSpacing.sm, vertical = 2.dp),
         )
     }
 }
@@ -109,7 +108,7 @@ fun QueueStateBadge(
         Text(
             text = text,
             style = MaterialTheme.typography.labelSmall,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+            modifier = Modifier.padding(horizontal = AppSpacing.sm, vertical = 2.dp),
         )
     }
 }

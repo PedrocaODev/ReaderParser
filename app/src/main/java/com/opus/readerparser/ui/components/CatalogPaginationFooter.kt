@@ -20,6 +20,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.opus.readerparser.ui.theme.AppSpacing
 import com.opus.readerparser.ui.theme.PillShape
 import com.opus.readerparser.ui.theme.ReaderParserTheme
 
@@ -39,14 +40,14 @@ fun CatalogPaginationFooter(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 12.dp, horizontal = 16.dp)
+            .padding(vertical = AppSpacing.md, horizontal = AppSpacing.lg)
             .testTag("catalog_pagination_footer"),
         contentAlignment = Alignment.Center,
     ) {
         if (paginationError != null) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(AppSpacing.sm),
             ) {
                 Text(
                     text = paginationError,
@@ -74,7 +75,7 @@ fun CatalogPaginationFooter(
         } else if (isLoadingMore) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm),
             ) {
                 CircularProgressIndicator(
                     modifier = Modifier
