@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
 import com.opus.readerparser.domain.ChapterRepository
+import com.opus.readerparser.domain.DownloadEnqueuer
 import com.opus.readerparser.domain.model.Chapter
 import com.opus.readerparser.domain.model.ChapterWithState
 import com.opus.readerparser.domain.model.ContentType
@@ -580,6 +581,7 @@ class SeriesViewModelTest {
         assertThat(resumeState).isInstanceOf(ReadingResumeState.Completed::class.java)
         val completed = resumeState as ReadingResumeState.Completed
         assertThat(completed.firstChapter.number).isEqualTo(1f)
+        assertThat(completed.lastChapter.number).isEqualTo(2f)
         assertThat(vm.state.value.readChapterCount).isEqualTo(2)
         assertThat(vm.state.value.totalChapterCount).isEqualTo(2)
     }
@@ -615,5 +617,136 @@ class SeriesViewModelTest {
         assertThat(vm.state.value.resumeState).isEqualTo(ReadingResumeState.None)
         assertThat(vm.state.value.readChapterCount).isEqualTo(0)
         assertThat(vm.state.value.totalChapterCount).isEqualTo(0)
+    }
+
+    @Test
+    fun `ToggleUnreadFilter toggles unreadOnly and filters displayedChapters while keeping totalChapterCount`() = runTest {
+        val ch1 = ChapterWithState(
+            chapter = chapter.copy(url = "https://test.invalid/chapter/1", number = 1f, name = "Chapter 1"),
+            read = true,
+            downloaded = false,
+            progress = 1f,
+        )
+        val ch2 = ChapterWithState(
+            chapter = chapter.copy(url = "https://test.invalid/chapter/2", number = 2f, name = "Chapter 2"),
+            read = false,
+            downloaded = false,
+            progress = 0f,
+        )
+        chapterRepo.setChapters(series.url, listOf(ch1, ch2))
+
+        assertThat(vm.state.value.unreadOnly).isFalse()
+        assertThat(vm.state.value.totalChapterCount).isEqualTo(2)
+        assertThat(vm.state.value.displayedChapters).containsExactly(ch2, ch1).inOrder()
+
+        vm.onAction(SeriesAction.ToggleUnreadFilter)
+
+        assertThat(vm.state.value.unreadOnly).isTrue()
+        assertThat(vm.state.value.totalChapterCount).isEqualTo(2)
+        assertThat(vm.state.value.displayedChapters).containsExactly(ch2)
+
+        vm.onAction(SeriesAction.ToggleUnreadFilter)
+
+        assertThat(vm.state.value.unreadOnly).isFalse()
+        assertThat(vm.state.value.totalChapterCount).isEqualTo(2)
+        assertThat(vm.state.value.displayedChapters).containsExactly(ch2, ch1).inOrder()
+    }
+
+    @Test
+    fun `ToggleSortOrder toggles sortAscending and orders displayedChapters ascending or descending`() = runTest {
+        val ch1 = ChapterWithState(
+            chapter = chapter.copy(url = "https://test.invalid/chapter/1", number = 1f, name = "Chapter 1"),
+            read = false,
+            downloaded = false,
+            progress = 0f,
+        )
+        val ch2 = ChapterWithState(
+            chapter = chapter.copy(url = "https://test.invalid/chapter/2", number = 2f, name = "Chapter 2"),
+            read = false,
+            downloaded = false,
+            progress = 0f,
+        )
+        chapterRepo.setChapters(series.url, listOf(ch1, ch2))
+
+        assertThat(vm.state.value.sortAscending).isFalse()
+        assertThat(vm.state.value.displayedChapters).containsExactly(ch2, ch1).inOrder()
+
+        vm.onAction(SeriesAction.ToggleSortOrder)
+
+        assertThat(vm.state.value.sortAscending).isTrue()
+        assertThat(vm.state.value.displayedChapters).containsExactly(ch1, ch2).inOrder()
+
+        vm.onAction(SeriesAction.ToggleSortOrder)
+
+        assertThat(vm.state.value.sortAscending).isFalse()
+        assertThat(vm.state.value.displayedChapters).containsExactly(ch2, ch1).inOrder()
+    }
+
+    @Test
+    fun `displayedChapters combines unreadOnly and sortAscending`() = runTest {
+        val ch1 = ChapterWithState(
+            chapter = chapter.copy(url = "https://test.invalid/chapter/1", number = 1f, name = "Chapter 1"),
+            read = false,
+            downloaded = false,
+            progress = 0f,
+        )
+        val ch2 = ChapterWithState(
+            chapter = chapter.copy(url = "https://test.invalid/chapter/2", number = 2f, name = "Chapter 2"),
+            read = true,
+            downloaded = false,
+            progress = 1f,
+        )
+        val ch3 = ChapterWithState(
+            chapter = chapter.copy(url = "https://test.invalid/chapter/3", number = 3f, name = "Chapter 3"),
+            read = false,
+            downloaded = false,
+            progress = 0f,
+        )
+        chapterRepo.setChapters(series.url, listOf(ch1, ch2, ch3))
+
+        vm.onAction(SeriesAction.ToggleUnreadFilter)
+        vm.onAction(SeriesAction.ToggleSortOrder)
+
+        assertThat(vm.state.value.unreadOnly).isTrue()
+        assertThat(vm.state.value.sortAscending).isTrue()
+        assertThat(vm.state.value.displayedChapters).containsExactly(ch1, ch3).inOrder()
+    }
+
+    @Test
+    fun `DownloadChapter enqueues single chapter and emits ShowSnackbar`() = runTest {
+        val targetChapter = chapter.copy(url = "https://test.invalid/chapter/42", name = "Chapter 42")
+
+        vm.effects.test {
+            vm.onAction(SeriesAction.DownloadChapter(targetChapter))
+            val effect = awaitItem() as SeriesEffect.ShowSnackbar
+            assertThat(effect.message).isEqualTo("Queued Chapter 42 for download")
+        }
+
+        assertThat(downloadEnqueuer.enqueueChapterCalls)
+            .containsExactly(FakeDownloadEnqueuer.EnqueueChapterCall(series.sourceId, targetChapter.url))
+    }
+
+    @Test
+    fun `DownloadChapter emits ShowError when enqueueChapter throws`() = runTest {
+        val failingEnqueuer = object : DownloadEnqueuer by downloadEnqueuer {
+            override suspend fun enqueueChapter(sourceId: Long, chapterUrl: String) {
+                throw RuntimeException("Network down")
+            }
+        }
+        val failingVm = SeriesViewModel(
+            savedState = SavedStateHandle(
+                mapOf("sourceId" to series.sourceId, "seriesUrl" to series.url)
+            ),
+            seriesRepository = seriesRepo,
+            chapterRepository = chapterRepo,
+            downloadEnqueuer = failingEnqueuer,
+        )
+        val targetChapter = chapter.copy(url = "https://test.invalid/chapter/42", name = "Chapter 42")
+
+        failingVm.effects.test {
+            failingVm.onAction(SeriesAction.DownloadChapter(targetChapter))
+            val effect = awaitItem() as SeriesEffect.ShowError
+            assertThat(effect.message).isEqualTo("Network down")
+        }
     }
 }
