@@ -23,12 +23,6 @@ import com.opus.readerparser.domain.model.ContentType
 import com.opus.readerparser.domain.model.ManhwaLayout
 import com.opus.readerparser.domain.model.ManhwaZoom
 import com.opus.readerparser.testutil.FakeCoilRule
-import com.opus.readerparser.ui.components.ManhwaMismatchBanner
-import com.opus.readerparser.ui.components.ManhwaPageItem
-import com.opus.readerparser.ui.components.ManhwaPageLoadState
-import com.opus.readerparser.ui.components.NovelChapterEndCard
-import com.opus.readerparser.ui.components.NovelProseBlocks
-import com.opus.readerparser.ui.components.ReaderChapterListSheet
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -71,8 +65,32 @@ class ReaderContentTest {
                 onAction = {},
             )
         }
+        composeRule.onNodeWithTag("error_retry_state").assertIsDisplayed()
         composeRule.onNodeWithTag("error_message").assertIsDisplayed()
         composeRule.onNodeWithText("Failed to load").assertIsDisplayed()
+        composeRule.onNodeWithTag("manhwa_mismatch_banner").assertDoesNotExist()
+    }
+
+    @Test
+    fun formatMismatchState_showsManhwaMismatchBanner() {
+        var dispatched = false
+        composeRule.setContent {
+            ReaderContent(
+                state = ReaderUiState(
+                    contentType = ContentType.MANHWA,
+                    error = "Unexpected content type",
+                    isFormatMismatch = true,
+                ),
+                isDarkTheme = false,
+                onAction = { if (it is ReaderAction.Retry) dispatched = true },
+            )
+        }
+        composeRule.onNodeWithTag("manhwa_mismatch_banner").assertIsDisplayed()
+        composeRule.onNodeWithText("Content Format Mismatch").assertIsDisplayed()
+        composeRule.onNodeWithText("Unexpected content type").assertIsDisplayed()
+        composeRule.onNodeWithTag("error_retry_state").assertDoesNotExist()
+        composeRule.onNodeWithTag("retry_button").performClick()
+        assertThat(dispatched).isTrue()
     }
 
     @Test
@@ -142,7 +160,9 @@ class ReaderContentTest {
                 imageLoader = fakeCoilRule.imageLoader,
             )
         }
-        composeRule.onNodeWithText("2 / 2").assertIsDisplayed()
+        composeRule.onNodeWithText("Page 2 of 2").assertIsDisplayed()
+        composeRule.onNodeWithText("2 / 2").assertDoesNotExist()
+        composeRule.onNodeWithTag("reader_page_fraction_label").assertDoesNotExist()
     }
 
     @Test

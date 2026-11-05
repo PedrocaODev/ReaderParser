@@ -1,4 +1,4 @@
-package com.opus.readerparser.ui.components
+package com.opus.readerparser.ui.reader
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
@@ -25,6 +25,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.opus.readerparser.domain.model.Chapter
 import com.opus.readerparser.domain.model.ChapterWithState
+import com.opus.readerparser.ui.components.DownloadedBadge
 import com.opus.readerparser.ui.theme.PillShape
 
 @OptIn(ExperimentalMaterial3Api::class)

@@ -44,16 +44,8 @@ import com.opus.readerparser.domain.model.AppSettings
 import com.opus.readerparser.domain.model.ContentType
 import com.opus.readerparser.domain.model.ManhwaLayout
 import com.opus.readerparser.domain.model.ManhwaZoom
-import com.opus.readerparser.ui.components.FloatingProgressPill
+import com.opus.readerparser.ui.components.ErrorRetryStateView
 import com.opus.readerparser.ui.components.LoadingStateView
-import com.opus.readerparser.ui.components.ManhwaMismatchBanner
-import com.opus.readerparser.ui.components.ManhwaPageItem
-import com.opus.readerparser.ui.components.ManhwaSettingsSheet
-import com.opus.readerparser.ui.components.NovelChapterEndCard
-import com.opus.readerparser.ui.components.NovelProseBlock
-import com.opus.readerparser.ui.components.NovelTypographySheet
-import com.opus.readerparser.ui.components.ReaderChapterListSheet
-import com.opus.readerparser.ui.components.ReaderImmersiveBars
 import com.opus.readerparser.ui.theme.ReaderParserTheme
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
@@ -317,13 +309,21 @@ fun ReaderContent(
                     LoadingStateView()
                 }
                 state.error != null -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        ManhwaMismatchBanner(
+                    if (state.isFormatMismatch) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            ManhwaMismatchBanner(
+                                message = state.error,
+                                onRetry = { onAction(ReaderAction.Retry) },
+                            )
+                        }
+                    } else {
+                        ErrorRetryStateView(
                             message = state.error,
                             onRetry = { onAction(ReaderAction.Retry) },
+                            modifier = Modifier.testTag("error_retry_state"),
                         )
                     }
                 }
