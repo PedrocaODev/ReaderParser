@@ -14,6 +14,8 @@ import kotlinx.coroutines.launch
 fun LibraryScreen(
     onNavigateToSeries: (Series) -> Unit,
     onNavigateToSettings: () -> Unit = {},
+    onOpenSettings: () -> Unit = onNavigateToSettings,
+    onBrowseSources: (() -> Unit)? = null,
     viewModel: LibraryViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -33,7 +35,9 @@ fun LibraryScreen(
     LibraryContent(
         state = state,
         onAction = viewModel::onAction,
-        onNavigateToSettings = onNavigateToSettings,
+        onNavigateToSettings = onOpenSettings,
+        onOpenSettings = onOpenSettings,
+        onBrowseSources = onBrowseSources,
         snackbarHostState = snackbarHostState,
     )
 }
