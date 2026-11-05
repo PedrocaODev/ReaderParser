@@ -4,6 +4,8 @@ import com.opus.readerparser.domain.model.AppSettings
 import com.opus.readerparser.domain.model.Chapter
 import com.opus.readerparser.domain.model.ChapterWithState
 import com.opus.readerparser.domain.model.ContentType
+import com.opus.readerparser.domain.model.ManhwaLayout
+import com.opus.readerparser.domain.model.ManhwaZoom
 
 data class ReaderUiState(
     val chapter: Chapter? = null,
@@ -19,6 +21,9 @@ data class ReaderUiState(
     val currentPage: Int = 0,
     val hasPreviousChapter: Boolean = false,
     val hasNextChapter: Boolean = false,
+    val seriesTitle: String = "",
+    val sourceName: String = "",
+    val pageRetryTokens: Map<Int, Int> = emptyMap(),
 )
 
 sealed interface ReaderAction {
@@ -32,6 +37,15 @@ sealed interface ReaderAction {
     data object DownloadChapter : ReaderAction
     data object Retry : ReaderAction
     data object FlushProgress : ReaderAction
+    data class RetryPage(val pageIndex: Int) : ReaderAction
+    data class SetNovelFontFamily(val family: String) : ReaderAction
+    data class SetNovelFontSize(val size: Int) : ReaderAction
+    data class SetNovelLineHeightMultiplier(val multiplier: Float) : ReaderAction
+    data class SetNovelParagraphSpacingDp(val dp: Int) : ReaderAction
+    data class SetNovelHorizontalPaddingDp(val dp: Int) : ReaderAction
+    data object ResetNovelTypographyDefaults : ReaderAction
+    data class SetManhwaLayout(val layout: ManhwaLayout) : ReaderAction
+    data class SetManhwaZoom(val zoom: ManhwaZoom) : ReaderAction
 }
 
 sealed interface ReaderEffect {

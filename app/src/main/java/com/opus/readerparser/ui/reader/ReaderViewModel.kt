@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.opus.readerparser.domain.ChapterRepository
 import com.opus.readerparser.domain.DownloadEnqueuer
 import com.opus.readerparser.domain.SettingsRepository
+import com.opus.readerparser.domain.model.AppSettings
 import com.opus.readerparser.domain.model.Chapter
 import com.opus.readerparser.domain.model.ChapterContent
 import com.opus.readerparser.domain.model.ChapterWithState
@@ -128,6 +129,59 @@ class ReaderViewModel @Inject constructor(
                     }
                 }
             }
+            is ReaderAction.RetryPage -> {
+                _state.update { current ->
+                    val currentToken = current.pageRetryTokens[action.pageIndex] ?: 0
+                    current.copy(
+                        pageRetryTokens = current.pageRetryTokens + (action.pageIndex to (currentToken + 1)),
+                    )
+                }
+            }
+            is ReaderAction.SetNovelFontFamily -> {
+                viewModelScope.launch {
+                    settingsRepository.setNovelFontFamily(action.family)
+                }
+            }
+            is ReaderAction.SetNovelFontSize -> {
+                viewModelScope.launch {
+                    settingsRepository.setNovelFontSize(action.size)
+                }
+            }
+            is ReaderAction.SetNovelLineHeightMultiplier -> {
+                viewModelScope.launch {
+                    settingsRepository.setNovelLineHeightMultiplier(action.multiplier)
+                }
+            }
+            is ReaderAction.SetNovelParagraphSpacingDp -> {
+                viewModelScope.launch {
+                    settingsRepository.setNovelParagraphSpacingDp(action.dp)
+                }
+            }
+            is ReaderAction.SetNovelHorizontalPaddingDp -> {
+                viewModelScope.launch {
+                    settingsRepository.setNovelHorizontalPaddingDp(action.dp)
+                }
+            }
+            is ReaderAction.ResetNovelTypographyDefaults -> {
+                viewModelScope.launch {
+                    val defaults = AppSettings()
+                    settingsRepository.setNovelFontFamily(defaults.novelFontFamily)
+                    settingsRepository.setNovelFontSize(defaults.novelFontSize)
+                    settingsRepository.setNovelLineHeightMultiplier(defaults.novelLineHeightMultiplier)
+                    settingsRepository.setNovelParagraphSpacingDp(defaults.novelParagraphSpacingDp)
+                    settingsRepository.setNovelHorizontalPaddingDp(defaults.novelHorizontalPaddingDp)
+                }
+            }
+            is ReaderAction.SetManhwaLayout -> {
+                viewModelScope.launch {
+                    settingsRepository.setManhwaLayout(action.layout)
+                }
+            }
+            is ReaderAction.SetManhwaZoom -> {
+                viewModelScope.launch {
+                    settingsRepository.setManhwaZoom(action.zoom)
+                }
+            }
         }
     }
 
@@ -210,6 +264,7 @@ class ReaderViewModel @Inject constructor(
                     pages = emptyList(),
                     progress = 0f,
                     currentPage = 0,
+                    pageRetryTokens = emptyMap(),
                 )
             }
             try {

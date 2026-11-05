@@ -863,6 +863,187 @@ class ReaderViewModelTest {
         assertThat(settings.theme).isEqualTo(AppTheme.DARK)
     }
 
+    @Test
+    fun `SetNovelFontFamily updates settings in repository and state`() = runTest {
+        val series = TestFixtures.testSeries(type = ContentType.NOVEL)
+        val chapter = testChapter(series)
+        val fakeSettingsRepo = FakeSettingsRepository()
+        val (vm, _) = createViewModel(
+            series = series,
+            chapter = chapter,
+            contentType = ContentType.NOVEL,
+            contentResult = ChapterContent.Text("<p>Text</p>"),
+            settingsRepository = fakeSettingsRepo,
+        )
+        advanceUntilIdle()
+
+        vm.onAction(ReaderAction.SetNovelFontFamily("Monospace"))
+        advanceUntilIdle()
+
+        assertThat(vm.state.value.settings.novelFontFamily).isEqualTo("Monospace")
+    }
+
+    @Test
+    fun `SetNovelFontSize updates settings in repository and state`() = runTest {
+        val series = TestFixtures.testSeries(type = ContentType.NOVEL)
+        val chapter = testChapter(series)
+        val fakeSettingsRepo = FakeSettingsRepository()
+        val (vm, _) = createViewModel(
+            series = series,
+            chapter = chapter,
+            contentType = ContentType.NOVEL,
+            contentResult = ChapterContent.Text("<p>Text</p>"),
+            settingsRepository = fakeSettingsRepo,
+        )
+        advanceUntilIdle()
+
+        vm.onAction(ReaderAction.SetNovelFontSize(22))
+        advanceUntilIdle()
+
+        assertThat(vm.state.value.settings.novelFontSize).isEqualTo(22)
+    }
+
+    @Test
+    fun `SetNovelLineHeightMultiplier updates settings in repository and state`() = runTest {
+        val series = TestFixtures.testSeries(type = ContentType.NOVEL)
+        val chapter = testChapter(series)
+        val fakeSettingsRepo = FakeSettingsRepository()
+        val (vm, _) = createViewModel(
+            series = series,
+            chapter = chapter,
+            contentType = ContentType.NOVEL,
+            contentResult = ChapterContent.Text("<p>Text</p>"),
+            settingsRepository = fakeSettingsRepo,
+        )
+        advanceUntilIdle()
+
+        vm.onAction(ReaderAction.SetNovelLineHeightMultiplier(1.8f))
+        advanceUntilIdle()
+
+        assertThat(vm.state.value.settings.novelLineHeightMultiplier).isEqualTo(1.8f)
+    }
+
+    @Test
+    fun `SetNovelParagraphSpacingDp updates settings in repository and state`() = runTest {
+        val series = TestFixtures.testSeries(type = ContentType.NOVEL)
+        val chapter = testChapter(series)
+        val fakeSettingsRepo = FakeSettingsRepository()
+        val (vm, _) = createViewModel(
+            series = series,
+            chapter = chapter,
+            contentType = ContentType.NOVEL,
+            contentResult = ChapterContent.Text("<p>Text</p>"),
+            settingsRepository = fakeSettingsRepo,
+        )
+        advanceUntilIdle()
+
+        vm.onAction(ReaderAction.SetNovelParagraphSpacingDp(20))
+        advanceUntilIdle()
+
+        assertThat(vm.state.value.settings.novelParagraphSpacingDp).isEqualTo(20)
+    }
+
+    @Test
+    fun `SetNovelHorizontalPaddingDp updates settings in repository and state`() = runTest {
+        val series = TestFixtures.testSeries(type = ContentType.NOVEL)
+        val chapter = testChapter(series)
+        val fakeSettingsRepo = FakeSettingsRepository()
+        val (vm, _) = createViewModel(
+            series = series,
+            chapter = chapter,
+            contentType = ContentType.NOVEL,
+            contentResult = ChapterContent.Text("<p>Text</p>"),
+            settingsRepository = fakeSettingsRepo,
+        )
+        advanceUntilIdle()
+
+        vm.onAction(ReaderAction.SetNovelHorizontalPaddingDp(28))
+        advanceUntilIdle()
+
+        assertThat(vm.state.value.settings.novelHorizontalPaddingDp).isEqualTo(28)
+    }
+
+    @Test
+    fun `ResetNovelTypographyDefaults resets typography to defaults`() = runTest {
+        val series = TestFixtures.testSeries(type = ContentType.NOVEL)
+        val chapter = testChapter(series)
+        val fakeSettingsRepo = FakeSettingsRepository()
+        fakeSettingsRepo.setNovelFontFamily("Monospace")
+        fakeSettingsRepo.setNovelFontSize(26)
+        fakeSettingsRepo.setNovelLineHeightMultiplier(1.9f)
+        fakeSettingsRepo.setNovelParagraphSpacingDp(22)
+        fakeSettingsRepo.setNovelHorizontalPaddingDp(32)
+
+        val (vm, _) = createViewModel(
+            series = series,
+            chapter = chapter,
+            contentType = ContentType.NOVEL,
+            contentResult = ChapterContent.Text("<p>Text</p>"),
+            settingsRepository = fakeSettingsRepo,
+        )
+        advanceUntilIdle()
+        assertThat(vm.state.value.settings.novelFontFamily).isEqualTo("Monospace")
+
+        vm.onAction(ReaderAction.ResetNovelTypographyDefaults)
+        advanceUntilIdle()
+
+        val settings = vm.state.value.settings
+        assertThat(settings.novelFontFamily).isEqualTo("Serif")
+        assertThat(settings.novelFontSize).isEqualTo(18)
+        assertThat(settings.novelLineHeightMultiplier).isEqualTo(1.6f)
+        assertThat(settings.novelParagraphSpacingDp).isEqualTo(14)
+        assertThat(settings.novelHorizontalPaddingDp).isEqualTo(20)
+    }
+
+    @Test
+    fun `SetManhwaLayout and SetManhwaZoom update settings in repository and state`() = runTest {
+        val series = TestFixtures.testSeries(type = ContentType.MANHWA)
+        val chapter = testChapter(series)
+        val fakeSettingsRepo = FakeSettingsRepository()
+        val (vm, _) = createViewModel(
+            series = series,
+            chapter = chapter,
+            contentType = ContentType.MANHWA,
+            contentResult = ChapterContent.Pages(listOf("https://cdn.invalid/p1.jpg")),
+            settingsRepository = fakeSettingsRepo,
+        )
+        advanceUntilIdle()
+
+        vm.onAction(ReaderAction.SetManhwaLayout(ManhwaLayout.PAGED_LTR))
+        vm.onAction(ReaderAction.SetManhwaZoom(ManhwaZoom.ORIGINAL))
+        advanceUntilIdle()
+
+        assertThat(vm.state.value.settings.manhwaLayout).isEqualTo(ManhwaLayout.PAGED_LTR)
+        assertThat(vm.state.value.settings.manhwaZoom).isEqualTo(ManhwaZoom.ORIGINAL)
+    }
+
+    @Test
+    fun `RetryPage increments pageRetryTokens for specific pageIndex`() = runTest {
+        val series = TestFixtures.testSeries(type = ContentType.MANHWA)
+        val chapter = testChapter(series)
+        val (vm, _) = createViewModel(
+            series = series,
+            chapter = chapter,
+            contentType = ContentType.MANHWA,
+            contentResult = ChapterContent.Pages(listOf("https://cdn.invalid/p1.jpg", "https://cdn.invalid/p2.jpg")),
+        )
+        advanceUntilIdle()
+        assertThat(vm.state.value.pageRetryTokens).isEmpty()
+
+        vm.onAction(ReaderAction.RetryPage(1))
+        advanceUntilIdle()
+        assertThat(vm.state.value.pageRetryTokens[1]).isEqualTo(1)
+
+        vm.onAction(ReaderAction.RetryPage(1))
+        advanceUntilIdle()
+        assertThat(vm.state.value.pageRetryTokens[1]).isEqualTo(2)
+
+        vm.onAction(ReaderAction.RetryPage(0))
+        advanceUntilIdle()
+        assertThat(vm.state.value.pageRetryTokens[0]).isEqualTo(1)
+        assertThat(vm.state.value.pageRetryTokens[1]).isEqualTo(2)
+    }
+
     private fun createViewModel(
         series: Series,
         chapter: Chapter,
