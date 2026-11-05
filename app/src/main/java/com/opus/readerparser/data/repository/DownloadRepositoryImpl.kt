@@ -8,6 +8,7 @@ import com.opus.readerparser.domain.ChapterRepository
 import com.opus.readerparser.domain.DownloadRepository
 import com.opus.readerparser.domain.model.DownloadItem
 import com.opus.readerparser.domain.model.DownloadState
+import com.opus.readerparser.domain.model.DownloadStorageBreakdown
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
@@ -86,6 +87,9 @@ class DownloadRepositoryImpl @Inject constructor(
         }
         dao.delete(sourceId, chapterUrl)
     }
+
+    override suspend fun getStorageBreakdown(): DownloadStorageBreakdown =
+        downloadStore.getStorageBreakdown()
 
     private fun DownloadQueueWithDetails.toDomain() = DownloadItem(
         sourceId = sourceId,

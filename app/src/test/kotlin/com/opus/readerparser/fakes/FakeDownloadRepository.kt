@@ -3,10 +3,13 @@ package com.opus.readerparser.fakes
 import com.opus.readerparser.domain.DownloadRepository
 import com.opus.readerparser.domain.model.DownloadItem
 import com.opus.readerparser.domain.model.DownloadState
+import com.opus.readerparser.domain.model.DownloadStorageBreakdown
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 
 class FakeDownloadRepository : DownloadRepository {
+
+    var storageBreakdown: DownloadStorageBreakdown = DownloadStorageBreakdown()
 
     private val _queue = MutableStateFlow<List<DownloadItem>>(emptyList())
 
@@ -76,4 +79,6 @@ class FakeDownloadRepository : DownloadRepository {
             it.sourceId != sourceId || it.chapterUrl != chapterUrl
         }
     }
+
+    override suspend fun getStorageBreakdown(): DownloadStorageBreakdown = storageBreakdown
 }

@@ -2,6 +2,7 @@ package com.opus.readerparser.domain
 
 import com.opus.readerparser.domain.model.DownloadItem
 import com.opus.readerparser.domain.model.DownloadState
+import com.opus.readerparser.domain.model.DownloadStorageBreakdown
 import kotlinx.coroutines.flow.Flow
 
 interface DownloadRepository {
@@ -30,4 +31,9 @@ interface DownloadRepository {
      * The chapter's `downloaded` flag in the chapter table is also set to false.
      */
     suspend fun deleteDownload(sourceId: Long, chapterUrl: String)
+
+    /**
+     * Returns the aggregate local storage breakdown of downloaded content.
+     */
+    suspend fun getStorageBreakdown(): DownloadStorageBreakdown = DownloadStorageBreakdown()
 }

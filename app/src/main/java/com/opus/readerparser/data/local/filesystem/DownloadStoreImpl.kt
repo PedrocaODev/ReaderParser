@@ -4,6 +4,8 @@ import com.opus.readerparser.core.di.DownloadRoot
 import com.opus.readerparser.core.util.hashUrl
 import com.opus.readerparser.domain.model.Chapter
 import com.opus.readerparser.domain.model.ChapterContent
+import com.opus.readerparser.domain.model.DEFAULT_AVAILABLE_STORAGE_BYTES
+import com.opus.readerparser.domain.model.DownloadStorageBreakdown
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
@@ -227,4 +229,108 @@ class DownloadStoreImpl @Inject constructor(
             }
             false
         }
+
+    override suspend fun getStorageBreakdown(): DownloadStorageBreakdown = withContext(Dispatchers.IO) {
+        if (!root.exists()) {
+            val existingDir = generateSequence(root) { it.parentFile }.firstOrNull { it.exists() }
+            val usable = existingDir?.usableSpace ?: 0L
+            val availableBytes = if (usable > 0L) usable else DEFAULT_AVAILABLE_STORAGE_BYTES
+            return@withContext DownloadStorageBreakdown(availableBytes = availableBytes)
+        }
+
+        var novelBytes = 0L
+        var manhwaBytes = 0L
+
+        val dirsToVisit = ArrayDeque<File>()
+        dirsToVisit.add(root)
+
+        while (dirsToVisit.isNotEmpty()) {
+            val current = dirsToVisit.removeFirst()
+            val children = current.listFiles() ?: continue
+            val (subDirs, files) = children.partition { it.isDirectory }
+
+            for (dir in subDirs) {
+                if (!dir.name.startsWith(".staging") && !dir.name.startsWith(".backup")) {
+                    dirsToVisit.add(dir)
+                }
+            }
+
+            val regularFiles = files.filter { it.isFile }
+            if (regularFiles.isEmpty()) continue
+
+            val metaFile = regularFiles.firstOrNull { it.name.equals("meta.json", ignoreCase = true) }
+            var handledByMeta = false
+            if (metaFile != null && metaFile.canRead() && metaFile.length() > 0L) {
+                val meta = try {
+                    json.decodeFromString<Meta>(metaFile.readText())
+                } catch (_: Exception) {
+                    null
+                }
+                if (meta != null) {
+                    val nonMetaSize = regularFiles.filter { it != metaFile }.sumOf { it.length() }
+                    if (meta.type.equals("NOVEL", ignoreCase = true)) {
+                        novelBytes += nonMetaSize
+                        handledByMeta = true
+                    } else if (meta.type.equals("MANHWA", ignoreCase = true)) {
+                        manhwaBytes += nonMetaSize
+                        handledByMeta = true
+                    }
+                }
+            }
+
+            if (!handledByMeta) {
+                for (file in regularFiles) {
+                    if (file == metaFile) continue
+                    val nameLower = file.name.lowercase()
+                    when {
+                        nameLower == "content.html" || nameLower == "text.txt" ||
+                            nameLower.endsWith(".txt") || nameLower.endsWith(".html") -> {
+                            novelBytes += file.length()
+                        }
+                        nameLower.startsWith("page_") || nameLower.endsWith(".jpg") ||
+                            nameLower.endsWith(".jpeg") || nameLower.endsWith(".png") ||
+                            nameLower.endsWith(".webp") -> {
+                            manhwaBytes += file.length()
+                        }
+                    }
+                }
+            }
+        }
+
+        val existingDir = generateSequence(root) { it.parentFile }.firstOrNull { it.exists() }
+        val usable = existingDir?.usableSpace ?: 0L
+        val availableBytes = if (usable > 0L) usable else DEFAULT_AVAILABLE_STORAGE_BYTES
+
+        DownloadStorageBreakdown(
+            novelTextBytes = novelBytes,
+            manhwaImageBytes = manhwaBytes,
+            availableBytes = availableBytes,
+        )
+    }
+
+    override suspend fun getSeriesBytes(sourceId: Long, seriesUrl: String): Long = withContext(Dispatchers.IO) {
+        val seriesDir = root.resolve("$sourceId").resolve(hashUrl(seriesUrl))
+        if (!seriesDir.exists()) return@withContext 0L
+
+        var totalBytes = 0L
+        val dirsToVisit = ArrayDeque<File>()
+        dirsToVisit.add(seriesDir)
+
+        while (dirsToVisit.isNotEmpty()) {
+            val current = dirsToVisit.removeFirst()
+            val children = current.listFiles() ?: continue
+            for (child in children) {
+                if (child.isDirectory) {
+                    if (!child.name.startsWith(".staging") && !child.name.startsWith(".backup")) {
+                        dirsToVisit.add(child)
+                    }
+                } else if (child.isFile) {
+                    if (!child.name.equals("meta.json", ignoreCase = true)) {
+                        totalBytes += child.length()
+                    }
+                }
+            }
+        }
+        totalBytes
+    }
 }
