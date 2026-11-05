@@ -5,16 +5,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CollectionsBookmark
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Explore
-import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavController
-import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -23,6 +18,8 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.opus.readerparser.ui.browse.BrowseScreen
+import com.opus.readerparser.ui.components.BottomNavBar
+import com.opus.readerparser.ui.components.BottomNavDestination
 import com.opus.readerparser.ui.downloads.DownloadsScreen
 import com.opus.readerparser.ui.library.LibraryScreen
 import com.opus.readerparser.ui.reader.ReaderScreen
@@ -35,12 +32,6 @@ internal val bottomNavRoutes = setOf(
     Destinations.DOWNLOADS,
 )
 
-private data class BottomNavItem(
-    val route: String,
-    val label: String,
-    val icon: @Composable () -> Unit,
-)
-
 @Composable
 fun AppNavGraph(onNavGraphReady: (NavController) -> Unit = {}) {
     val navController = rememberNavController()
@@ -51,21 +42,24 @@ fun AppNavGraph(onNavGraphReady: (NavController) -> Unit = {}) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
-    val bottomNavItems = listOf(
-        BottomNavItem(
+    val bottomNavDestinations = listOf(
+        BottomNavDestination(
             route = Destinations.LIBRARY,
             label = "Library",
-            icon = { Icon(Icons.Filled.CollectionsBookmark, contentDescription = "Library") },
+            icon = Icons.Filled.CollectionsBookmark,
+            contentDescription = "Library",
         ),
-        BottomNavItem(
+        BottomNavDestination(
             route = Destinations.BROWSE,
             label = "Browse",
-            icon = { Icon(Icons.Filled.Explore, contentDescription = "Browse") },
+            icon = Icons.Filled.Explore,
+            contentDescription = "Browse",
         ),
-        BottomNavItem(
+        BottomNavDestination(
             route = Destinations.DOWNLOADS,
             label = "Downloads",
-            icon = { Icon(Icons.Filled.Download, contentDescription = "Downloads") },
+            icon = Icons.Filled.Download,
+            contentDescription = "Downloads",
         ),
     )
 
@@ -74,25 +68,19 @@ fun AppNavGraph(onNavGraphReady: (NavController) -> Unit = {}) {
     Scaffold(
         bottomBar = {
             if (showBottomBar) {
-                NavigationBar {
-                    val hierarchy = navBackStackEntry?.destination?.hierarchy
-                    bottomNavItems.forEach { item ->
-                        NavigationBarItem(
-                            selected = hierarchy?.any { it.route == item.route } == true,
-                            onClick = {
-                                navController.navigate(item.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) {
-                                        saveState = true
-                                    }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            },
-                            icon = item.icon,
-                            label = { Text(item.label) },
-                        )
-                    }
-                }
+                BottomNavBar(
+                    destinations = bottomNavDestinations,
+                    currentRoute = currentRoute,
+                    onNavigate = { route ->
+                        navController.navigate(route) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                )
             }
         },
     ) { innerPadding ->
@@ -129,7 +117,9 @@ fun AppNavGraph(onNavGraphReady: (NavController) -> Unit = {}) {
                 )
             }
             composable(Destinations.SETTINGS) {
-                SettingsScreen()
+                SettingsScreen(
+                    onBack = { navController.popBackStack() },
+                )
             }
             composable(
                 route = Destinations.SERIES,

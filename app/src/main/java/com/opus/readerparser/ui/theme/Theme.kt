@@ -12,7 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 import com.opus.readerparser.domain.model.AppTheme
 
-private val LightColorScheme = lightColorScheme(
+val LightColorScheme = lightColorScheme(
     primary = PrimaryLight,
     onPrimary = OnPrimaryLight,
     primaryContainer = PrimaryContainerLight,
@@ -27,11 +27,17 @@ private val LightColorScheme = lightColorScheme(
     onBackground = OnBackgroundLight,
     surface = SurfaceLight,
     onSurface = OnSurfaceLight,
+    surfaceVariant = SurfaceContainerLight,
+    onSurfaceVariant = OnSurfaceVariantLight,
+    surfaceContainer = SurfaceContainerLight,
+    surfaceContainerHigh = SurfaceContainerHighLight,
+    outline = OutlineLight,
+    outlineVariant = OutlineVariantLight,
     error = ErrorLight,
     onError = OnErrorLight,
 )
 
-private val DarkColorScheme = darkColorScheme(
+val DarkColorScheme = darkColorScheme(
     primary = PrimaryDark,
     onPrimary = OnPrimaryDark,
     primaryContainer = PrimaryContainerDark,
@@ -46,6 +52,12 @@ private val DarkColorScheme = darkColorScheme(
     onBackground = OnBackgroundDark,
     surface = SurfaceDark,
     onSurface = OnSurfaceDark,
+    surfaceVariant = SurfaceContainerDark,
+    onSurfaceVariant = OnSurfaceVariantDark,
+    surfaceContainer = SurfaceContainerDark,
+    surfaceContainerHigh = SurfaceContainerHighDark,
+    outline = OutlineDark,
+    outlineVariant = OutlineVariantDark,
     error = ErrorDark,
     onError = OnErrorDark,
 )
@@ -60,14 +72,16 @@ val WarmDarkColorScheme = darkColorScheme(
     secondaryContainer = WarmDarkSecondaryContainer,
     onSecondaryContainer = WarmDarkOnSecondaryContainer,
     background = WarmDarkBackground,
-    onBackground = WarmDarkOnSurface,
+    onBackground = WarmDarkOnBackground,
     surface = WarmDarkSurface,
     onSurface = WarmDarkOnSurface,
     surfaceVariant = WarmDarkSurfaceContainer,
     onSurfaceVariant = WarmDarkOnSurfaceVariant,
     surfaceContainer = WarmDarkSurfaceContainer,
-    surfaceContainerHigh = WarmDarkSurfaceContainer,
-    error = ErrorDark,
+    surfaceContainerHigh = WarmDarkSurfaceContainerHigh,
+    outline = WarmDarkOutline,
+    outlineVariant = WarmDarkOutlineVariant,
+    error = WarmDarkError,
     onError = OnErrorDark,
 )
 
@@ -81,14 +95,16 @@ val SepiaColorScheme = lightColorScheme(
     secondaryContainer = SepiaSecondaryContainer,
     onSecondaryContainer = SepiaOnSecondaryContainer,
     background = SepiaBackground,
-    onBackground = SepiaOnSurface,
+    onBackground = SepiaOnBackground,
     surface = SepiaSurface,
     onSurface = SepiaOnSurface,
     surfaceVariant = SepiaSurfaceContainer,
     onSurfaceVariant = SepiaOnSurfaceVariant,
     surfaceContainer = SepiaSurfaceContainer,
-    surfaceContainerHigh = SepiaSurfaceContainer,
-    error = ErrorLight,
+    surfaceContainerHigh = SepiaSurfaceContainerHigh,
+    outline = SepiaOutline,
+    outlineVariant = SepiaOutlineVariant,
+    error = SepiaError,
     onError = OnErrorLight,
 )
 
@@ -128,6 +144,7 @@ fun ReaderParserTheme(
     MaterialTheme(
         colorScheme = colorScheme,
         typography = AppTypography,
+        shapes = AppShapes,
         content = content,
     )
 }
