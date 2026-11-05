@@ -1,4 +1,4 @@
-package com.opus.readerparser.ui.components
+package com.opus.readerparser.ui.reader
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -67,11 +67,9 @@ import com.opus.readerparser.domain.model.AppSettings
 import com.opus.readerparser.domain.model.ContentType
 import com.opus.readerparser.domain.model.ManhwaLayout
 import com.opus.readerparser.domain.model.ManhwaZoom
-import com.opus.readerparser.ui.reader.NovelBlock
-import com.opus.readerparser.ui.reader.ReaderAction
-import com.opus.readerparser.ui.reader.ReaderUiState
-import com.opus.readerparser.ui.reader.resolveNovelFontFamily
-import com.opus.readerparser.ui.theme.AppSpacing
+import com.opus.readerparser.ui.components.ChipFilterRow
+import com.opus.readerparser.ui.components.FilterChipOption
+import com.opus.readerparser.ui.components.SliderControl
 import com.opus.readerparser.ui.theme.ManhwaMinPlaceholderHeight
 import com.opus.readerparser.ui.theme.PillShape
 import java.util.Locale
@@ -287,27 +285,13 @@ fun ReaderImmersiveBottomBar(
                     }
                     ContentType.MANHWA -> {
                         val displayPage = if (totalPages > 0) (currentPage + 1).coerceIn(1, totalPages) else 0
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        ) {
-                            Text(
-                                text = "Page $displayPage of $totalPages",
-                                fontSize = 11.sp,
-                                fontFamily = FontFamily.Monospace,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.testTag("reader_progress_label"),
-                            )
-                            if (totalPages > 0) {
-                                Text(
-                                    text = "$displayPage / $totalPages",
-                                    fontSize = 11.sp,
-                                    fontFamily = FontFamily.Monospace,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.testTag("reader_page_fraction_label"),
-                                )
-                            }
-                        }
+                        Text(
+                            text = "Page $displayPage of $totalPages",
+                            fontSize = 11.sp,
+                            fontFamily = FontFamily.Monospace,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.testTag("reader_progress_label"),
+                        )
                     }
                 }
 

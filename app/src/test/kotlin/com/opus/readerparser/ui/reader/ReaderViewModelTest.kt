@@ -137,6 +137,7 @@ class ReaderViewModelTest {
         advanceUntilIdle()
 
         assertThat(vm.state.value.error).isEqualTo("Chapter not available")
+        assertThat(vm.state.value.isFormatMismatch).isFalse()
         assertThat(vm.state.value.isLoading).isFalse()
         assertThat(vm.state.value.chapter).isNull()
         assertThat(vm.state.value.chapterUrl).isEqualTo(chapter.url)
@@ -286,6 +287,7 @@ class ReaderViewModelTest {
         advanceUntilIdle()
 
         assertThat(vm.state.value.error).isEqualTo("boom")
+        assertThat(vm.state.value.isFormatMismatch).isFalse()
     }
 
     @Test
@@ -450,6 +452,7 @@ class ReaderViewModelTest {
         advanceUntilIdle()
 
         assertThat(vm.state.value.error).isEqualTo("Unexpected content type")
+        assertThat(vm.state.value.isFormatMismatch).isTrue()
         assertThat(vm.state.value.isLoading).isFalse()
         assertThat(vm.state.value.chapter).isEqualTo(chapter)
     }
@@ -495,7 +498,44 @@ class ReaderViewModelTest {
         assertThat(forceNetworkCalls).containsExactly(false, true).inOrder()
         assertThat(vm.state.value.html).isEqualTo("<p>Recovered</p>")
         assertThat(vm.state.value.error).isNull()
+        assertThat(vm.state.value.isFormatMismatch).isFalse()
         assertThat(vm.state.value.isLoading).isFalse()
+    }
+
+    @Test
+    fun `general getContent exception sets error with isFormatMismatch false`() = runTest {
+        val series = TestFixtures.testSeries(type = ContentType.NOVEL)
+        val chapter = testChapter(series)
+        val repo = object : ChapterRepository {
+            override fun observeChapters(series: Series) = flowOf(
+                listOf(ChapterWithState(chapter, read = false, downloaded = false, progress = 0f)),
+            )
+
+            override suspend fun refreshChapters(series: Series) {}
+
+            override suspend fun findByUrl(sourceId: Long, url: String) = chapter
+
+            override suspend fun getContent(chapter: Chapter, forceNetwork: Boolean): ChapterContent {
+                throw IllegalStateException("Network failure")
+            }
+
+            override suspend fun markRead(chapter: Chapter, read: Boolean) {}
+
+            override suspend fun setProgress(chapter: Chapter, progress: Float) {}
+
+            override suspend fun markDownloaded(chapter: Chapter, downloaded: Boolean) {}
+        }
+        val vm = ReaderViewModel(
+            savedState = savedStateHandle(series, chapter, ContentType.NOVEL),
+            chapterRepository = repo,
+            downloadEnqueuer = FakeDownloadEnqueuer(),
+            settingsRepository = FakeSettingsRepository(),
+        )
+
+        advanceUntilIdle()
+
+        assertThat(vm.state.value.error).isEqualTo("Network failure")
+        assertThat(vm.state.value.isFormatMismatch).isFalse()
     }
 
     @Test
@@ -632,6 +672,7 @@ class ReaderViewModelTest {
 
         advanceUntilIdle()
         assertThat(vm.state.value.error).isEqualTo("Unexpected content type")
+        assertThat(vm.state.value.isFormatMismatch).isTrue()
 
         repo.contentResult = ChapterContent.Text("<p>Recovered chapter</p>")
         vm.onAction(ReaderAction.Retry)
@@ -639,6 +680,7 @@ class ReaderViewModelTest {
 
         assertThat(repo.getContentCalls).containsExactly(chapter, chapter, chapter).inOrder()
         assertThat(vm.state.value.error).isNull()
+        assertThat(vm.state.value.isFormatMismatch).isFalse()
         assertThat(vm.state.value.html).isEqualTo("<p>Recovered chapter</p>")
         assertThat(vm.state.value.chapter).isEqualTo(chapter)
     }

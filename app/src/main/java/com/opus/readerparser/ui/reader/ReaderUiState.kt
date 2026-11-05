@@ -17,6 +17,7 @@ data class ReaderUiState(
     val pages: List<String> = emptyList(),
     val isLoading: Boolean = false,
     val error: String? = null,
+    val isFormatMismatch: Boolean = false,
     val progress: Float = 0f,
     val currentPage: Int = 0,
     val hasPreviousChapter: Boolean = false,

@@ -118,13 +118,13 @@ class ReaderViewModel @Inject constructor(
                     loadChapter(chapter)
                 } else {
                     val url = _state.value.chapterUrl ?: return
-                    _state.update { it.copy(isLoading = true, error = null) }
+                    _state.update { it.copy(isLoading = true, error = null, isFormatMismatch = false) }
                     viewModelScope.launch {
                         val resolved = chapterRepository.findByUrl(sourceId, url)
                         if (resolved != null) {
                             loadChapter(resolved)
                         } else {
-                            _state.update { it.copy(isLoading = false, error = "Chapter not available") }
+                            _state.update { it.copy(isLoading = false, error = "Chapter not available", isFormatMismatch = false) }
                         }
                     }
                 }
@@ -235,14 +235,14 @@ class ReaderViewModel @Inject constructor(
                 val chapters = loadSeriesChapters()
                 val chapterInList = chapters.find { it.chapter.url == chapterUrl }
                 if (chapterInList == null) {
-                    _state.update { it.copy(isLoading = false, error = "Chapter not available", chapterUrl = chapterUrl) }
+                    _state.update { it.copy(isLoading = false, error = "Chapter not available", isFormatMismatch = false, chapterUrl = chapterUrl) }
                     return@launch
                 }
                 val chapter = chapterInList.chapter
                 loadChapter(chapter)
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
-                _state.update { it.copy(isLoading = false, error = e.message ?: "Failed to load chapter") }
+                _state.update { it.copy(isLoading = false, error = e.message ?: "Failed to load chapter", isFormatMismatch = false) }
                 _effects.send(ReaderEffect.ShowError(e.message ?: "Failed to load chapter"))
             }
         }
@@ -258,6 +258,7 @@ class ReaderViewModel @Inject constructor(
                 it.copy(
                     isLoading = true,
                     error = null,
+                    isFormatMismatch = false,
                     chapter = chapter,
                     chapterUrl = chapter.url,
                     html = "",
@@ -286,6 +287,7 @@ class ReaderViewModel @Inject constructor(
                     it.copy(
                         isLoading = false,
                         error = e.message ?: "Failed to load chapter",
+                        isFormatMismatch = false,
                     )
                 }
                 _effects.send(ReaderEffect.ShowError(e.message ?: "Failed to load chapter"))
@@ -304,6 +306,7 @@ class ReaderViewModel @Inject constructor(
                     it.copy(
                         html = content.html,
                         isLoading = false,
+                        isFormatMismatch = false,
                         progress = progress,
                         hasPreviousChapter = idx > 0,
                         hasNextChapter = idx in 0 until chapters.lastIndex,
@@ -317,6 +320,7 @@ class ReaderViewModel @Inject constructor(
                     it.copy(
                         pages = content.imageUrls,
                         isLoading = false,
+                        isFormatMismatch = false,
                         hasPreviousChapter = idx > 0,
                         hasNextChapter = idx in 0 until chapters.lastIndex,
                     )
@@ -327,6 +331,7 @@ class ReaderViewModel @Inject constructor(
                     it.copy(
                         isLoading = false,
                         error = "Unexpected content type",
+                        isFormatMismatch = true,
                     )
                 }
             }
