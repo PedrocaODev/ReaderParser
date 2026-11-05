@@ -2,6 +2,7 @@ package com.opus.readerparser.data.local.filesystem
 
 import com.opus.readerparser.domain.model.Chapter
 import com.opus.readerparser.domain.model.ChapterContent
+import com.opus.readerparser.domain.model.DownloadStorageBreakdown
 
 /**
  * Abstraction over the app-private file-system download cache.
@@ -69,4 +70,14 @@ interface DownloadStore {
      * `true` if a matching directory was found and deleted.
      */
     suspend fun deleteByHash(sourceId: Long, chapterUrlHash: String): Boolean
+
+    /**
+     * Calculates storage breakdown by content type across all downloaded chapters.
+     */
+    suspend fun getStorageBreakdown(): DownloadStorageBreakdown = DownloadStorageBreakdown()
+
+    /**
+     * Returns total bytes stored for the given series on disk.
+     */
+    suspend fun getSeriesBytes(sourceId: Long, seriesUrl: String): Long = 0L
 }

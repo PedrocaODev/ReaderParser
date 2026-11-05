@@ -4,6 +4,7 @@ import com.google.common.truth.Truth.assertThat
 import com.opus.readerparser.core.util.hashUrl
 import com.opus.readerparser.data.local.database.entities.DownloadQueueEntity
 import com.opus.readerparser.domain.model.DownloadState
+import com.opus.readerparser.domain.model.DownloadStorageBreakdown
 import com.opus.readerparser.fakes.FakeChapterRepository
 import com.opus.readerparser.fakes.FakeDownloadQueueDao
 import com.opus.readerparser.fakes.FakeDownloadStore
@@ -289,5 +290,23 @@ class DownloadRepositoryImplTest {
         repository.updateQueueState(1L, "https://test.invalid/ch/1", DownloadState.RUNNING, 0.5f)
 
         assertThat(workManager.enqueueCalls).isEmpty()
+    }
+
+    // -----------------------------------------------------------------
+    // getStorageBreakdown
+    // -----------------------------------------------------------------
+
+    @Test
+    fun `getStorageBreakdown delegates to downloadStore`() = runTest {
+        val expected = DownloadStorageBreakdown(
+            novelTextBytes = 1024L,
+            manhwaImageBytes = 2048L,
+            availableBytes = 50_000_000L,
+        )
+        downloadStore.storageBreakdown = expected
+
+        val actual = repository.getStorageBreakdown()
+
+        assertThat(actual).isEqualTo(expected)
     }
 }

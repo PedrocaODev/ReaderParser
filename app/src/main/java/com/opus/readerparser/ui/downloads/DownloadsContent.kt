@@ -2,42 +2,37 @@ package com.opus.readerparser.ui.downloads
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SuggestionChip
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.opus.readerparser.domain.model.ContentType
 import com.opus.readerparser.domain.model.DownloadItem
 import com.opus.readerparser.domain.model.DownloadState
+import com.opus.readerparser.domain.model.DownloadedSeriesItem
+import com.opus.readerparser.ui.components.AppTopBar
+import com.opus.readerparser.ui.components.DownloadQueueItemCard
+import com.opus.readerparser.ui.components.DownloadedSeriesCard
+import com.opus.readerparser.ui.components.EmptyStateView
+import com.opus.readerparser.ui.components.ErrorRetryStateView
+import com.opus.readerparser.ui.components.LoadingStateView
+import com.opus.readerparser.ui.components.SectionHeader
+import com.opus.readerparser.ui.components.StorageBreakdownCard
 import com.opus.readerparser.ui.theme.ReaderParserTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -45,15 +40,18 @@ import com.opus.readerparser.ui.theme.ReaderParserTheme
 fun DownloadsContent(
     state: DownloadsUiState,
     onAction: (DownloadsAction) -> Unit,
+    modifier: Modifier = Modifier,
     snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
     onNavigateToSettings: () -> Unit = {},
+    onOpenSettings: () -> Unit = onNavigateToSettings,
 ) {
     Scaffold(
+        modifier = modifier,
         topBar = {
-            TopAppBar(
-                title = { Text("Downloads") },
+            AppTopBar(
+                title = "Downloads",
                 actions = {
-                    IconButton(onClick = onNavigateToSettings) {
+                    IconButton(onClick = onOpenSettings) {
                         Icon(Icons.Filled.Settings, contentDescription = "Settings")
                     }
                 },
@@ -68,31 +66,18 @@ fun DownloadsContent(
         ) {
             when {
                 state.isLoading -> {
-                    CircularProgressIndicator(
-                        modifier = Modifier
-                            .align(Alignment.Center)
-                            .testTag("loading"),
-                    )
+                    LoadingStateView()
                 }
                 state.error != null -> {
-                    Column(
-                        modifier = Modifier.align(Alignment.Center),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        Text(
-                            text = state.error,
-                            modifier = Modifier.testTag("error_message"),
-                            color = MaterialTheme.colorScheme.error,
-                            textAlign = TextAlign.Center,
-                        )
-                    }
+                    ErrorRetryStateView(
+                        message = state.error,
+                        onRetry = { onAction(DownloadsAction.RetryLoad) },
+                    )
                 }
-                state.downloads.isEmpty() -> {
-                    Text(
-                        text = "No downloads yet.",
-                        modifier = Modifier.align(Alignment.Center),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                state.downloads.isEmpty() && state.downloadedSeries.isEmpty() -> {
+                    EmptyStateView(
+                        title = "No downloads yet.",
+                        subtitle = "Downloaded chapters and active queue items will appear here.",
                     )
                 }
                 else -> {
@@ -100,17 +85,46 @@ fun DownloadsContent(
                         modifier = Modifier
                             .fillMaxSize()
                             .testTag("downloads_list"),
+                        contentPadding = PaddingValues(16.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
+                        item(key = "storage_breakdown") {
+                            StorageBreakdownCard(
+                                novelTextBytes = state.novelTextBytes,
+                                manhwaImageBytes = state.manhwaImageBytes,
+                                availableBytes = state.availableBytes,
+                            )
+                        }
+
+                        item(key = "active_queue_header") {
+                            SectionHeader(title = "ACTIVE QUEUE (${state.downloads.size})")
+                        }
+
                         items(
                             state.downloads,
-                            key = { "${it.sourceId}|${it.chapterUrl}" },
+                            key = { "queue|${it.sourceId}|${it.chapterUrl}" },
                         ) { item ->
-                            DownloadItemRow(
+                            DownloadQueueItemCard(
                                 item = item,
                                 onCancel = { onAction(DownloadsAction.Cancel(item.sourceId, item.chapterUrl)) },
                                 onRetry = { onAction(DownloadsAction.Retry(item.sourceId, item.chapterUrl)) },
                                 onDelete = { onAction(DownloadsAction.Delete(item.sourceId, item.chapterUrl)) },
+                            )
+                        }
+
+                        item(key = "saved_offline_header") {
+                            SectionHeader(title = "SAVED OFFLINE (BY SERIES)")
+                        }
+
+                        items(
+                            state.downloadedSeries,
+                            key = { "series|${it.seriesId}" },
+                        ) { seriesItem ->
+                            DownloadedSeriesCard(
+                                item = seriesItem,
+                                onClearSeriesDownloads = { id ->
+                                    onAction(DownloadsAction.ClearSeriesDownloads(id))
+                                },
                             )
                         }
                     }
@@ -118,88 +132,6 @@ fun DownloadsContent(
             }
         }
     }
-}
-
-@Composable
-private fun DownloadItemRow(
-    item: DownloadItem,
-    onCancel: () -> Unit,
-    onRetry: () -> Unit,
-    onDelete: () -> Unit,
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Text(
-                text = item.seriesTitle,
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            Text(
-                text = item.chapterName,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(Modifier.height(8.dp))
-
-            if (item.state == DownloadState.RUNNING) {
-                LinearProgressIndicator(
-                    progress = { item.progress },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(Modifier.height(4.dp))
-            }
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                StateBadge(state = item.state, progress = item.progress)
-
-                Row {
-                    when (item.state) {
-                        DownloadState.QUEUED, DownloadState.RUNNING -> {
-                            TextButton(onClick = onCancel) {
-                                Text("Cancel")
-                            }
-                        }
-                        DownloadState.FAILED -> {
-                            OutlinedButton(onClick = onRetry) {
-                                Text("Retry")
-                            }
-                        }
-                        DownloadState.COMPLETED -> {
-                            OutlinedButton(onClick = onDelete) {
-                                Text("Delete")
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun StateBadge(state: DownloadState, progress: Float = 0f) {
-    val label = when (state) {
-        DownloadState.QUEUED -> "Queued"
-        DownloadState.RUNNING -> if (progress in 0.01f..1.0f) {
-            "${(progress * 100).toInt()}%"
-        } else {
-            "Downloading"
-        }
-        DownloadState.COMPLETED -> "Done"
-        DownloadState.FAILED -> "Failed"
-    }
-    SuggestionChip(
-        onClick = {},
-        label = { Text(label, style = MaterialTheme.typography.labelSmall) },
-    )
 }
 
 @Preview(showBackground = true)
@@ -253,9 +185,23 @@ private fun DownloadsContentPopulatedPreview() {
             progress = 0f,
         ),
     )
+    val series = listOf(
+        DownloadedSeriesItem(
+            seriesId = "s1",
+            seriesTitle = "Shadow Slave",
+            contentType = ContentType.NOVEL,
+            downloadedChapterCount = 4,
+            chapterRangeSummary = "4 chapters · Ch. 40–43",
+        ),
+    )
     ReaderParserTheme {
         DownloadsContent(
-            state = DownloadsUiState(downloads = items),
+            state = DownloadsUiState(
+                downloads = items,
+                downloadedSeries = series,
+                novelTextBytes = 12_800_000L,
+                manhwaImageBytes = 30_000_000L,
+            ),
             onAction = {},
         )
     }

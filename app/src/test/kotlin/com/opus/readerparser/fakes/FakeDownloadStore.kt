@@ -3,6 +3,7 @@ package com.opus.readerparser.fakes
 import com.opus.readerparser.data.local.filesystem.DownloadStore
 import com.opus.readerparser.domain.model.Chapter
 import com.opus.readerparser.domain.model.ChapterContent
+import com.opus.readerparser.domain.model.DownloadStorageBreakdown
 
 /**
  * Hand-rolled in-memory fake for [DownloadStore].
@@ -39,6 +40,9 @@ class FakeDownloadStore : DownloadStore {
     /** Configurable return value for [deleteByHash]. */
     var deleteByHashResult: Boolean = false
 
+    var storageBreakdown: DownloadStorageBreakdown = DownloadStorageBreakdown()
+    var seriesBytesResult: Long = 0L
+
     override suspend fun read(chapter: Chapter): ChapterContent? = storedContent[chapter]
 
     override suspend fun writeNovel(chapter: Chapter, html: String) {
@@ -69,4 +73,8 @@ class FakeDownloadStore : DownloadStore {
         deleteByHashCalls.add(sourceId to chapterUrlHash)
         return deleteByHashResult
     }
+
+    override suspend fun getStorageBreakdown(): DownloadStorageBreakdown = storageBreakdown
+
+    override suspend fun getSeriesBytes(sourceId: Long, seriesUrl: String): Long = seriesBytesResult
 }

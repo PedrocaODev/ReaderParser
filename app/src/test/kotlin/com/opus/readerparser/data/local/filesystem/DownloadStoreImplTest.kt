@@ -406,4 +406,84 @@ class DownloadStoreImplTest {
         dir.resolve("content.html").delete()
         assertNull(store.read(chapter))
     }
+
+    @Test
+    fun `getStorageBreakdown on empty store returns zero used bytes`() = runTest {
+        val store = makeStore()
+        val breakdown = store.getStorageBreakdown()
+        assertEquals(0L, breakdown.novelTextBytes)
+        assertEquals(0L, breakdown.manhwaImageBytes)
+        assertEquals(0L, breakdown.usedBytes)
+        assertTrue(breakdown.availableBytes > 0L)
+    }
+
+    @Test
+    fun `getStorageBreakdown after writeNovel and writeManhwa calculates correct sizes`() = runTest {
+        val store = makeStore()
+        val novelHtml = "<html><body>Some novel text content</body></html>"
+        store.writeNovel(chapter, novelHtml)
+
+        val manhwaChapter = TestFixtures.testChapter(
+            seriesUrl = "https://test.invalid/series/test-manhwa",
+            url = "https://test.invalid/chapter/m1",
+            sourceId = 1L,
+        )
+        val imageBytes = byteArrayOf(1, 2, 3, 4, 5)
+        store.writeManhwa(
+            chapter = manhwaChapter,
+            imageUrls = listOf("https://cdn.invalid/p1.jpg", "https://cdn.invalid/p2.jpg"),
+            fetchBytes = { imageBytes },
+        )
+
+        val breakdown = store.getStorageBreakdown()
+        assertEquals(novelHtml.toByteArray(Charsets.UTF_8).size.toLong(), breakdown.novelTextBytes)
+        assertEquals((imageBytes.size * 2).toLong(), breakdown.manhwaImageBytes)
+        assertEquals(breakdown.novelTextBytes + breakdown.manhwaImageBytes, breakdown.usedBytes)
+    }
+
+    @Test
+    fun `getStorageBreakdown handles raw txt and page files without meta json`() = runTest {
+        val store = makeStore()
+        val rawDir = tmpDir.root.resolve("1").resolve("raw_series").resolve("raw_chapter")
+        rawDir.mkdirs()
+
+        val novelFile = rawDir.resolve("text.txt")
+        novelFile.writeText("plain text novel")
+
+        val pageFile = rawDir.resolve("page_001.jpg")
+        pageFile.writeBytes(byteArrayOf(10, 20, 30))
+
+        val breakdown = store.getStorageBreakdown()
+        assertEquals(novelFile.length(), breakdown.novelTextBytes)
+        assertEquals(pageFile.length(), breakdown.manhwaImageBytes)
+    }
+
+    @Test
+    fun `getStorageBreakdown ignores staging and backup directories`() = runTest {
+        val store = makeStore()
+        val stagingDir = tmpDir.root.resolve("1").resolve(".staging-ignored")
+        stagingDir.mkdirs()
+        stagingDir.resolve("content.html").writeText("ignored content")
+
+        val backupDir = tmpDir.root.resolve("1").resolve(".backup-ignored")
+        backupDir.mkdirs()
+        backupDir.resolve("page_01.jpg").writeBytes(byteArrayOf(1, 2, 3))
+
+        val breakdown = store.getStorageBreakdown()
+        assertEquals(0L, breakdown.novelTextBytes)
+        assertEquals(0L, breakdown.manhwaImageBytes)
+    }
+
+    @Test
+    fun `getSeriesBytes returns sum of chapter files for series`() = runTest {
+        val store = makeStore()
+        val html = "<p>chapter text</p>"
+        store.writeNovel(chapter, html)
+
+        val seriesBytes = store.getSeriesBytes(chapter.sourceId, chapter.seriesUrl)
+        assertEquals(html.toByteArray(Charsets.UTF_8).size.toLong(), seriesBytes)
+
+        val nonExistentBytes = store.getSeriesBytes(999L, "https://invalid/series")
+        assertEquals(0L, nonExistentBytes)
+    }
 }
