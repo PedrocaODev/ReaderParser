@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import com.opus.readerparser.ui.theme.AppSpacing
 
 @Composable
 fun SliderControl(
@@ -101,11 +102,11 @@ fun RadioRow(
         modifier = modifier
             .fillMaxWidth()
             .selectable(selected = selected, onClick = onClick, role = Role.RadioButton)
-            .padding(vertical = 4.dp),
+            .padding(vertical = AppSpacing.xs),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         RadioButton(selected = selected, onClick = null)
-        Column(modifier = Modifier.padding(start = 8.dp)) {
+        Column(modifier = Modifier.padding(start = AppSpacing.sm)) {
             Text(
                 text = label,
                 style = MaterialTheme.typography.bodyLarge,

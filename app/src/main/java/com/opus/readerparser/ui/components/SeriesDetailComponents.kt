@@ -57,9 +57,6 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-fun formatChapterNumber(number: Float): String =
-    if (number % 1f == 0f) number.toInt().toString() else number.toString()
-
 fun formatUploadDate(epochMillis: Long): String =
     SimpleDateFormat("MMM d, yyyy", Locale.US).format(Date(epochMillis))
 

@@ -14,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.opus.readerparser.ui.theme.AppSpacing
 import com.opus.readerparser.ui.theme.PillShape
 
 @Composable
@@ -26,7 +27,7 @@ fun SectionHeader(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = AppSpacing.lg, vertical = AppSpacing.md),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
@@ -35,7 +36,7 @@ fun SectionHeader(
             color = MaterialTheme.colorScheme.primary,
         )
         if (badgeText != null) {
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(AppSpacing.sm))
             Surface(
                 shape = PillShape,
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -60,7 +61,7 @@ fun SectionDivider(
     modifier: Modifier = Modifier,
 ) {
     HorizontalDivider(
-        modifier = modifier.padding(vertical = 8.dp),
+        modifier = modifier.padding(vertical = AppSpacing.sm),
         color = MaterialTheme.colorScheme.outlineVariant,
     )
 }

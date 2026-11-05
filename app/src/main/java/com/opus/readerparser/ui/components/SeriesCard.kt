@@ -34,14 +34,15 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.opus.readerparser.domain.model.ContentType
 import com.opus.readerparser.domain.model.Series
+import com.opus.readerparser.ui.theme.AppSpacing
 import com.opus.readerparser.ui.theme.CoverAspectRatio
 import com.opus.readerparser.ui.theme.ReaderParserTheme
 
-internal val SeriesCatalogGridContentPadding = PaddingValues(8.dp)
-internal val SeriesCatalogGridItemSpacing = 8.dp
+internal val SeriesCatalogGridContentPadding = PaddingValues(AppSpacing.sm)
+internal val SeriesCatalogGridItemSpacing = AppSpacing.sm
 internal val SeriesCatalogGridMinSize = 150.dp
 internal val SeriesCardAspectRatio = CoverAspectRatio
-internal val SeriesCardTitlePadding = 8.dp
+internal val SeriesCardTitlePadding = AppSpacing.sm
 
 fun ContentType.displayLabel(): String = when (this) {
     ContentType.NOVEL -> "Novel"
@@ -143,7 +144,7 @@ fun SeriesCard(
                 }
             }
             Column(
-                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = AppSpacing.sm),
                 verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
                 Text(

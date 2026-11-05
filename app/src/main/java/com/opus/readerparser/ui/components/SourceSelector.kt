@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.opus.readerparser.domain.model.SourceInfo
+import com.opus.readerparser.ui.theme.AppSpacing
 import com.opus.readerparser.ui.theme.PillShape
 
 @Composable
@@ -46,7 +47,7 @@ fun SourceSelectorPill(
         modifier = modifier.testTag("source_selector"),
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            modifier = Modifier.padding(horizontal = AppSpacing.md, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
@@ -54,7 +55,7 @@ fun SourceSelectorPill(
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurface,
             )
-            Spacer(modifier = Modifier.width(4.dp))
+            Spacer(modifier = Modifier.width(AppSpacing.xs))
             Icon(
                 imageVector = Icons.Filled.ArrowDropDown,
                 contentDescription = null,
@@ -80,13 +81,13 @@ fun SourcePickerSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 16.dp),
+                .padding(bottom = AppSpacing.lg),
         ) {
             Text(
                 text = "Select Source",
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                modifier = Modifier.padding(horizontal = AppSpacing.lg, vertical = AppSpacing.sm),
             )
 
             LazyColumn(
@@ -103,7 +104,7 @@ fun SourcePickerSheet(
                                 onSelectSource(source.id)
                                 onDismissRequest()
                             }
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                            .padding(horizontal = AppSpacing.lg, vertical = AppSpacing.md),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Column(modifier = Modifier.weight(1f)) {

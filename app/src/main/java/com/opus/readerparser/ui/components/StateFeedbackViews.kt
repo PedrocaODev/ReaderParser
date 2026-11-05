@@ -15,7 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
+import com.opus.readerparser.ui.theme.AppSpacing
 
 @Composable
 fun LoadingStateView(
@@ -31,11 +31,11 @@ fun LoadingStateView(
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(AppSpacing.lg),
         ) {
             CircularProgressIndicator()
             if (message != null) {
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(AppSpacing.lg))
                 Text(
                     text = message,
                     style = MaterialTheme.typography.bodyMedium,
@@ -64,7 +64,7 @@ fun EmptyStateView(
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(24.dp),
+            modifier = Modifier.padding(AppSpacing.xl),
         ) {
             Text(
                 text = title,
@@ -73,7 +73,7 @@ fun EmptyStateView(
                 color = MaterialTheme.colorScheme.onSurface,
             )
             if (subtitle != null) {
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(AppSpacing.sm))
                 Text(
                     text = subtitle,
                     style = MaterialTheme.typography.bodyMedium,
@@ -82,7 +82,7 @@ fun EmptyStateView(
                 )
             }
             if (actionLabel != null && onActionClick != null) {
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(AppSpacing.lg))
                 Button(onClick = onActionClick) {
                     Text(text = actionLabel)
                 }
@@ -105,7 +105,7 @@ fun ErrorRetryStateView(
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(24.dp),
+            modifier = Modifier.padding(AppSpacing.xl),
         ) {
             Text(
                 text = message,
@@ -115,7 +115,7 @@ fun ErrorRetryStateView(
                 modifier = Modifier.testTag(testTag),
             )
             if (onRetry != null) {
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(AppSpacing.lg))
                 Button(
                     onClick = onRetry,
                     modifier = Modifier.testTag(retryTestTag),
