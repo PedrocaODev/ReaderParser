@@ -69,7 +69,8 @@ class DownloadsContentTest {
         )
         val series = listOf(
             DownloadedSeriesItem(
-                seriesId = "series-1",
+                sourceId = 1L,
+                seriesUrl = "series-1",
                 seriesTitle = "Solo Leveling",
                 contentType = ContentType.MANHWA,
                 downloadedChapterCount = 42,
@@ -96,6 +97,7 @@ class DownloadsContentTest {
         composeRule.onNodeWithText("LOCAL STORAGE").assertIsDisplayed()
         composeRule.onNodeWithText("Novels (10 MB)").assertIsDisplayed()
         composeRule.onNodeWithText("Manhwa (250 MB)").assertIsDisplayed()
+        composeRule.onNodeWithText("250 MB").assertIsDisplayed()
 
         composeRule.onNodeWithText("ACTIVE QUEUE (1)").assertIsDisplayed()
         composeRule.onNodeWithText("Chapter 1").assertIsDisplayed()
@@ -176,26 +178,28 @@ class DownloadsContentTest {
     @Test
     fun clearSeriesDownloadsButton_dispatchesClearAction() {
         val series = DownloadedSeriesItem(
-            seriesId = "series-123",
+            sourceId = 2L,
+            seriesUrl = "series-123",
             seriesTitle = "Omniscient Reader",
             contentType = ContentType.NOVEL,
             downloadedChapterCount = 10,
             chapterRangeSummary = "10 chapters · Ch. 1–10",
             totalBytes = 5_000_000L,
         )
-        var clearedSeriesId: String? = null
+        var clearedAction: DownloadsAction.ClearSeriesDownloads? = null
         composeRule.setContent {
             DownloadsContent(
                 state = DownloadsUiState(downloadedSeries = listOf(series)),
                 onAction = { action ->
                     if (action is DownloadsAction.ClearSeriesDownloads) {
-                        clearedSeriesId = action.seriesId
+                        clearedAction = action
                     }
                 },
             )
         }
+        composeRule.onNodeWithText("5 MB").assertIsDisplayed()
         composeRule.onNodeWithText("Clear").performClick()
-        assert(clearedSeriesId == "series-123")
+        assert(clearedAction == DownloadsAction.ClearSeriesDownloads(sourceId = 2L, seriesUrl = "series-123"))
     }
 
     @Test

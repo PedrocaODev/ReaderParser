@@ -309,4 +309,13 @@ class DownloadRepositoryImplTest {
 
         assertThat(actual).isEqualTo(expected)
     }
+
+    @Test
+    fun `getSeriesBytes delegates to downloadStore`() = runTest {
+        downloadStore.seriesBytesResult = 4_096_000L
+
+        val actual = repository.getSeriesBytes(1L, "https://test.invalid/series/solo")
+
+        assertThat(actual).isEqualTo(4_096_000L)
+    }
 }
