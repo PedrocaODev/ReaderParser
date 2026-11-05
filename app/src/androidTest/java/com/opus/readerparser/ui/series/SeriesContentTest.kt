@@ -2,6 +2,8 @@ package com.opus.readerparser.ui.series
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -12,12 +14,6 @@ import com.opus.readerparser.domain.model.ChapterWithState
 import com.opus.readerparser.domain.model.ContentType
 import com.opus.readerparser.domain.model.Series
 import com.opus.readerparser.domain.model.SeriesStatus
-import com.opus.readerparser.ui.components.ChapterActionSheet
-import com.opus.readerparser.ui.components.ChapterRow
-import com.opus.readerparser.ui.components.ChapterSectionHeader
-import com.opus.readerparser.ui.components.ExpandableSynopsis
-import com.opus.readerparser.ui.components.ReadingProgressCard
-import com.opus.readerparser.ui.components.SeriesHeroCard
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -364,12 +360,14 @@ class SeriesContentTest {
         }
         composeRule.onNodeWithTag("unread_indicator").assertIsDisplayed()
         composeRule.onNodeWithText("Downloaded").assertIsDisplayed()
+        composeRule.onNodeWithTag("chapter_progress_pill").assertDoesNotExist()
 
         composeRule.setContent {
             ChapterRow(chapterWithState = inProgressCh, onClick = {}, onMoreClick = {})
         }
         composeRule.onNodeWithTag("in_progress_indicator").assertIsDisplayed()
         composeRule.onNodeWithTag("progress_indicator").assertIsDisplayed()
+        composeRule.onNodeWithTag("chapter_progress_pill").assertIsDisplayed()
         composeRule.onNodeWithText("50%").assertIsDisplayed()
         composeRule.onNodeWithTag("chapter_progress_bar").assertIsDisplayed()
 
@@ -377,6 +375,38 @@ class SeriesContentTest {
             ChapterRow(chapterWithState = completedCh, onClick = {}, onMoreClick = {})
         }
         composeRule.onNodeWithTag("read_indicator").assertIsDisplayed()
+        composeRule.onNodeWithTag("chapter_progress_pill").assertDoesNotExist()
+    }
+
+    @Test
+    fun seriesContent_inProgressChapter_displaysProgressPillAndResumeStateCard() {
+        val series = Series(
+            sourceId = 1L,
+            url = "https://example.com/s",
+            title = "Test Series",
+            type = ContentType.MANHWA,
+        )
+        val chapters = listOf(
+            ChapterWithState(
+                chapter = Chapter(seriesUrl = series.url, sourceId = 1L, url = "c1", name = "Chapter 1", number = 1f),
+                read = true,
+                downloaded = false,
+                progress = 1f,
+            ),
+            ChapterWithState(
+                chapter = Chapter(seriesUrl = series.url, sourceId = 1L, url = "c2", name = "Chapter 2", number = 2f),
+                read = false,
+                downloaded = false,
+                progress = 0.65f,
+            ),
+        )
+        composeRule.setContent {
+            SeriesContent(state = SeriesUiState(series = series, chapters = chapters), onAction = {})
+        }
+        composeRule.onNodeWithTag("reading_progress_card").assertIsDisplayed()
+        composeRule.onNodeWithTag("reading_progress_pill").assertIsDisplayed()
+        composeRule.onNodeWithTag("chapter_progress_pill").assertIsDisplayed()
+        composeRule.onAllNodesWithText("65%").onFirst().assertExists()
     }
 
     @Test

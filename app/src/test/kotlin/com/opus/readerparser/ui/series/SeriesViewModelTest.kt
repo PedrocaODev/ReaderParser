@@ -749,4 +749,67 @@ class SeriesViewModelTest {
             assertThat(effect.message).isEqualTo("Network down")
         }
     }
+
+    @Test
+    fun `displayedChapters and resumeState are precomputed once per SeriesUiState instance and recomputed on copy`() {
+        val ch1 = ChapterWithState(
+            chapter = chapter.copy(url = "https://test.invalid/chapter/1", number = 1f, name = "Chapter 1"),
+            read = false,
+            downloaded = false,
+            progress = 0.4f,
+        )
+        val ch2 = ChapterWithState(
+            chapter = chapter.copy(url = "https://test.invalid/chapter/2", number = 2f, name = "Chapter 2"),
+            read = true,
+            downloaded = false,
+            progress = 1f,
+        )
+        val state = SeriesUiState(chapters = listOf(ch1, ch2))
+
+        assertThat(state.displayedChapters).isSameInstanceAs(state.displayedChapters)
+        assertThat(state.resumeState).isSameInstanceAs(state.resumeState)
+        assertThat(state.readChapterCount).isEqualTo(1)
+        assertThat(state.totalChapterCount).isEqualTo(2)
+
+        val filtered = state.copy(unreadOnly = true)
+        assertThat(filtered.displayedChapters).containsExactly(ch1)
+        assertThat(filtered.displayedChapters).isSameInstanceAs(filtered.displayedChapters)
+
+        val sortedAsc = state.copy(sortAscending = true)
+        assertThat(sortedAsc.displayedChapters).containsExactly(ch1, ch2).inOrder()
+        assertThat(sortedAsc.displayedChapters).isSameInstanceAs(sortedAsc.displayedChapters)
+
+        val startChapters = listOf(
+            ch1.copy(progress = 0f),
+            ch2.copy(read = false, progress = 0f),
+        )
+        val startState = state.copy(chapters = startChapters)
+        assertThat(startState.resumeState).isInstanceOf(ReadingResumeState.Start::class.java)
+        assertThat(startState.resumeState).isSameInstanceAs(startState.resumeState)
+
+        val resumeChapters = listOf(ch1, ch2)
+        val resumeState = state.copy(chapters = resumeChapters)
+        assertThat(resumeState.resumeState).isInstanceOf(ReadingResumeState.Resume::class.java)
+        assertThat(resumeState.resumeState).isSameInstanceAs(resumeState.resumeState)
+
+        val continueChapters = listOf(
+            ch1.copy(read = true, progress = 1f),
+            ch2.copy(read = false, progress = 0f),
+        )
+        val continueState = state.copy(chapters = continueChapters)
+        assertThat(continueState.resumeState).isInstanceOf(ReadingResumeState.Continue::class.java)
+        assertThat(continueState.resumeState).isSameInstanceAs(continueState.resumeState)
+
+        val completedChapters = listOf(
+            ch1.copy(read = true, progress = 1f),
+            ch2.copy(read = true, progress = 1f),
+        )
+        val completedState = state.copy(chapters = completedChapters)
+        assertThat(completedState.resumeState).isInstanceOf(ReadingResumeState.Completed::class.java)
+        assertThat(completedState.resumeState).isSameInstanceAs(completedState.resumeState)
+
+        val noneState = state.copy(chapters = emptyList())
+        assertThat(noneState.resumeState).isEqualTo(ReadingResumeState.None)
+        assertThat(noneState.resumeState).isSameInstanceAs(noneState.resumeState)
+    }
 }
