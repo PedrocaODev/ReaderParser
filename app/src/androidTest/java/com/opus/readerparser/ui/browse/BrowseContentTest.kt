@@ -219,6 +219,41 @@ class BrowseContentTest {
     }
 
     @Test
+    fun catalogSeriesCard_omitsRedundantTypeSubtitleWhenNotInLibrary_andAlignsRowHeights() {
+        val series1 = Series(
+            sourceId = 1L,
+            url = "url1",
+            title = "Cyberpunk Chivalry",
+            author = null,
+            type = ContentType.MANHWA,
+        )
+        val series2 = Series(
+            sourceId = 1L,
+            url = "url2",
+            title = "Logging 10,000 Years into the Future",
+            author = null,
+            type = ContentType.MANHWA,
+        )
+
+        composeRule.setContent {
+            ReaderParserTheme {
+                Box(modifier = Modifier.requiredWidth(360.dp).requiredHeight(600.dp)) {
+                    BrowseContent(
+                        state = BrowseUiState(series = listOf(series1, series2)),
+                        onAction = {},
+                    )
+                }
+            }
+        }
+
+        composeRule.onNodeWithText("Manhwa").assertDoesNotExist()
+        val bounds = composeRule.onAllNodesWithTag("series_card").fetchSemanticsNodes().map { it.boundsInRoot }
+        assertThat(bounds).hasSize(2)
+        assertThat(bounds[0].top).isEqualTo(bounds[1].top)
+        assertThat(bounds[0].bottom).isEqualTo(bounds[1].bottom)
+    }
+
+    @Test
     fun sharedCard_rendersCoverTitle_andInvokesOpenAction() {
         val series = Series(sourceId = 1L, url = "url1", title = "Click Me", type = ContentType.MANHWA)
         var opened: Series? = null

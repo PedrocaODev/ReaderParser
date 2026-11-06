@@ -20,7 +20,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.ColorPainter
@@ -48,6 +47,9 @@ fun ContentType.displayLabel(): String = when (this) {
     ContentType.NOVEL -> "Novel"
     ContentType.MANHWA -> "Manhwa"
 }
+
+fun resolveSeriesCardSubtitle(series: Series, inLibrary: Boolean = false): String? =
+    series.author?.takeIf { it.isNotBlank() } ?: if (inLibrary) series.type.displayLabel() else null
 
 @Composable
 fun ContentTypeBadge(type: ContentType, modifier: Modifier = Modifier) {
@@ -107,8 +109,7 @@ fun SeriesCard(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .aspectRatio(SeriesCardAspectRatio)
-                    .clip(MaterialTheme.shapes.medium),
+                    .aspectRatio(SeriesCardAspectRatio),
             ) {
                 AsyncImage(
                     model = series.coverUrl,
@@ -155,18 +156,21 @@ fun SeriesCard(
                         lineHeight = 17.sp,
                     ),
                     color = MaterialTheme.colorScheme.onSurface,
+                    minLines = 2,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
-                val subtitle = series.author?.takeIf { it.isNotBlank() } ?: series.type.displayLabel()
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.labelMedium.copy(fontSize = 11.sp),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.testTag("series_card_subtitle"),
-                )
+                val subtitle = resolveSeriesCardSubtitle(series = series, inLibrary = inLibrary)
+                if (subtitle != null) {
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.labelMedium.copy(fontSize = 11.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.testTag("series_card_subtitle"),
+                    )
+                }
             }
         }
     }
