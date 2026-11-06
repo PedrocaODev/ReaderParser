@@ -1,5 +1,7 @@
 package com.opus.readerparser.ui.navigation
 
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CollectionsBookmark
@@ -11,6 +13,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavController
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavOptionsBuilder
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -25,6 +28,22 @@ import com.opus.readerparser.ui.library.LibraryScreen
 import com.opus.readerparser.ui.reader.ReaderScreen
 import com.opus.readerparser.ui.series.SeriesScreen
 import com.opus.readerparser.ui.settings.SettingsScreen
+
+internal val OuterScaffoldWindowInsets = WindowInsets(0, 0, 0, 0)
+
+internal fun NavOptionsBuilder.configureTopLevelNavigation(startDestinationId: Int) {
+    popUpTo(startDestinationId) {
+        saveState = true
+    }
+    launchSingleTop = true
+    restoreState = true
+}
+
+internal fun NavController.navigateToTopLevelDestination(route: String) {
+    navigate(route) {
+        configureTopLevelNavigation(graph.findStartDestination().id)
+    }
+}
 
 internal val bottomNavRoutes = setOf(
     Destinations.LIBRARY,
@@ -66,19 +85,14 @@ fun AppNavGraph(onNavGraphReady: (NavController) -> Unit = {}) {
     val showBottomBar = currentRoute in bottomNavRoutes
 
     Scaffold(
+        contentWindowInsets = OuterScaffoldWindowInsets,
         bottomBar = {
             if (showBottomBar) {
                 BottomNavBar(
                     destinations = bottomNavDestinations,
                     currentRoute = currentRoute,
                     onNavigate = { route ->
-                        navController.navigate(route) {
-                            popUpTo(navController.graph.findStartDestination().id) {
-                                saveState = true
-                            }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
+                        navController.navigateToTopLevelDestination(route)
                     },
                 )
             }
@@ -87,7 +101,9 @@ fun AppNavGraph(onNavGraphReady: (NavController) -> Unit = {}) {
         NavHost(
             navController = navController,
             startDestination = Destinations.LIBRARY,
-            modifier = Modifier.padding(innerPadding),
+            modifier = Modifier
+                .padding(innerPadding)
+                .consumeWindowInsets(innerPadding),
         ) {
             composable(Destinations.LIBRARY) {
                 LibraryScreen(
@@ -96,6 +112,9 @@ fun AppNavGraph(onNavGraphReady: (NavController) -> Unit = {}) {
                     },
                     onNavigateToSettings = {
                         navController.navigate(Destinations.SETTINGS)
+                    },
+                    onBrowseSources = {
+                        navController.navigateToTopLevelDestination(Destinations.BROWSE)
                     },
                 )
             }

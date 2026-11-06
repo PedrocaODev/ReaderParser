@@ -78,6 +78,21 @@ class LibraryContentTest {
     }
 
     @Test
+    fun emptyState_unfiltered_withoutBrowseCallback_hidesBrowseSourcesCTA() {
+        composeRule.setContent {
+            ReaderParserTheme {
+                LibraryContent(
+                    state = LibraryUiState(),
+                    onAction = {},
+                    onBrowseSources = null,
+                )
+            }
+        }
+        composeRule.onNodeWithTag("empty_state").assertIsDisplayed()
+        composeRule.onNodeWithText("Browse Sources").assertDoesNotExist()
+    }
+
+    @Test
     fun emptyState_filteredOrSearch_showsClearFiltersCTA() {
         val actions = mutableListOf<LibraryAction>()
         composeRule.setContent {

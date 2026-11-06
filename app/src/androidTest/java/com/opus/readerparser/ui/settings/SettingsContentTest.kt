@@ -123,4 +123,13 @@ class SettingsContentTest {
         composeRule.onNodeWithText("Fit Height").performScrollTo().performClick()
         assertEquals(ManhwaZoom.FIT_HEIGHT, selectedZoom)
     }
+
+    @Test
+    fun manhwaImageScaleSection_scrollsIntoViewAtBottomOfSettingsList() {
+        composeRule.setContent {
+            SettingsContent(state = SettingsUiState(settings = AppSettings()), onAction = {})
+        }
+        composeRule.onNodeWithText("Image Scale").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("Original Scale").performScrollTo().assertIsDisplayed()
+    }
 }
