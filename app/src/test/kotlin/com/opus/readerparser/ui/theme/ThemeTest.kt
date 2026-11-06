@@ -8,6 +8,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.opus.readerparser.domain.model.AppTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ThemeTest {
@@ -116,6 +118,29 @@ class ThemeTest {
     fun systemThemeResolvesCorrectly() {
         assertEquals(LightColorScheme, colorSchemeForTheme(AppTheme.SYSTEM, systemInDarkTheme = false))
         assertEquals(DarkColorScheme, colorSchemeForTheme(AppTheme.SYSTEM, systemInDarkTheme = true))
+    }
+
+    @Test
+    fun isLightAppThemeResolvesAllThemesCorrectly() {
+        assertTrue(isLightAppTheme(AppTheme.LIGHT))
+        assertTrue(isLightAppTheme(AppTheme.LIGHT, systemInDarkTheme = false))
+        assertTrue(isLightAppTheme(AppTheme.LIGHT, systemInDarkTheme = true))
+
+        assertTrue(isLightAppTheme(AppTheme.SEPIA))
+        assertTrue(isLightAppTheme(AppTheme.SEPIA, systemInDarkTheme = false))
+        assertTrue(isLightAppTheme(AppTheme.SEPIA, systemInDarkTheme = true))
+
+        assertFalse(isLightAppTheme(AppTheme.DARK))
+        assertFalse(isLightAppTheme(AppTheme.DARK, systemInDarkTheme = false))
+        assertFalse(isLightAppTheme(AppTheme.DARK, systemInDarkTheme = true))
+
+        assertFalse(isLightAppTheme(AppTheme.WARM_DARK))
+        assertFalse(isLightAppTheme(AppTheme.WARM_DARK, systemInDarkTheme = false))
+        assertFalse(isLightAppTheme(AppTheme.WARM_DARK, systemInDarkTheme = true))
+
+        assertTrue(isLightAppTheme(AppTheme.SYSTEM))
+        assertTrue(isLightAppTheme(AppTheme.SYSTEM, systemInDarkTheme = false))
+        assertFalse(isLightAppTheme(AppTheme.SYSTEM, systemInDarkTheme = true))
     }
 
     @Test
