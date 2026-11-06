@@ -1,10 +1,18 @@
 package com.opus.readerparser.ui.settings
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.dp
+import androidx.navigation.navOptions
 import com.opus.readerparser.domain.model.AppSettings
 import com.opus.readerparser.domain.model.AppTheme
 import com.opus.readerparser.domain.model.ManhwaLayout
 import com.opus.readerparser.domain.model.ManhwaZoom
+import com.opus.readerparser.ui.navigation.Destinations
+import com.opus.readerparser.ui.navigation.OuterScaffoldWindowInsets
+import com.opus.readerparser.ui.navigation.bottomNavRoutes
+import com.opus.readerparser.ui.navigation.configureTopLevelNavigation
 import com.opus.readerparser.ui.theme.DarkColorScheme
 import com.opus.readerparser.ui.theme.LightColorScheme
 import com.opus.readerparser.ui.theme.SepiaColorScheme
@@ -117,5 +125,33 @@ class SettingsContentTest {
         assertEquals(Color(0xFF5C4B3B), scheme.onSurfaceVariant)
         assertEquals(Color(0xFF8C5327), scheme.primary)
         assertEquals(Color(0xFF4F6D5A), scheme.secondary)
+    }
+
+    @Test
+    fun `OuterScaffoldWindowInsets has zero insets on all sides to prevent double status bar padding`() {
+        val density = Density(1f)
+        assertEquals(0, OuterScaffoldWindowInsets.getTop(density))
+        assertEquals(0, OuterScaffoldWindowInsets.getBottom(density))
+        assertEquals(0, OuterScaffoldWindowInsets.getLeft(density, LayoutDirection.Ltr))
+        assertEquals(0, OuterScaffoldWindowInsets.getRight(density, LayoutDirection.Ltr))
+    }
+
+    @Test
+    fun `configureTopLevelNavigation configures popUpTo start destination with saveState singleTop and restoreState for Browse CTA`() {
+        val options = navOptions {
+            configureTopLevelNavigation(101)
+        }
+        assertEquals(101, options.popUpToId)
+        assertEquals(true, options.shouldPopUpToSaveState())
+        assertEquals(false, options.isPopUpToInclusive())
+        assertEquals(true, options.shouldLaunchSingleTop())
+        assertEquals(true, options.shouldRestoreState())
+        assertEquals(true, bottomNavRoutes.contains(Destinations.BROWSE))
+    }
+
+    @Test
+    fun `SettingsListContentPadding provides 24dp bottom breathing room`() {
+        assertEquals(24.dp, SettingsListContentPadding.calculateBottomPadding())
+        assertEquals(0.dp, SettingsListContentPadding.calculateTopPadding())
     }
 }

@@ -2,6 +2,7 @@ package com.opus.readerparser.ui.settings
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
@@ -49,6 +50,8 @@ fun ManhwaZoom.displayName(): String = when (this) {
     ManhwaZoom.ORIGINAL -> "Original Scale"
 }
 
+internal val SettingsListContentPadding = PaddingValues(bottom = 24.dp)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsContent(
@@ -70,6 +73,7 @@ fun SettingsContent(
                 .fillMaxSize()
                 .padding(innerPadding)
                 .testTag("settings_list"),
+            contentPadding = SettingsListContentPadding,
         ) {
             // Appearance section
             item {
