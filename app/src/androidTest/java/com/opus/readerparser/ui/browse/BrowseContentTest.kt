@@ -3,6 +3,10 @@ package com.opus.readerparser.ui.browse
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.requiredWidth
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CollectionsBookmark
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Explore
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -23,6 +27,9 @@ import com.google.common.truth.Truth.assertThat
 import com.opus.readerparser.domain.model.ContentType
 import com.opus.readerparser.domain.model.Series
 import com.opus.readerparser.domain.model.SourceInfo
+import com.opus.readerparser.ui.components.BottomNavBar
+import com.opus.readerparser.ui.components.BottomNavDestination
+import com.opus.readerparser.ui.theme.BottomNavBarHeight
 import com.opus.readerparser.ui.theme.ReaderParserTheme
 import org.junit.Rule
 import org.junit.Test
@@ -426,5 +433,51 @@ class BrowseContentTest {
             actions.any { it is BrowseAction.LoadMore }
         }
         assertThat(actions.any { it is BrowseAction.LoadMore }).isTrue()
+    }
+
+    @Test
+    fun bottomNavBar_doesNotConstrainMaxHeightBelowItems() {
+        val destinations = listOf(
+            BottomNavDestination(
+                route = "library",
+                label = "Library",
+                icon = Icons.Filled.CollectionsBookmark,
+            ),
+            BottomNavDestination(
+                route = "browse",
+                label = "Browse",
+                icon = Icons.Filled.Explore,
+            ),
+            BottomNavDestination(
+                route = "downloads",
+                label = "Downloads",
+                icon = Icons.Filled.Download,
+            ),
+        )
+
+        composeRule.setContent {
+            ReaderParserTheme {
+                BottomNavBar(
+                    destinations = destinations,
+                    currentRoute = "browse",
+                    onNavigate = {},
+                )
+            }
+        }
+
+        val navBar = composeRule.onNodeWithTag("bottom_nav_bar")
+        navBar.assertIsDisplayed()
+
+        val navBarBounds = navBar.fetchSemanticsNode().boundsInRoot
+        val navBarHeightDp = with(composeRule.density) { navBarBounds.height.toDp() }
+        assertThat(navBarHeightDp >= BottomNavBarHeight).isTrue()
+
+        listOf("Library", "Browse", "Downloads").forEach { label ->
+            val itemNode = composeRule.onNodeWithText(label)
+            itemNode.assertIsDisplayed()
+            val itemBounds = itemNode.fetchSemanticsNode().boundsInRoot
+            assertThat(itemBounds.top >= navBarBounds.top).isTrue()
+            assertThat(itemBounds.bottom <= navBarBounds.bottom).isTrue()
+        }
     }
 }

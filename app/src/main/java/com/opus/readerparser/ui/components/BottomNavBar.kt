@@ -1,6 +1,6 @@
 package com.opus.readerparser.ui.components
 
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -30,7 +30,7 @@ fun BottomNavBar(
 ) {
     NavigationBar(
         modifier = modifier
-            .height(BottomNavBarHeight)
+            .defaultMinSize(minHeight = BottomNavBarHeight)
             .testTag("bottom_nav_bar"),
         containerColor = MaterialTheme.colorScheme.surface,
     ) {
