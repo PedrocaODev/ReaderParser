@@ -43,6 +43,7 @@ fun SeriesScreen(
     SeriesContent(
         state = state,
         onAction = viewModel::onAction,
+        onBack = onBack,
         snackbarHostState = snackbarHostState,
     )
 }

@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.opus.readerparser.domain.ChapterRepository
 import com.opus.readerparser.domain.DownloadEnqueuer
 import com.opus.readerparser.domain.SettingsRepository
+import com.opus.readerparser.domain.model.AppSettings
 import com.opus.readerparser.domain.model.Chapter
 import com.opus.readerparser.domain.model.ChapterContent
 import com.opus.readerparser.domain.model.ChapterWithState
@@ -117,15 +118,68 @@ class ReaderViewModel @Inject constructor(
                     loadChapter(chapter)
                 } else {
                     val url = _state.value.chapterUrl ?: return
-                    _state.update { it.copy(isLoading = true, error = null) }
+                    _state.update { it.copy(isLoading = true, error = null, isFormatMismatch = false) }
                     viewModelScope.launch {
                         val resolved = chapterRepository.findByUrl(sourceId, url)
                         if (resolved != null) {
                             loadChapter(resolved)
                         } else {
-                            _state.update { it.copy(isLoading = false, error = "Chapter not available") }
+                            _state.update { it.copy(isLoading = false, error = "Chapter not available", isFormatMismatch = false) }
                         }
                     }
+                }
+            }
+            is ReaderAction.RetryPage -> {
+                _state.update { current ->
+                    val currentToken = current.pageRetryTokens[action.pageIndex] ?: 0
+                    current.copy(
+                        pageRetryTokens = current.pageRetryTokens + (action.pageIndex to (currentToken + 1)),
+                    )
+                }
+            }
+            is ReaderAction.SetNovelFontFamily -> {
+                viewModelScope.launch {
+                    settingsRepository.setNovelFontFamily(action.family)
+                }
+            }
+            is ReaderAction.SetNovelFontSize -> {
+                viewModelScope.launch {
+                    settingsRepository.setNovelFontSize(action.size)
+                }
+            }
+            is ReaderAction.SetNovelLineHeightMultiplier -> {
+                viewModelScope.launch {
+                    settingsRepository.setNovelLineHeightMultiplier(action.multiplier)
+                }
+            }
+            is ReaderAction.SetNovelParagraphSpacingDp -> {
+                viewModelScope.launch {
+                    settingsRepository.setNovelParagraphSpacingDp(action.dp)
+                }
+            }
+            is ReaderAction.SetNovelHorizontalPaddingDp -> {
+                viewModelScope.launch {
+                    settingsRepository.setNovelHorizontalPaddingDp(action.dp)
+                }
+            }
+            is ReaderAction.ResetNovelTypographyDefaults -> {
+                viewModelScope.launch {
+                    val defaults = AppSettings()
+                    settingsRepository.setNovelFontFamily(defaults.novelFontFamily)
+                    settingsRepository.setNovelFontSize(defaults.novelFontSize)
+                    settingsRepository.setNovelLineHeightMultiplier(defaults.novelLineHeightMultiplier)
+                    settingsRepository.setNovelParagraphSpacingDp(defaults.novelParagraphSpacingDp)
+                    settingsRepository.setNovelHorizontalPaddingDp(defaults.novelHorizontalPaddingDp)
+                }
+            }
+            is ReaderAction.SetManhwaLayout -> {
+                viewModelScope.launch {
+                    settingsRepository.setManhwaLayout(action.layout)
+                }
+            }
+            is ReaderAction.SetManhwaZoom -> {
+                viewModelScope.launch {
+                    settingsRepository.setManhwaZoom(action.zoom)
                 }
             }
         }
@@ -181,14 +235,14 @@ class ReaderViewModel @Inject constructor(
                 val chapters = loadSeriesChapters()
                 val chapterInList = chapters.find { it.chapter.url == chapterUrl }
                 if (chapterInList == null) {
-                    _state.update { it.copy(isLoading = false, error = "Chapter not available", chapterUrl = chapterUrl) }
+                    _state.update { it.copy(isLoading = false, error = "Chapter not available", isFormatMismatch = false, chapterUrl = chapterUrl) }
                     return@launch
                 }
                 val chapter = chapterInList.chapter
                 loadChapter(chapter)
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
-                _state.update { it.copy(isLoading = false, error = e.message ?: "Failed to load chapter") }
+                _state.update { it.copy(isLoading = false, error = e.message ?: "Failed to load chapter", isFormatMismatch = false) }
                 _effects.send(ReaderEffect.ShowError(e.message ?: "Failed to load chapter"))
             }
         }
@@ -204,12 +258,14 @@ class ReaderViewModel @Inject constructor(
                 it.copy(
                     isLoading = true,
                     error = null,
+                    isFormatMismatch = false,
                     chapter = chapter,
                     chapterUrl = chapter.url,
                     html = "",
                     pages = emptyList(),
                     progress = 0f,
                     currentPage = 0,
+                    pageRetryTokens = emptyMap(),
                 )
             }
             try {
@@ -231,6 +287,7 @@ class ReaderViewModel @Inject constructor(
                     it.copy(
                         isLoading = false,
                         error = e.message ?: "Failed to load chapter",
+                        isFormatMismatch = false,
                     )
                 }
                 _effects.send(ReaderEffect.ShowError(e.message ?: "Failed to load chapter"))
@@ -249,6 +306,7 @@ class ReaderViewModel @Inject constructor(
                     it.copy(
                         html = content.html,
                         isLoading = false,
+                        isFormatMismatch = false,
                         progress = progress,
                         hasPreviousChapter = idx > 0,
                         hasNextChapter = idx in 0 until chapters.lastIndex,
@@ -262,6 +320,7 @@ class ReaderViewModel @Inject constructor(
                     it.copy(
                         pages = content.imageUrls,
                         isLoading = false,
+                        isFormatMismatch = false,
                         hasPreviousChapter = idx > 0,
                         hasNextChapter = idx in 0 until chapters.lastIndex,
                     )
@@ -272,6 +331,7 @@ class ReaderViewModel @Inject constructor(
                     it.copy(
                         isLoading = false,
                         error = "Unexpected content type",
+                        isFormatMismatch = true,
                     )
                 }
             }

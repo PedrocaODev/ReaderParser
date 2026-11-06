@@ -1,5 +1,8 @@
 package com.opus.readerparser.ui.theme
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
@@ -9,10 +12,13 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 import com.opus.readerparser.domain.model.AppTheme
 
-private val LightColorScheme = lightColorScheme(
+val LightColorScheme = lightColorScheme(
     primary = PrimaryLight,
     onPrimary = OnPrimaryLight,
     primaryContainer = PrimaryContainerLight,
@@ -27,11 +33,17 @@ private val LightColorScheme = lightColorScheme(
     onBackground = OnBackgroundLight,
     surface = SurfaceLight,
     onSurface = OnSurfaceLight,
+    surfaceVariant = SurfaceContainerLight,
+    onSurfaceVariant = OnSurfaceVariantLight,
+    surfaceContainer = SurfaceContainerLight,
+    surfaceContainerHigh = SurfaceContainerHighLight,
+    outline = OutlineLight,
+    outlineVariant = OutlineVariantLight,
     error = ErrorLight,
     onError = OnErrorLight,
 )
 
-private val DarkColorScheme = darkColorScheme(
+val DarkColorScheme = darkColorScheme(
     primary = PrimaryDark,
     onPrimary = OnPrimaryDark,
     primaryContainer = PrimaryContainerDark,
@@ -46,6 +58,12 @@ private val DarkColorScheme = darkColorScheme(
     onBackground = OnBackgroundDark,
     surface = SurfaceDark,
     onSurface = OnSurfaceDark,
+    surfaceVariant = SurfaceContainerDark,
+    onSurfaceVariant = OnSurfaceVariantDark,
+    surfaceContainer = SurfaceContainerDark,
+    surfaceContainerHigh = SurfaceContainerHighDark,
+    outline = OutlineDark,
+    outlineVariant = OutlineVariantDark,
     error = ErrorDark,
     onError = OnErrorDark,
 )
@@ -60,14 +78,16 @@ val WarmDarkColorScheme = darkColorScheme(
     secondaryContainer = WarmDarkSecondaryContainer,
     onSecondaryContainer = WarmDarkOnSecondaryContainer,
     background = WarmDarkBackground,
-    onBackground = WarmDarkOnSurface,
+    onBackground = WarmDarkOnBackground,
     surface = WarmDarkSurface,
     onSurface = WarmDarkOnSurface,
     surfaceVariant = WarmDarkSurfaceContainer,
     onSurfaceVariant = WarmDarkOnSurfaceVariant,
     surfaceContainer = WarmDarkSurfaceContainer,
-    surfaceContainerHigh = WarmDarkSurfaceContainer,
-    error = ErrorDark,
+    surfaceContainerHigh = WarmDarkSurfaceContainerHigh,
+    outline = WarmDarkOutline,
+    outlineVariant = WarmDarkOutlineVariant,
+    error = WarmDarkError,
     onError = OnErrorDark,
 )
 
@@ -81,14 +101,16 @@ val SepiaColorScheme = lightColorScheme(
     secondaryContainer = SepiaSecondaryContainer,
     onSecondaryContainer = SepiaOnSecondaryContainer,
     background = SepiaBackground,
-    onBackground = SepiaOnSurface,
+    onBackground = SepiaOnBackground,
     surface = SepiaSurface,
     onSurface = SepiaOnSurface,
     surfaceVariant = SepiaSurfaceContainer,
     onSurfaceVariant = SepiaOnSurfaceVariant,
     surfaceContainer = SepiaSurfaceContainer,
-    surfaceContainerHigh = SepiaSurfaceContainer,
-    error = ErrorLight,
+    surfaceContainerHigh = SepiaSurfaceContainerHigh,
+    outline = SepiaOutline,
+    outlineVariant = SepiaOutlineVariant,
+    error = SepiaError,
     onError = OnErrorLight,
 )
 
@@ -103,6 +125,21 @@ fun colorSchemeForTheme(
     AppTheme.SYSTEM -> if (systemInDarkTheme) DarkColorScheme else LightColorScheme
 }
 
+fun isLightAppTheme(
+    appTheme: AppTheme,
+    systemInDarkTheme: Boolean = false,
+): Boolean = when (appTheme) {
+    AppTheme.LIGHT, AppTheme.SEPIA -> true
+    AppTheme.DARK, AppTheme.WARM_DARK -> false
+    AppTheme.SYSTEM -> !systemInDarkTheme
+}
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
+}
+
 @Composable
 fun ReaderParserTheme(
     appTheme: AppTheme = AppTheme.SYSTEM,
@@ -110,6 +147,19 @@ fun ReaderParserTheme(
     content: @Composable () -> Unit,
 ) {
     val systemInDarkTheme = isSystemInDarkTheme()
+    val isLightTheme = isLightAppTheme(appTheme = appTheme, systemInDarkTheme = systemInDarkTheme)
+    val view = LocalView.current
+    if (!view.isInEditMode) {
+        SideEffect {
+            val window = (view.context as? Activity)?.window
+                ?: view.context.findActivity()?.window
+                ?: return@SideEffect
+            WindowCompat.getInsetsController(window, view).apply {
+                isAppearanceLightStatusBars = isLightTheme
+                isAppearanceLightNavigationBars = isLightTheme
+            }
+        }
+    }
     val useDynamicColor = dynamicColor &&
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
         appTheme != AppTheme.WARM_DARK &&
@@ -128,6 +178,7 @@ fun ReaderParserTheme(
     MaterialTheme(
         colorScheme = colorScheme,
         typography = AppTypography,
+        shapes = AppShapes,
         content = content,
     )
 }

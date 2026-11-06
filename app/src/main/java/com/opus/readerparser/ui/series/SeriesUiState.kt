@@ -10,7 +10,10 @@ sealed interface ReadingResumeState {
     data class Start(val targetChapter: Chapter) : ReadingResumeState
     data class Resume(val targetChapter: Chapter, val percent: Int) : ReadingResumeState
     data class Continue(val targetChapter: Chapter, val lastCompletedNumber: Float) : ReadingResumeState
-    data class Completed(val firstChapter: Chapter) : ReadingResumeState
+    data class Completed(
+        val firstChapter: Chapter,
+        val lastChapter: Chapter = firstChapter,
+    ) : ReadingResumeState
 }
 
 data class SeriesUiState(
@@ -20,10 +23,30 @@ data class SeriesUiState(
     val error: String? = null,
     val inLibrary: Boolean = false,
     val showRangePicker: Boolean = false,
+    val unreadOnly: Boolean = false,
+    val sortAscending: Boolean = false,
 ) {
-    val readChapterCount: Int get() = chapters.count { it.read }
-    val totalChapterCount: Int get() = chapters.size
-    val resumeState: ReadingResumeState get() = computeResumeState(chapters)
+    val readChapterCount: Int = chapters.count { it.read }
+    val totalChapterCount: Int = chapters.size
+    val resumeState: ReadingResumeState = computeResumeState(chapters)
+    val displayedChapters: List<ChapterWithState> = computeDisplayedChapters(
+        chapters = chapters,
+        unreadOnly = unreadOnly,
+        sortAscending = sortAscending,
+    )
+}
+
+internal fun computeDisplayedChapters(
+    chapters: List<ChapterWithState>,
+    unreadOnly: Boolean,
+    sortAscending: Boolean,
+): List<ChapterWithState> {
+    val filtered = if (unreadOnly) chapters.filter { !it.read } else chapters
+    return if (sortAscending) {
+        filtered.sortedBy { it.chapter.number }
+    } else {
+        filtered.sortedByDescending { it.chapter.number }
+    }
 }
 
 internal fun computeResumeState(chapters: List<ChapterWithState>): ReadingResumeState {
@@ -34,7 +57,10 @@ internal fun computeResumeState(chapters: List<ChapterWithState>): ReadingResume
         return ReadingResumeState.Resume(inProgress.chapter, (inProgress.progress * 100).toInt())
     }
     if (sorted.all { it.read }) {
-        return ReadingResumeState.Completed(sorted.first().chapter)
+        return ReadingResumeState.Completed(
+            firstChapter = sorted.first().chapter,
+            lastChapter = sorted.last().chapter,
+        )
     }
     if (sorted.any { it.read }) {
         val lastCompleted = sorted.filter { it.read }.maxByOrNull { it.chapter.number }!!
@@ -54,6 +80,9 @@ sealed interface SeriesAction {
     data object ResumeReading : SeriesAction
     data object DownloadUnread : SeriesAction
     data object ShowRangePicker : SeriesAction
+    data object ToggleUnreadFilter : SeriesAction
+    data object ToggleSortOrder : SeriesAction
+    data class DownloadChapter(val chapter: Chapter) : SeriesAction
     data object DismissRangePicker : SeriesAction
     data class DownloadRange(val startIndex: Int, val endIndex: Int) : SeriesAction
     data class ToggleChapterRead(val chapter: Chapter) : SeriesAction

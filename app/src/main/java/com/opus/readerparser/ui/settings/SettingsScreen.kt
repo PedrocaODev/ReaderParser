@@ -7,11 +7,16 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @Composable
 fun SettingsScreen(
+    onBack: (() -> Unit)? = null,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
     // Settings has no navigation effects; no LaunchedEffect needed.
 
-    SettingsContent(state = state, onAction = viewModel::onAction)
+    SettingsContent(
+        state = state,
+        onAction = viewModel::onAction,
+        onBack = onBack,
+    )
 }

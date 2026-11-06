@@ -38,3 +38,6 @@ relations:
 | Progressive chapter list | A multi-stage chapter list retrieval that emits the initial page of chapters immediately and completes remaining pages concurrently. |
 | Novel text engine | The native reader renderer that displays structured chapter prose in a continuous vertical scroll with user-controlled typography. |
 | Warm dark theme | A low-strain dark color palette using warm charcoal and espresso surfaces with muted cream text instead of pure black and white. |
+| Design system | The canonical visual token and reusable component layer that defines the appearance and interaction states of all screens independently of business logic. |
+| Foundational primitive | A screen-agnostic UI building block such as an app bar, navigation bar, input, chip, badge, form control, or state feedback view. |
+| Domain component | A reusable visual pattern tailored to reading, catalog, series detail, or download concepts such as a series card, reading progress card, chapter row, or reader prose block. |

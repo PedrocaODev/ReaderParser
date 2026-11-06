@@ -654,4 +654,31 @@ class BrowseViewModelTest {
 
         assertThat(vm.state.value.series).containsExactly(series1First, series2).inOrder()
     }
+
+    @Test
+    fun `library membership updates inLibraryUrls and inLibraryKeys in state`() = runTest {
+        sourceRepo.sourceList = listOf(source1)
+        val series = TestFixtures.testSeries(sourceId = source1.id, url = "https://test.invalid/lib-membership")
+
+        val vm = buildVm()
+        advanceUntilIdle()
+
+        assertThat(vm.state.value.isSeriesInLibrary(series)).isFalse()
+        assertThat(vm.state.value.inLibraryUrls).doesNotContain(series.url)
+        assertThat(vm.state.value.inLibraryKeys).doesNotContain(series.sourceId to series.url)
+
+        seriesRepo.addToLibrary(series)
+        advanceUntilIdle()
+
+        assertThat(vm.state.value.isSeriesInLibrary(series)).isTrue()
+        assertThat(vm.state.value.inLibraryUrls).contains(series.url)
+        assertThat(vm.state.value.inLibraryKeys).contains(series.sourceId to series.url)
+
+        seriesRepo.removeFromLibrary(series)
+        advanceUntilIdle()
+
+        assertThat(vm.state.value.isSeriesInLibrary(series)).isFalse()
+        assertThat(vm.state.value.inLibraryUrls).doesNotContain(series.url)
+        assertThat(vm.state.value.inLibraryKeys).doesNotContain(series.sourceId to series.url)
+    }
 }

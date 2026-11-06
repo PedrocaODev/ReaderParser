@@ -1,43 +1,30 @@
 package com.opus.readerparser.ui.settings
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MenuAnchorType
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Slider
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.opus.readerparser.domain.model.AppSettings
 import com.opus.readerparser.domain.model.AppTheme
 import com.opus.readerparser.domain.model.ManhwaLayout
 import com.opus.readerparser.domain.model.ManhwaZoom
+import com.opus.readerparser.ui.components.AppTopBar
+import com.opus.readerparser.ui.components.RadioRow
+import com.opus.readerparser.ui.components.SectionDivider
+import com.opus.readerparser.ui.components.SectionHeader
+import com.opus.readerparser.ui.components.SegmentedOptionGroup
+import com.opus.readerparser.ui.components.SliderControl
 import com.opus.readerparser.ui.theme.ReaderParserTheme
 import kotlin.math.roundToInt
 
@@ -51,35 +38,47 @@ fun AppTheme.displayName(): String = when (this) {
     AppTheme.SEPIA -> "Sepia"
 }
 
+fun ManhwaLayout.displayName(): String = when (this) {
+    ManhwaLayout.WEBTOON -> "Webtoon"
+    ManhwaLayout.PAGED_LTR -> "Paged LTR"
+    ManhwaLayout.PAGED_RTL -> "Paged RTL"
+}
+
+fun ManhwaZoom.displayName(): String = when (this) {
+    ManhwaZoom.FIT_WIDTH -> "Fit Width"
+    ManhwaZoom.FIT_HEIGHT -> "Fit Height"
+    ManhwaZoom.ORIGINAL -> "Original Scale"
+}
+
+internal val SettingsListContentPadding = PaddingValues(bottom = 24.dp)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsContent(
     state: SettingsUiState,
     onAction: (SettingsAction) -> Unit,
+    modifier: Modifier = Modifier,
+    onBack: (() -> Unit)? = null,
 ) {
-    var fontFamilyExpanded by remember { mutableStateOf(false) }
-
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("Settings") })
+            AppTopBar(
+                title = "Settings",
+                onBackClick = onBack,
+            )
         },
     ) { innerPadding ->
         LazyColumn(
-            modifier = Modifier
+            modifier = modifier
                 .fillMaxSize()
                 .padding(innerPadding)
                 .testTag("settings_list"),
+            contentPadding = SettingsListContentPadding,
         ) {
-            // Theme section
+            // Appearance section
             item {
                 SectionHeader("Appearance")
                 Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                    Text(
-                        text = "Theme",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(bottom = 4.dp),
-                    )
                     AppTheme.entries.forEach { theme ->
                         RadioRow(
                             label = theme.displayName(),
@@ -92,180 +91,99 @@ fun SettingsContent(
 
             item { SectionDivider() }
 
-            // Novel reader section
+            // Novel reader defaults section
             item {
-                SectionHeader("Novel Reader")
-                Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                    Text(
-                        text = "Font size: ${state.settings.novelFontSize} sp",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                SectionHeader("Novel Reader Defaults")
+                Column(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    SegmentedOptionGroup(
+                        options = novelFontFamilies.map { it to it },
+                        selectedValue = state.settings.novelFontFamily,
+                        onSelect = { onAction(SettingsAction.SetNovelFontFamily(it)) },
+                        label = "Font Family",
                     )
-                    Slider(
+
+                    SliderControl(
+                        label = "Font Size",
+                        valueText = "${state.settings.novelFontSize} sp",
                         value = state.settings.novelFontSize.toFloat(),
                         onValueChange = { onAction(SettingsAction.SetNovelFontSize(it.toInt())) },
                         valueRange = 12f..32f,
                         steps = 19,
-                        modifier = Modifier.testTag("font_size_slider"),
+                        sliderTestTag = "font_size_slider",
                     )
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        text = "Font family",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(bottom = 4.dp),
-                    )
-                    ExposedDropdownMenuBox(
-                        expanded = fontFamilyExpanded,
-                        onExpandedChange = { fontFamilyExpanded = it },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        OutlinedTextField(
-                            value = state.settings.novelFontFamily,
-                            onValueChange = {},
-                            readOnly = true,
-                            trailingIcon = {
-                                ExposedDropdownMenuDefaults.TrailingIcon(expanded = fontFamilyExpanded)
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .menuAnchor(MenuAnchorType.PrimaryNotEditable),
-                        )
-                        DropdownMenu(
-                            expanded = fontFamilyExpanded,
-                            onDismissRequest = { fontFamilyExpanded = false },
-                        ) {
-                            novelFontFamilies.forEach { family ->
-                                DropdownMenuItem(
-                                    text = { Text(family) },
-                                    onClick = {
-                                        onAction(SettingsAction.SetNovelFontFamily(family))
-                                        fontFamilyExpanded = false
-                                    },
-                                )
-                            }
-                        }
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        text = "Line height: ${String.format(java.util.Locale.US, "%.1f", state.settings.novelLineHeightMultiplier)}x",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Slider(
+
+                    SliderControl(
+                        label = "Line Height",
+                        valueText = "${String.format(java.util.Locale.US, "%.1f", state.settings.novelLineHeightMultiplier)}x",
                         value = state.settings.novelLineHeightMultiplier,
-                        onValueChange = { onAction(SettingsAction.SetNovelLineHeightMultiplier((it * 10f).roundToInt() / 10f)) },
+                        onValueChange = {
+                            onAction(
+                                SettingsAction.SetNovelLineHeightMultiplier(
+                                    (it * 10f).roundToInt() / 10f
+                                )
+                            )
+                        },
                         valueRange = 1.2f..2.0f,
                         steps = 7,
-                        modifier = Modifier.testTag("line_height_slider"),
+                        sliderTestTag = "line_height_slider",
                     )
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        text = "Paragraph spacing: ${state.settings.novelParagraphSpacingDp} dp",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Slider(
+
+                    SliderControl(
+                        label = "Paragraph Spacing",
+                        valueText = "${state.settings.novelParagraphSpacingDp} dp",
                         value = state.settings.novelParagraphSpacingDp.toFloat(),
-                        onValueChange = { onAction(SettingsAction.SetNovelParagraphSpacingDp(it.roundToInt())) },
+                        onValueChange = {
+                            onAction(SettingsAction.SetNovelParagraphSpacingDp(it.roundToInt()))
+                        },
                         valueRange = 4f..28f,
                         steps = 23,
-                        modifier = Modifier.testTag("paragraph_spacing_slider"),
+                        sliderTestTag = "paragraph_spacing_slider",
                     )
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        text = "Horizontal padding: ${state.settings.novelHorizontalPaddingDp} dp",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Slider(
+
+                    SliderControl(
+                        label = "Horizontal Margins",
+                        valueText = "${state.settings.novelHorizontalPaddingDp} dp",
                         value = state.settings.novelHorizontalPaddingDp.toFloat(),
-                        onValueChange = { onAction(SettingsAction.SetNovelHorizontalPaddingDp(it.roundToInt())) },
+                        onValueChange = {
+                            onAction(SettingsAction.SetNovelHorizontalPaddingDp(it.roundToInt()))
+                        },
                         valueRange = 8f..40f,
                         steps = 31,
-                        modifier = Modifier.testTag("horizontal_padding_slider"),
+                        sliderTestTag = "horizontal_padding_slider",
                     )
                 }
             }
 
             item { SectionDivider() }
 
-            // Manhwa reader section
+            // Manhwa reader defaults section
             item {
-                SectionHeader("Manhwa Reader")
-                Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                    Text(
-                        text = "Layout",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(bottom = 4.dp),
+                SectionHeader("Manhwa Reader Defaults")
+                Column(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    SegmentedOptionGroup(
+                        options = ManhwaLayout.entries.map { it to it.displayName() },
+                        selectedValue = state.settings.manhwaLayout,
+                        onSelect = { onAction(SettingsAction.SetManhwaLayout(it)) },
+                        label = "Reading Layout",
                     )
-                    ManhwaLayout.entries.forEach { layout ->
-                        RadioRow(
-                            label = layout.name.lowercase().replace('_', ' ')
-                                .replaceFirstChar { it.uppercase() },
-                            selected = state.settings.manhwaLayout == layout,
-                            onClick = { onAction(SettingsAction.SetManhwaLayout(layout)) },
-                        )
-                    }
 
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        text = "Zoom",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(bottom = 4.dp),
+                    SegmentedOptionGroup(
+                        options = ManhwaZoom.entries.map { it to it.displayName() },
+                        selectedValue = state.settings.manhwaZoom,
+                        onSelect = { onAction(SettingsAction.SetManhwaZoom(it)) },
+                        label = "Image Scale",
                     )
-                    ManhwaZoom.entries.forEach { zoom ->
-                        RadioRow(
-                            label = zoom.name.lowercase().replace('_', ' ')
-                                .replaceFirstChar { it.uppercase() },
-                            selected = state.settings.manhwaZoom == zoom,
-                            onClick = { onAction(SettingsAction.SetManhwaZoom(zoom)) },
-                        )
-                    }
                 }
             }
 
             item { Spacer(Modifier.height(16.dp)) }
         }
-    }
-}
-
-@Composable
-private fun SectionHeader(title: String) {
-    Text(
-        text = title,
-        style = MaterialTheme.typography.titleMedium,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp),
-    )
-}
-
-@Composable
-private fun SectionDivider() {
-    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-}
-
-@Composable
-private fun RadioRow(
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .selectable(selected = selected, onClick = onClick, role = Role.RadioButton)
-            .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        RadioButton(selected = selected, onClick = null)
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyLarge,
-            modifier = Modifier.padding(start = 8.dp),
-        )
     }
 }
 

@@ -3,19 +3,13 @@ package com.opus.readerparser.ui.reader
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -23,26 +17,12 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material3.BottomAppBar
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -55,34 +35,21 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
-import coil3.compose.LocalPlatformContext
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import coil3.ImageLoader
-import coil3.SingletonImageLoader
-import coil3.compose.AsyncImage
 import com.opus.readerparser.domain.model.AppSettings
 import com.opus.readerparser.domain.model.ContentType
 import com.opus.readerparser.domain.model.ManhwaLayout
 import com.opus.readerparser.domain.model.ManhwaZoom
+import com.opus.readerparser.ui.components.ErrorRetryStateView
+import com.opus.readerparser.ui.components.LoadingStateView
 import com.opus.readerparser.ui.theme.ReaderParserTheme
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlin.math.abs
-
-private fun headingScale(level: Int): Float = when (level) {
-    1 -> 1.4f
-    2 -> 1.25f
-    3 -> 1.15f
-    else -> 1.05f
-}
 
 @Composable
 fun NovelTextEngine(
@@ -93,6 +60,9 @@ fun NovelTextEngine(
     onProgressChanged: (Float) -> Unit,
     onTap: () -> Unit,
     modifier: Modifier = Modifier,
+    hasNextChapter: Boolean = false,
+    nextChapterTitle: String? = null,
+    onNextChapter: () -> Unit = {},
 ) {
     val blocks = remember(html) { parseNovelHtml(html) }
     if (blocks.isEmpty()) {
@@ -154,13 +124,15 @@ fun NovelTextEngine(
             }
             val firstItem = visibleItems.first()
             val lastItem = visibleItems.last()
+            val clampedFirstIndex = firstIdx.coerceIn(0, blocks.lastIndex)
+            val clampedLastIndex = lastItem.index.coerceIn(0, blocks.lastIndex)
             val bottomReached = !listState.canScrollForward ||
-                (lastItem.index == blocks.lastIndex && lastItem.offset + lastItem.size <= layoutInfo.viewportEndOffset)
+                (lastItem.index >= blocks.lastIndex && lastItem.offset + lastItem.size <= layoutInfo.viewportEndOffset)
             calculateNovelScrollProgress(
-                firstVisibleIndex = firstIdx,
+                firstVisibleIndex = clampedFirstIndex,
                 firstVisibleOffset = firstOffset,
                 firstVisibleSize = firstItem.size,
-                lastVisibleIndex = lastItem.index,
+                lastVisibleIndex = clampedLastIndex,
                 lastVisibleBottomReached = bottomReached,
                 totalBlocks = blocks.size,
             )
@@ -171,12 +143,6 @@ fun NovelTextEngine(
                 onProgressChanged(currentProgress)
             }
     }
-
-    val fontFamily = remember(settings.novelFontFamily) {
-        resolveNovelFontFamily(settings.novelFontFamily)
-    }
-    val fontSizeSp = settings.novelFontSize.sp
-    val lineHeightSp = (settings.novelFontSize * settings.novelLineHeightMultiplier).sp
 
     Box(modifier = modifier.testTag("novel_webview")) {
         LazyColumn(
@@ -198,222 +164,17 @@ fun NovelTextEngine(
                 items = blocks,
                 key = { index, _ -> index },
             ) { _, block ->
-                when (block) {
-                    is NovelBlock.Heading -> {
-                        val scale = headingScale(block.level)
-                        Text(
-                            text = block.text,
-                            color = MaterialTheme.colorScheme.onBackground,
-                            fontFamily = fontFamily,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = (settings.novelFontSize * scale).sp,
-                            lineHeight = (settings.novelFontSize * scale * 1.3f).sp,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 8.dp, bottom = 4.dp),
-                        )
-                    }
-                    is NovelBlock.Paragraph -> {
-                        Text(
-                            text = block.text,
-                            color = MaterialTheme.colorScheme.onBackground,
-                            fontFamily = fontFamily,
-                            fontSize = fontSizeSp,
-                            lineHeight = lineHeightSp,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
-                    is NovelBlock.Divider -> {
-                        HorizontalDivider(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 8.dp),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun ReaderContent(
-    state: ReaderUiState,
-    isDarkTheme: Boolean,
-    onAction: (ReaderAction) -> Unit,
-    onBack: () -> Unit = {},
-    imageLoader: ImageLoader? = null,
-    snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
-) {
-    var showControls by remember { mutableStateOf(true) }
-
-    Scaffold(
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-    ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .pointerInput(Unit) {
-                    detectTapGestures(onTap = { showControls = !showControls })
-                },
-        ) {
-            when {
-                state.isLoading -> {
-                    CircularProgressIndicator(
-                        modifier = Modifier
-                            .align(Alignment.Center)
-                            .testTag("loading"),
-                    )
-                }
-                state.error != null -> {
-                    Column(
-                        modifier = Modifier.align(Alignment.Center),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        Text(
-                            text = state.error,
-                            modifier = Modifier.testTag("error_message"),
-                            color = MaterialTheme.colorScheme.error,
-                            textAlign = TextAlign.Center,
-                        )
-                        TextButton(onClick = { onAction(ReaderAction.Retry) }) {
-                            Text("Retry")
-                        }
-                    }
-                }
-                state.contentType == ContentType.NOVEL && state.html.isNotEmpty() -> {
-                    NovelTextEngine(
-                        chapterKey = state.chapter?.url ?: "",
-                        html = state.html,
-                        settings = state.settings,
-                        progress = state.progress,
-                        onProgressChanged = { progress ->
-                            onAction(ReaderAction.SetProgress(progress))
-                        },
-                        onTap = { showControls = !showControls },
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                }
-                state.contentType == ContentType.MANHWA && state.pages.isNotEmpty() -> {
-                    key(state.chapter?.url, state.settings.manhwaLayout) {
-                        ManhwaPageList(
-                            pages = state.pages,
-                            currentPage = state.currentPage,
-                            layout = state.settings.manhwaLayout,
-                            zoom = state.settings.manhwaZoom,
-                            onPageChanged = { page -> onAction(ReaderAction.SetPage(page)) },
-                            imageLoader = imageLoader,
-                            modifier = Modifier.fillMaxSize(),
-                        )
-                    }
-                }
-                else -> {
-                    Text(
-                        text = "No content available",
-                        modifier = Modifier.align(Alignment.Center),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-
-            // Top Bar Overlay
-            AnimatedVisibility(
-                visible = showControls,
-                enter = slideInVertically { -it },
-                exit = slideOutVertically { -it },
-                modifier = Modifier.align(Alignment.TopCenter),
-            ) {
-                TopAppBar(
-                    title = {
-                        Text(
-                            text = state.chapter?.name ?: "",
-                            maxLines = 1,
-                        )
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
-                    ),
+                NovelProseBlock(
+                    block = block,
+                    settings = settings,
                 )
             }
-
-            // Bottom Bar Overlay
-            AnimatedVisibility(
-                visible = showControls,
-                enter = slideInVertically { it },
-                exit = slideOutVertically { it },
-                modifier = Modifier.align(Alignment.BottomCenter),
-            ) {
-                BottomAppBar(
-                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
-                    contentPadding = PaddingValues(horizontal = 8.dp),
-                ) {
-                    IconButton(
-                        onClick = { onAction(ReaderAction.PreviousChapter) },
-                        enabled = state.hasPreviousChapter,
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Previous chapter")
-                    }
-
-                    Spacer(modifier = Modifier.weight(1f))
-
-                    Text(
-                        text = when (state.contentType) {
-                            ContentType.NOVEL -> if (state.progress > 0f) "${(state.progress * 100).toInt()}%" else ""
-                            ContentType.MANHWA -> if (state.pages.isNotEmpty()) "${state.currentPage + 1} / ${state.pages.size}" else ""
-                        },
-                        style = MaterialTheme.typography.labelLarge,
-                    )
-
-                    Spacer(modifier = Modifier.weight(1f))
-
-                    IconButton(
-                        onClick = { onAction(ReaderAction.NextChapter) },
-                        enabled = state.hasNextChapter,
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Next chapter")
-                    }
-                    IconButton(onClick = { onAction(ReaderAction.OpenChapterList) }) {
-                        Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Chapter list")
-                    }
-                    IconButton(onClick = { onAction(ReaderAction.DownloadChapter) }) {
-                        Icon(Icons.Filled.Download, contentDescription = "Download chapter")
-                    }
-                }
-            }
-
-            // Floating progress indicator when controls are hidden
-            AnimatedVisibility(
-                visible = !showControls && (state.pages.isNotEmpty() || state.progress > 0f),
-                enter = fadeIn(),
-                exit = fadeOut(),
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(16.dp)
-                    .navigationBarsPadding(),
-            ) {
-                Surface(
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
-                    shape = MaterialTheme.shapes.small,
-                ) {
-                    Text(
-                        text = when (state.contentType) {
-                            ContentType.NOVEL -> "${(state.progress * 100).toInt()}%"
-                            ContentType.MANHWA -> "${state.currentPage + 1} / ${state.pages.size}"
-                        },
-                        style = MaterialTheme.typography.labelMedium,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                    )
-                }
+            item(key = "novel_chapter_end_card") {
+                NovelChapterEndCard(
+                    hasNextChapter = hasNextChapter,
+                    nextChapterTitle = nextChapterTitle,
+                    onNextChapter = onNextChapter,
+                )
             }
         }
     }
@@ -425,18 +186,13 @@ private fun ManhwaPageList(
     currentPage: Int,
     layout: ManhwaLayout,
     zoom: ManhwaZoom,
+    pageRetryTokens: Map<Int, Int>,
     onPageChanged: (Int) -> Unit,
+    onRetryPage: (Int) -> Unit,
+    onTap: () -> Unit,
     imageLoader: ImageLoader? = null,
     modifier: Modifier = Modifier,
 ) {
-    val contentScale = when (zoom) {
-        ManhwaZoom.FIT_WIDTH -> ContentScale.FillWidth
-        ManhwaZoom.FIT_HEIGHT -> ContentScale.Fit
-        ManhwaZoom.ORIGINAL -> ContentScale.Inside
-    }
-    val placeholderPainter = ColorPainter(MaterialTheme.colorScheme.surfaceVariant)
-    val errorPainter = ColorPainter(MaterialTheme.colorScheme.errorContainer)
-
     when (layout) {
         ManhwaLayout.WEBTOON -> {
             val listState = rememberLazyListState(
@@ -467,17 +223,14 @@ private fun ManhwaPageList(
                     items = pages,
                     key = { index, pageUrl -> "$index-$pageUrl" },
                 ) { index, pageUrl ->
-                    AsyncImage(
-                        model = pageUrl,
-                        contentDescription = "Page ${index + 1}",
-                        imageLoader = imageLoader
-                            ?: SingletonImageLoader.get(LocalPlatformContext.current),
-                        contentScale = contentScale,
-                        placeholder = placeholderPainter,
-                        error = errorPainter,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 150.dp),
+                    ManhwaPageItem(
+                        pageIndex = index,
+                        pageUrl = pageUrl,
+                        zoom = zoom,
+                        onRetryPage = onRetryPage,
+                        onTap = onTap,
+                        retryToken = pageRetryTokens[index] ?: 0,
+                        imageLoader = imageLoader,
                     )
                 }
             }
@@ -502,17 +255,185 @@ private fun ManhwaPageList(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center,
                 ) {
-                    AsyncImage(
-                        model = pages[pageIndex],
-                        contentDescription = "Page ${pageIndex + 1}",
-                        imageLoader = imageLoader
-                            ?: SingletonImageLoader.get(LocalPlatformContext.current),
-                        contentScale = contentScale,
-                        placeholder = placeholderPainter,
-                        error = errorPainter,
+                    ManhwaPageItem(
+                        pageIndex = pageIndex,
+                        pageUrl = pages[pageIndex],
+                        zoom = zoom,
+                        onRetryPage = onRetryPage,
+                        onTap = onTap,
+                        retryToken = pageRetryTokens[pageIndex] ?: 0,
+                        imageLoader = imageLoader,
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ReaderContent(
+    state: ReaderUiState,
+    isDarkTheme: Boolean,
+    onAction: (ReaderAction) -> Unit,
+    onBack: () -> Unit = {},
+    imageLoader: ImageLoader? = null,
+    snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
+) {
+    var showChrome by rememberSaveable { mutableStateOf(true) }
+    var showSettingsSheet by rememberSaveable { mutableStateOf(false) }
+    var showChapterListSheet by rememberSaveable { mutableStateOf(false) }
+
+    val currentChapterIndex = state.seriesChapters.indexOfFirst { it.chapter.url == state.chapter?.url }
+    val nextChapter = if (currentChapterIndex in 0 until state.seriesChapters.lastIndex) {
+        state.seriesChapters.getOrNull(currentChapterIndex + 1)?.chapter
+    } else {
+        null
+    }
+
+    Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+    ) { innerPadding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .pointerInput(Unit) {
+                    detectTapGestures(onTap = { showChrome = !showChrome })
+                },
+        ) {
+            when {
+                state.isLoading -> {
+                    LoadingStateView()
+                }
+                state.error != null -> {
+                    if (state.isFormatMismatch) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            ManhwaMismatchBanner(
+                                message = state.error,
+                                onRetry = { onAction(ReaderAction.Retry) },
+                            )
+                        }
+                    } else {
+                        ErrorRetryStateView(
+                            message = state.error,
+                            onRetry = { onAction(ReaderAction.Retry) },
+                            modifier = Modifier.testTag("error_retry_state"),
+                        )
+                    }
+                }
+                state.contentType == ContentType.NOVEL && state.html.isNotEmpty() -> {
+                    NovelTextEngine(
+                        chapterKey = state.chapter?.url ?: "",
+                        html = state.html,
+                        settings = state.settings,
+                        progress = state.progress,
+                        onProgressChanged = { progress ->
+                            onAction(ReaderAction.SetProgress(progress))
+                        },
+                        onTap = { showChrome = !showChrome },
+                        modifier = Modifier.fillMaxSize(),
+                        hasNextChapter = state.hasNextChapter,
+                        nextChapterTitle = nextChapter?.name,
+                        onNextChapter = { onAction(ReaderAction.NextChapter) },
+                    )
+                }
+                state.contentType == ContentType.MANHWA && state.pages.isNotEmpty() -> {
+                    key(state.chapter?.url, state.settings.manhwaLayout) {
+                        ManhwaPageList(
+                            pages = state.pages,
+                            currentPage = state.currentPage,
+                            layout = state.settings.manhwaLayout,
+                            zoom = state.settings.manhwaZoom,
+                            pageRetryTokens = state.pageRetryTokens,
+                            onPageChanged = { page -> onAction(ReaderAction.SetPage(page)) },
+                            onRetryPage = { pageIndex -> onAction(ReaderAction.RetryPage(pageIndex)) },
+                            onTap = { showChrome = !showChrome },
+                            imageLoader = imageLoader,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
+                }
+                else -> {
+                    Text(
+                        text = "No content available",
+                        modifier = Modifier.align(Alignment.Center),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            // Top and Bottom Bars
+            AnimatedVisibility(
+                visible = showChrome,
+                enter = fadeIn(),
+                exit = fadeOut(),
+            ) {
+                ReaderImmersiveBars(
+                    state = state,
+                    onAction = onAction,
+                    onBack = onBack,
+                    onOpenSettings = { showSettingsSheet = true },
+                    onOpenChapterList = {
+                        showChapterListSheet = true
+                        onAction(ReaderAction.OpenChapterList)
+                    },
+                )
+            }
+
+            // Floating progress indicator when chrome is hidden
+            AnimatedVisibility(
+                visible = !showChrome && !state.isLoading && state.error == null && (state.pages.isNotEmpty() || state.html.isNotEmpty() || state.progress > 0f),
+                enter = fadeIn(),
+                exit = fadeOut(),
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .navigationBarsPadding(),
+            ) {
+                FloatingProgressPill(
+                    contentType = state.contentType,
+                    progress = state.progress,
+                    currentPage = state.currentPage,
+                    totalPages = state.pages.size,
+                )
+            }
+
+            // Settings sheets
+            if (showSettingsSheet && state.contentType == ContentType.NOVEL) {
+                NovelTypographySheet(
+                    settings = state.settings,
+                    onAction = onAction,
+                    onDismissRequest = { showSettingsSheet = false },
+                )
+            }
+
+            if (showSettingsSheet && state.contentType == ContentType.MANHWA) {
+                ManhwaSettingsSheet(
+                    settings = state.settings,
+                    onAction = onAction,
+                    onDismissRequest = { showSettingsSheet = false },
+                )
+            }
+
+            // Chapter list sheet
+            if (showChapterListSheet) {
+                ReaderChapterListSheet(
+                    chapters = state.seriesChapters,
+                    currentChapterUrl = state.chapter?.url,
+                    onChapterSelected = { chapter ->
+                        showChapterListSheet = false
+                        onAction(ReaderAction.SelectChapter(chapter))
+                    },
+                    onDismissRequest = {
+                        showChapterListSheet = false
+                    },
+                )
             }
         }
     }

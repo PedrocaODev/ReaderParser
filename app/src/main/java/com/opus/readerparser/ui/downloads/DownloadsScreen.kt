@@ -12,6 +12,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun DownloadsScreen(
     onNavigateToSettings: () -> Unit = {},
+    onOpenSettings: () -> Unit = onNavigateToSettings,
     viewModel: DownloadsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -32,5 +33,6 @@ fun DownloadsScreen(
         onAction = viewModel::onAction,
         snackbarHostState = snackbarHostState,
         onNavigateToSettings = onNavigateToSettings,
+        onOpenSettings = onOpenSettings,
     )
 }

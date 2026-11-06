@@ -1,11 +1,11 @@
 ---
 name: design-prototype
-description: Inspect, verify, and serve the ReaderParser interactive design prototype for NovelTextEngine and ManhwaPageList. Use when validating UI specifications, testing theme tokens, previewing reader interactions, or verifying design contracts before Android Compose implementation.
+description: Inspect, verify, and serve the ReaderParser interactive design prototype for Novel and Manhwa reading experiences and the 1:1 Design System reference. Use when validating UI specifications, testing theme tokens, previewing reader interactions, or verifying design contracts before Android Compose implementation.
 ---
 
 # design-prototype
 
-The `design-prototype` skill provides tools and workflows to inspect, verify, and serve the interactive HTML/CSS/JS design prototype located at `docs/design/prototype.html`. It simulates ReaderParser's mobile UX, theme tokens, and unified reader architecture across Novel and Manhwa engines.
+The `design-prototype` skill provides tools and workflows to inspect, verify, and serve the interactive HTML/CSS/JS design prototype located at `docs/design/prototype.html`. It simulates ReaderParser's mobile UX, theme tokens, code-agnostic design system primitives, and unified reader experiences across Novel and Manhwa formats.
 
 ## Why a Local HTTP Server is Required
 
@@ -70,8 +70,8 @@ The `serve_prototype.py` script has zero third-party dependencies (Python 3 stan
 | **Theme System** | `WARM_DARK` | Background `#181614`, Surface `#211E1B`, Container `#2A2521`, Text `#E6DFD5` / `#A89F93`, Accent `#D98A4E` / `#7A9A8B`. |
 | | `SEPIA` | Background `#F4ECD8`, Surface `#EFE4C8`, Container `#E4D5B7`, Text `#2C221E` / `#5C4B3B`, Accent `#8C5327` / `#4F6D5A`. |
 | | `LIGHT` | Background `#FAF8F5`, Surface `#FFFFFF`, Container `#F0ECE1`, Text `#1C1B1A` / `#605C56`, Accent `#B86528`. |
-| | `DARK` | Background `#121212`, Surface `#1E1E1E`, Container `#282828`, Text `#E6E1E5` / `#938F99`, Accent `#D0BCFF`. |
-| **Navigation Shell** | Top & Bottom Nav | 3 bottom destinations (`Library`, `Browse`, `Downloads`), **Source Selector Pill** integrated in `Browse` top filter header, and **Settings** gear action in the Top App Bar. |
-| **Series Detail** | Novel & Manhwa Views | Responsive cover card, title, author/artist metadata, status chips, chapter list with status indicators (Unread, Read, Downloaded), dynamic CTA button. |
-| **Novel Reader** | `NovelTextEngine`<br>`ContentType.NOVEL` | Continuous vertical scroll only (`LazyColumn`, `NovelBlock.Heading`, `NovelBlock.Paragraph`, `NovelBlock.Divider`), typography controls (`novelFontFamily`, `novelFontSize` 12–32sp, `novelLineHeightMultiplier` 1.2x–2.0x, `novelParagraphSpacingDp` 4–28dp, `novelHorizontalPaddingDp` 8–40dp), normalized `[0f, 1f]` scroll progress with `>= 90%` read trigger. |
-| **Manhwa Reader** | `ManhwaPageList`<br>`ContentType.MANHWA` | `ManhwaLayout` (`WEBTOON`, `PAGED_LTR`, `PAGED_RTL`), `ManhwaZoom` (`FIT_WIDTH`, `FIT_HEIGHT`, `ORIGINAL`), measurable `150.dp` placeholders, `Page X / N` counter, final-page read trigger. |
+| | `DARK` | Background `#111318`, Surface `#191C22`, Container `#22262F`, Text `#E2E2E9` / `#939AA6`, Accent `#A2C8FF` / `#BBC7DB`. |
+| **Navigation Shell** | 7 Screens & Shell Controls | 7 screens (`Library`, `Browse`, `Downloads`, `Series Detail`, `Novel Reader`, `Manhwa Reader`, `Settings`), top app bar with context actions (Sort, Refresh, More menu, Settings gear), external state simulator bar (Populated, Loading, Empty, Error, Chrome Hidden, Page Error, Content Mismatch), and 4-card Design System Catalog. |
+| **Series Detail** | Reading & Series Hub | Responsive 2:3 cover hero card, title, author/source metadata, status chip, inline library bookmark toggle, expandable synopsis, reading progress card, and chapter list with state indicators (Unread, Reading, Completed, Downloaded), Asc/Desc filters, and chapter action sheet. |
+| **Novel Reader** | Continuous Vertical Scroll | Continuous vertical prose canvas with user typography controls (Font Family, Font Size, Line Height, Paragraph Spacing, Margins), immersive top/bottom bars, floating progress pill, scrub bar, and in-reader chapter list sheet. |
+| **Manhwa Reader** | Multi-Layout Visual Reader | Multi-layout visual canvas (`Webtoon`, `Paged LTR`, `Paged RTL`, `Fit Width`, `Fit Height`, `Original Scale`), 150px minimum measurable image placeholders, error recovery cards, format mismatch handling, immersive controls, floating progress pill, and in-reader chapter list sheet. |
