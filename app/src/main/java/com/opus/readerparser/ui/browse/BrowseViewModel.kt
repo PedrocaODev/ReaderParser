@@ -43,6 +43,7 @@ class BrowseViewModel @Inject constructor(
     private var lastRequest: BrowseRequest? = null
     private var requestJob: Job? = null
     private var debounceJob: Job? = null
+    private var localSearchJob: Job? = null
     private var submittedSourceId: Long? = null
     private var submittedMode: BrowseMode = BrowseMode.POPULAR
     private var submittedQuery: String = ""
@@ -70,6 +71,7 @@ class BrowseViewModel @Inject constructor(
         when (action) {
             is BrowseAction.SelectSource -> {
                 cancelDebounce()
+                cancelLocalSearch()
                 val query = _state.value.searchQuery.trim()
                 _state.update {
                     it.copy(
@@ -85,6 +87,7 @@ class BrowseViewModel @Inject constructor(
                 clearSubmittedContext()
                 if (query.isNotBlank()) {
                     _state.update { it.copy(series = emptyList(), hasNextPage = false, currentPage = 1) }
+                    surfaceLocalCatalogMatches(action.sourceId, query)
                     scheduleDebouncedSearch(action.sourceId, query)
                 } else {
                     autoFetchCurrentMode(action.sourceId, _state.value.mode)
@@ -92,6 +95,7 @@ class BrowseViewModel @Inject constructor(
             }
             is BrowseAction.SetMode -> {
                 cancelDebounce()
+                cancelLocalSearch()
                 _state.update {
                     it.copy(
                         mode = action.mode,
@@ -123,6 +127,7 @@ class BrowseViewModel @Inject constructor(
             }
             is BrowseAction.SetSearchQuery -> {
                 cancelDebounce()
+                cancelLocalSearch()
                 invalidateActiveRequests()
                 val query = action.query.trim()
                 if (query.isBlank()) {
@@ -149,10 +154,12 @@ class BrowseViewModel @Inject constructor(
                     )
                 }
                 val sourceId = _state.value.selectedSourceId ?: return
+                surfaceLocalCatalogMatches(sourceId, query)
                 scheduleDebouncedSearch(sourceId, query)
             }
             is BrowseAction.Search -> {
                 cancelDebounce()
+                cancelLocalSearch()
                 val sourceId = _state.value.selectedSourceId ?: return
                 val query = _state.value.searchQuery.trim()
                 _state.update {
@@ -202,6 +209,33 @@ class BrowseViewModel @Inject constructor(
     private fun cancelDebounce() {
         debounceJob?.cancel()
         debounceJob = null
+    }
+
+    private fun cancelLocalSearch() {
+        localSearchJob?.cancel()
+        localSearchJob = null
+    }
+
+    private fun surfaceLocalCatalogMatches(sourceId: Long, query: String) {
+        cancelLocalSearch()
+        localSearchJob = viewModelScope.launch {
+            val localResults = seriesRepository.searchCatalog(sourceId, query)
+            if (_state.value.selectedSourceId == sourceId && _state.value.searchQuery.trim() == query) {
+                if (localResults.isNotEmpty()) {
+                    _state.update { current ->
+                        current.copy(
+                            series = localResults,
+                            mode = BrowseMode.SEARCH,
+                            isLoading = false,
+                            error = null,
+                            retryAvailable = false,
+                            hasNextPage = false,
+                            currentPage = 1,
+                        )
+                    }
+                }
+            }
+        }
     }
 
     private fun scheduleDebouncedSearch(sourceId: Long, query: String) {
@@ -283,8 +317,11 @@ class BrowseViewModel @Inject constructor(
         requestJob = viewModelScope.launch {
             _state.update { current ->
                 if (request.reset) {
+                    val preserveCached = request.mode == BrowseMode.SEARCH &&
+                        current.mode == BrowseMode.SEARCH &&
+                        current.series.isNotEmpty()
                     current.copy(
-                        series = emptyList(),
+                        series = if (preserveCached) current.series else emptyList(),
                         hasNextPage = false,
                         currentPage = 1,
                         isLoading = true,
@@ -303,7 +340,11 @@ class BrowseViewModel @Inject constructor(
                 }
                 if (id != requestId) return@launch
                 _state.update { current ->
-                    val combined = if (request.reset) result.series else current.series + result.series
+                    val combined = if (request.reset) {
+                        if (result.series.isNotEmpty()) result.series else current.series
+                    } else {
+                        current.series + result.series
+                    }
                     val deduplicated = combined.distinctBy { it.sourceId to it.url }
                     current.copy(
                         series = deduplicated,

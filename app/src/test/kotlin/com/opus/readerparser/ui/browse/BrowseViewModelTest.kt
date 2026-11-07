@@ -28,8 +28,21 @@ class BrowseViewModelTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
 
+    private class FakeBrowseSeriesRepository(
+        private val delegate: FakeSeriesRepository,
+    ) : com.opus.readerparser.domain.SeriesRepository by delegate {
+        var searchCatalogHandler: (Long, String) -> List<com.opus.readerparser.domain.model.Series> = { _, _ -> emptyList() }
+        val searchCatalogCalls = mutableListOf<Pair<Long, String>>()
+
+        override suspend fun searchCatalog(sourceId: Long, query: String): List<com.opus.readerparser.domain.model.Series> {
+            searchCatalogCalls.add(sourceId to query)
+            return searchCatalogHandler(sourceId, query)
+        }
+    }
+
     private lateinit var sourceRepo: FakeSourceRepository
     private lateinit var seriesRepo: FakeSeriesRepository
+    private var customSeriesRepo: FakeBrowseSeriesRepository? = null
 
     private val source1 = SourceInfo(1L, "SourceA", "en", ContentType.MANHWA)
     private val source2 = SourceInfo(2L, "SourceB", "en", ContentType.NOVEL)
@@ -38,9 +51,10 @@ class BrowseViewModelTest {
     fun setUp() {
         sourceRepo = FakeSourceRepository()
         seriesRepo = FakeSeriesRepository()
+        customSeriesRepo = null
     }
 
-    private fun buildVm(): BrowseViewModel = BrowseViewModel(sourceRepo, seriesRepo)
+    private fun buildVm(): BrowseViewModel = BrowseViewModel(sourceRepo, customSeriesRepo ?: seriesRepo)
 
     @Test
     fun `init loads sources, selects first source, and fetches popular`() = runTest {
@@ -680,5 +694,94 @@ class BrowseViewModelTest {
         assertThat(vm.state.value.isSeriesInLibrary(series)).isFalse()
         assertThat(vm.state.value.inLibraryUrls).doesNotContain(series.url)
         assertThat(vm.state.value.inLibraryKeys).doesNotContain(series.sourceId to series.url)
+    }
+
+    @Test
+    fun `SetSearchQuery immediately surfaces matching cached series stubs without waiting for debounce`() = runTest {
+        sourceRepo.sourceList = listOf(source1)
+        val catalogRepo = FakeBrowseSeriesRepository(seriesRepo)
+        customSeriesRepo = catalogRepo
+        val cachedSeries = TestFixtures.testSeries(sourceId = source1.id, title = "Regressor's Tale")
+        catalogRepo.searchCatalogHandler = { sourceId, query ->
+            if (sourceId == source1.id && query == "regressor") listOf(cachedSeries) else emptyList()
+        }
+
+        val vm = buildVm()
+        advanceUntilIdle()
+
+        vm.onAction(BrowseAction.SetSearchQuery("regressor"))
+        runCurrent()
+
+        assertThat(vm.state.value.series).containsExactly(cachedSeries)
+        assertThat(vm.state.value.mode).isEqualTo(BrowseMode.SEARCH)
+        assertThat(seriesRepo.searchCalls).isEmpty()
+
+        advanceTimeBy(300)
+        runCurrent()
+        assertThat(seriesRepo.searchCalls).isNotEmpty()
+    }
+
+    @Test
+    fun `SetSearchQuery strictly scopes local search to selected source`() = runTest {
+        sourceRepo.sourceList = listOf(source1, source2)
+        val catalogRepo = FakeBrowseSeriesRepository(seriesRepo)
+        customSeriesRepo = catalogRepo
+        val vm = buildVm()
+        advanceUntilIdle()
+
+        vm.onAction(BrowseAction.SelectSource(source2.id))
+        runCurrent()
+
+        vm.onAction(BrowseAction.SetSearchQuery("dragon"))
+        runCurrent()
+
+        assertThat(catalogRepo.searchCatalogCalls).contains(source2.id to "dragon")
+        assertThat(catalogRepo.searchCatalogCalls.filter { it.first == source1.id }).isEmpty()
+    }
+
+    @Test
+    fun `network error during search preserves cached series from local storage`() = runTest {
+        sourceRepo.sourceList = listOf(source1)
+        val catalogRepo = FakeBrowseSeriesRepository(seriesRepo)
+        customSeriesRepo = catalogRepo
+        val cached = TestFixtures.testSeries(sourceId = source1.id, title = "Cached Regressor")
+        catalogRepo.searchCatalogHandler = { _, _ -> listOf(cached) }
+        seriesRepo.searchHandler = { _, _, _, _ ->
+            throw IllegalStateException("Network timeout")
+        }
+
+        val vm = buildVm()
+        advanceUntilIdle()
+
+        vm.onAction(BrowseAction.SetSearchQuery("regressor"))
+        runCurrent()
+        assertThat(vm.state.value.series).containsExactly(cached)
+
+        advanceTimeBy(300)
+        runCurrent()
+        advanceUntilIdle()
+
+        assertThat(vm.state.value.error).isEqualTo("Network timeout")
+        assertThat(vm.state.value.series).containsExactly(cached)
+    }
+
+    @Test
+    fun `blank search query clears surfaced cached series`() = runTest {
+        sourceRepo.sourceList = listOf(source1)
+        val catalogRepo = FakeBrowseSeriesRepository(seriesRepo)
+        customSeriesRepo = catalogRepo
+        val cached = TestFixtures.testSeries(sourceId = source1.id, title = "Cached Series")
+        catalogRepo.searchCatalogHandler = { _, _ -> listOf(cached) }
+
+        val vm = buildVm()
+        advanceUntilIdle()
+
+        vm.onAction(BrowseAction.SetSearchQuery("query"))
+        runCurrent()
+        assertThat(vm.state.value.series).containsExactly(cached)
+
+        vm.onAction(BrowseAction.SetSearchQuery("   "))
+        runCurrent()
+        assertThat(vm.state.value.series).isEmpty()
     }
 }
