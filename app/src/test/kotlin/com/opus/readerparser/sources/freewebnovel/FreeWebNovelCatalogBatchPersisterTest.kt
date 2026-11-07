@@ -37,6 +37,9 @@ class FreeWebNovelCatalogBatchPersisterTest {
         override suspend fun getBySourceId(sourceId: Long): List<SeriesEntity> =
             store.filter { it.sourceId == sourceId }
 
+        override suspend fun searchCatalog(sourceId: Long, query: String): List<SeriesEntity> =
+            store.filter { it.sourceId == sourceId && it.title.contains(query, ignoreCase = true) }
+
         override suspend fun insert(series: SeriesEntity) {
             insertCallCount++
             store.add(series)
