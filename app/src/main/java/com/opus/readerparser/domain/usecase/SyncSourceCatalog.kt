@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.flow
 
 const val DEFAULT_PACING_DELAY_MS: Long = 300L
 
-class SyncSourceCatalog(
+open class SyncSourceCatalog(
     private val seriesRepository: SeriesRepository,
     private val harvesterResolver: ((Long) -> CatalogHarvester?)? = null,
     private val batchPersister: CatalogBatchPersister? = null,
@@ -32,7 +32,7 @@ class SyncSourceCatalog(
         const val DEFAULT_PACING_DELAY_MS: Long = com.opus.readerparser.domain.usecase.DEFAULT_PACING_DELAY_MS
     }
 
-    operator fun invoke(sourceId: Long, fullSync: Boolean = false): Flow<SyncProgress> = flow {
+    open operator fun invoke(sourceId: Long = 1L, fullSync: Boolean = false): Flow<SyncProgress> = flow {
         var pagesCrawled = 0
         var itemsIngested = 0
 
