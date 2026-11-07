@@ -24,6 +24,16 @@ interface SeriesDao {
 
     @Query(
         """
+        SELECT * FROM series
+        WHERE sourceId = :sourceId
+          AND title LIKE '%' || :query || '%'
+        ORDER BY title ASC
+        """,
+    )
+    suspend fun searchCatalog(sourceId: Long, query: String): List<SeriesEntity>
+
+    @Query(
+        """
         SELECT DISTINCT s.*
         FROM series s
         INNER JOIN chapters c

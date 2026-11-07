@@ -61,6 +61,8 @@ class SeriesRepositoryImplTest {
             private set
         var getLibrarySeriesCalls = 0
             private set
+        var searchCatalogCalls = 0
+            private set
 
         private fun refreshFlows() {
             libraryFlow.value = store.filter { it.inLibrary }
@@ -74,6 +76,13 @@ class SeriesRepositoryImplTest {
 
         override suspend fun getBySourceId(sourceId: Long): List<SeriesEntity> =
             store.filter { it.sourceId == sourceId }
+
+        override suspend fun searchCatalog(sourceId: Long, query: String): List<SeriesEntity> {
+            searchCatalogCalls++
+            return store.filter {
+                it.sourceId == sourceId && it.title.contains(query, ignoreCase = true)
+            }.sortedBy { it.title }
+        }
 
         override suspend fun getLibraryIndexableSeries(sourceId: Long, url: String): SeriesEntity? =
             run {
@@ -1214,6 +1223,98 @@ class SeriesRepositoryImplTest {
             // Expected — SourceRegistry throws for unregistered IDs
         }
     }
+
+    // -----------------------------------------------------------------
+    // searchCatalog
+    // -----------------------------------------------------------------
+
+    @Test
+    fun `searchCatalog returns matching series case-insensitively`() = runTest {
+        val series = testSeries.toEntity().copy(title = "Omniscient Reader's Viewpoint")
+        fakeDao.upsert(series)
+
+        val resultLower = repository.searchCatalog(fakeSource.id, "omniscient")
+        val resultUpper = repository.searchCatalog(fakeSource.id, "OMNISCIENT")
+
+        assertEquals(1, resultLower.size)
+        assertEquals("Omniscient Reader's Viewpoint", resultLower[0].title)
+        assertEquals(1, resultUpper.size)
+        assertEquals("Omniscient Reader's Viewpoint", resultUpper[0].title)
+    }
+
+    @Test
+    fun `searchCatalog matches partial title substring`() = runTest {
+        val series = testSeries.toEntity().copy(title = "Shadow Slave")
+        fakeDao.upsert(series)
+
+        val result = repository.searchCatalog(fakeSource.id, "dow Sla")
+
+        assertEquals(1, result.size)
+        assertEquals("Shadow Slave", result[0].title)
+    }
+
+    @Test
+    fun `searchCatalog matches titles containing punctuation accurately`() = runTest {
+        val series = testSeries.toEntity().copy(title = "A Regressor's Tale of Cultivation")
+        fakeDao.upsert(series)
+
+        val result1 = repository.searchCatalog(fakeSource.id, "regressor's")
+        val result2 = repository.searchCatalog(fakeSource.id, "A Regressor")
+
+        assertEquals(1, result1.size)
+        assertEquals("A Regressor's Tale of Cultivation", result1[0].title)
+        assertEquals(1, result2.size)
+        assertEquals("A Regressor's Tale of Cultivation", result2[0].title)
+    }
+
+    @Test
+    fun `searchCatalog strictly scopes results to the requested sourceId`() = runTest {
+        val source1Series = testSeries.toEntity().copy(
+            sourceId = 1L,
+            url = "https://test.invalid/1",
+            title = "Solo Leveling",
+        )
+        val source2Series = testSeries.toEntity().copy(
+            sourceId = 2L,
+            url = "https://test.invalid/2",
+            title = "Solo Leveling",
+        )
+        fakeDao.upsert(source1Series)
+        fakeDao.upsert(source2Series)
+
+        val result = repository.searchCatalog(1L, "Solo")
+
+        assertEquals(1, result.size)
+        assertEquals(1L, result[0].sourceId)
+    }
+
+    @Test
+    fun `searchCatalog returns empty list for blank query without querying DAO`() = runTest {
+        val series = testSeries.toEntity().copy(title = "Solo Leveling")
+        fakeDao.upsert(series)
+
+        val resultBlank = repository.searchCatalog(fakeSource.id, "   ")
+        val resultEmpty = repository.searchCatalog(fakeSource.id, "")
+
+        assertTrue(resultBlank.isEmpty())
+        assertTrue(resultEmpty.isEmpty())
+        assertEquals(0, fakeDao.searchCatalogCalls)
+    }
+
+    @Test
+    fun `searchCatalog returns matches ordered alphabetically by title`() = runTest {
+        val b = testSeries.toEntity().copy(url = "https://test.invalid/b", title = "The Beginning After The End")
+        val a = testSeries.toEntity().copy(url = "https://test.invalid/a", title = "A Returner's Magic Should Be Special")
+        val c = testSeries.toEntity().copy(url = "https://test.invalid/c", title = "The Celestial Return")
+        fakeDao.upsert(b)
+        fakeDao.upsert(a)
+        fakeDao.upsert(c)
+
+        val result = repository.searchCatalog(fakeSource.id, "Return")
+
+        assertEquals(listOf("A Returner's Magic Should Be Special", "The Celestial Return"), result.map { it.title })
+    }
+
 
     private fun searchCacheKeyMethod(): Method = Class
         .forName("com.opus.readerparser.data.repository.SeriesRepositoryImplKt")
