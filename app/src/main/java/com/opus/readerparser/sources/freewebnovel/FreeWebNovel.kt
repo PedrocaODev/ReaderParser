@@ -1,6 +1,8 @@
 package com.opus.readerparser.sources.freewebnovel
 
 import com.opus.readerparser.core.util.computeSourceId
+import com.opus.readerparser.data.local.database.dao.SeriesDao
+import com.opus.readerparser.data.source.CatalogHarvester
 import com.opus.readerparser.data.source.HtmlSource
 import com.opus.readerparser.domain.model.Chapter
 import com.opus.readerparser.domain.model.ChapterContent
@@ -17,6 +19,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.last
@@ -44,7 +47,11 @@ import org.jsoup.nodes.Element
  */
 class FreeWebNovel(
     client: HttpClient,
-) : HtmlSource(client) {
+    private val seriesDao: SeriesDao? = null,
+    private val crawlDelayMs: Long = 300L,
+) : HtmlSource(client), CatalogHarvester {
+
+    private val batchPersister = seriesDao?.let { FreeWebNovelCatalogBatchPersister(it) }
 
     // =========================================================================
     // Source identity
@@ -397,6 +404,47 @@ class FreeWebNovel(
 
     override fun chapterPagesParse(doc: Document): List<String> =
         error("Override for manhwa sources — FreeWebNovel is a novel source")
+
+    // =========================================================================
+    // CatalogHarvester — exhaustive catalog crawling & batch persistence
+    // =========================================================================
+
+    /**
+     * Sequentially crawls the `/sort/latest-novel/{page}` directory, extracting
+     * series cards into [Series] stubs and emitting page batches.
+     *
+     * If [seriesDao] was provided at construction, each batch is automatically
+     * persisted to Room with `inLibrary = false` and zero chapters fetched or inserted.
+     * Crawling terminates when next-page pagination (`>>`) is absent or points to javascript:void,
+     * or when an empty series page is encountered.
+     */
+    override suspend fun harvestCatalog(): Flow<List<Series>> = flow {
+        var page = 1
+        while (true) {
+            val url = directoryUrl(page)
+            val doc = fetchDoc(url)
+            val series = doc.select(popularSelector()).map(::seriesFromElement)
+            if (series.isNotEmpty()) {
+                batchPersister?.persistBatch(series)
+                emit(series)
+            }
+            val hasNext = doc.selectFirst("div.pages a:matches(>>):not([href*=\"javascript\"])") != null
+            if (!hasNext || series.isEmpty()) {
+                break
+            }
+            page++
+            if (crawlDelayMs > 0) {
+                delay(crawlDelayMs)
+            }
+        }
+    }
+
+    fun directoryUrl(page: Int): String = "$baseUrl/sort/latest-novel/$page"
+
+    suspend fun persistBatch(seriesList: List<Series>): Int? = batchPersister?.persistBatch(seriesList)
+
+    suspend fun persistBatch(dao: SeriesDao, seriesList: List<Series>): Int =
+        FreeWebNovelCatalogBatchPersister(dao).persistBatch(seriesList)
 
     // =========================================================================
     // Helpers

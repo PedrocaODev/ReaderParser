@@ -41,3 +41,4 @@ relations:
 | Design system | The canonical visual token and reusable component layer that defines the appearance and interaction states of all screens independently of business logic. |
 | Foundational primitive | A screen-agnostic UI building block such as an app bar, navigation bar, input, chip, badge, form control, or state feedback view. |
 | Domain component | A reusable visual pattern tailored to reading, catalog, series detail, or download concepts such as a series card, reading progress card, chapter row, or reader prose block. |
+| Catalog harvester | A source-specific adapter that exhaustively enumerates and persists all available series listings for offline discovery. |

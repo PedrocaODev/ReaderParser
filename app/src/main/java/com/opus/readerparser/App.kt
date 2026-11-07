@@ -6,6 +6,7 @@ import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
 import com.opus.readerparser.data.local.search.SamsungSearchClient
 import com.opus.readerparser.data.local.search.SearchIndexSyncer
+import com.opus.readerparser.workers.CatalogSyncWorker
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -35,6 +36,7 @@ class App : Application(), Configuration.Provider {
     override fun onCreate() {
         super.onCreate()
         initSamsungSearch()
+        scheduleCatalogSync()
     }
 
     private fun initSamsungSearch() {
@@ -51,6 +53,16 @@ class App : Application(), Configuration.Provider {
                 searchSyncer.startObserving(appScope)
             } catch (e: Exception) {
                 Log.w(TAG, "Samsung Search init failed — continuing without search", e)
+            }
+        }
+    }
+
+    private fun scheduleCatalogSync() {
+        appScope.launch(Dispatchers.IO) {
+            try {
+                CatalogSyncWorker.schedule(this@App)
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to schedule catalog sync worker", e)
             }
         }
     }
