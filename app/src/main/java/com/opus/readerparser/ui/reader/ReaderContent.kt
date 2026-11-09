@@ -48,7 +48,9 @@ import com.opus.readerparser.ui.components.ErrorRetryStateView
 import com.opus.readerparser.ui.components.LoadingStateView
 import com.opus.readerparser.ui.theme.ReaderParserTheme
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.map
 import kotlin.math.abs
 
 @Composable
@@ -104,10 +106,9 @@ fun NovelTextEngine(
         }
     }
 
-    var userHasScrolled by remember(chapterKey) { mutableStateOf(false) }
-
     LaunchedEffect(listState, blocks.size, hasRestoredScroll) {
         if (!hasRestoredScroll || blocks.isEmpty()) return@LaunchedEffect
+        var userHasScrolled = false
         snapshotFlow {
             val layoutInfo = listState.layoutInfo
             val visibleItems = layoutInfo.visibleItemsInfo
@@ -115,20 +116,14 @@ fun NovelTextEngine(
             val firstIdx = listState.firstVisibleItemIndex
             val firstOffset = listState.firstVisibleItemScrollOffset
             val scrolling = listState.isScrollInProgress
-            if (!userHasScrolled) {
-                if (scrolling || firstIdx != restoredIndex || firstOffset != 0) {
-                    userHasScrolled = true
-                } else {
-                    return@snapshotFlow null
-                }
-            }
+            val hasMoved = scrolling || firstIdx != restoredIndex || firstOffset != 0
             val firstItem = visibleItems.first()
             val lastItem = visibleItems.last()
             val clampedFirstIndex = firstIdx.coerceIn(0, blocks.lastIndex)
             val clampedLastIndex = lastItem.index.coerceIn(0, blocks.lastIndex)
             val bottomReached = !listState.canScrollForward ||
                 (lastItem.index >= blocks.lastIndex && lastItem.offset + lastItem.size <= layoutInfo.viewportEndOffset)
-            calculateNovelScrollProgress(
+            val progress = calculateNovelScrollProgress(
                 firstVisibleIndex = clampedFirstIndex,
                 firstVisibleOffset = firstOffset,
                 firstVisibleSize = firstItem.size,
@@ -136,8 +131,16 @@ fun NovelTextEngine(
                 lastVisibleBottomReached = bottomReached,
                 totalBlocks = blocks.size,
             )
+            hasMoved to progress
         }
             .filterNotNull()
+            .filter { (hasMoved, _) ->
+                if (!userHasScrolled && hasMoved) {
+                    userHasScrolled = true
+                }
+                userHasScrolled
+            }
+            .map { (_, progress) -> progress }
             .distinctUntilChanged()
             .collect { currentProgress ->
                 onProgressChanged(currentProgress)
