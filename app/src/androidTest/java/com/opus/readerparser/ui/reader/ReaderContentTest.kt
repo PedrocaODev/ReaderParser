@@ -12,6 +12,8 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeUp
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -107,6 +109,26 @@ class ReaderContentTest {
             )
         }
         composeRule.onNodeWithTag("novel_webview").assertIsDisplayed()
+    }
+
+    @Test
+    fun novelContent_scrollingDoesNotCrash() {
+        val longHtml = (1..50).joinToString("") { "<p>Paragraph $it: " + "Lorem ipsum dolor sit amet, consectetur adipiscing elit. ".repeat(5) + "</p>" }
+        composeRule.setContent {
+            ReaderContent(
+                state = ReaderUiState(
+                    contentType = ContentType.NOVEL,
+                    html = longHtml,
+                    chapter = chapter,
+                ),
+                isDarkTheme = false,
+                onAction = {},
+            )
+        }
+        composeRule.onNodeWithTag("novel_reader").performTouchInput {
+            swipeUp()
+        }
+        composeRule.waitForIdle()
     }
 
     @Test
