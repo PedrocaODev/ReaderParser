@@ -812,4 +812,86 @@ class SeriesViewModelTest {
         assertThat(noneState.resumeState).isEqualTo(ReadingResumeState.None)
         assertThat(noneState.resumeState).isSameInstanceAs(noneState.resumeState)
     }
+
+    @Test
+    fun `DismissError action clears transient error while preserving series and chapters`() = runTest {
+        val persisted = series.copy(title = "Cached Series")
+        val repo = FakeSeriesRepository().apply {
+            getPersistedSeriesResult = { _, _ -> persisted }
+            refreshDetailsHandler = { throw RuntimeException("Refresh failed") }
+        }
+
+        val testVm = SeriesViewModel(
+            savedState = SavedStateHandle(
+                mapOf("sourceId" to persisted.sourceId, "seriesUrl" to persisted.url)
+            ),
+            seriesRepository = repo,
+            chapterRepository = chapterRepo,
+            downloadEnqueuer = downloadEnqueuer,
+        )
+
+        assertThat(testVm.state.value.series).isEqualTo(persisted)
+        assertThat(testVm.state.value.error).isEqualTo("Refresh failed")
+
+        testVm.onAction(SeriesAction.DismissError)
+
+        assertThat(testVm.state.value.error).isNull()
+        assertThat(testVm.state.value.series).isEqualTo(persisted)
+    }
+
+    @Test
+    fun `ClearError action clears transient error while preserving series and chapters`() = runTest {
+        val persisted = series.copy(title = "Cached Series")
+        val repo = FakeSeriesRepository().apply {
+            getPersistedSeriesResult = { _, _ -> persisted }
+            refreshDetailsHandler = { throw RuntimeException("Refresh failed") }
+        }
+
+        val testVm = SeriesViewModel(
+            savedState = SavedStateHandle(
+                mapOf("sourceId" to persisted.sourceId, "seriesUrl" to persisted.url)
+            ),
+            seriesRepository = repo,
+            chapterRepository = chapterRepo,
+            downloadEnqueuer = downloadEnqueuer,
+        )
+
+        assertThat(testVm.state.value.error).isEqualTo("Refresh failed")
+
+        testVm.onAction(SeriesAction.ClearError)
+
+        assertThat(testVm.state.value.error).isNull()
+        assertThat(testVm.state.value.series).isEqualTo(persisted)
+    }
+
+    @Test
+    fun `clearError and dismissError helper methods clear error without corrupting durable state`() = runTest {
+        val persisted = series.copy(title = "Cached Series")
+        val repo = FakeSeriesRepository().apply {
+            getPersistedSeriesResult = { _, _ -> persisted }
+            refreshDetailsHandler = { throw RuntimeException("Refresh failed") }
+        }
+
+        val testVm = SeriesViewModel(
+            savedState = SavedStateHandle(
+                mapOf("sourceId" to persisted.sourceId, "seriesUrl" to persisted.url)
+            ),
+            seriesRepository = repo,
+            chapterRepository = chapterRepo,
+            downloadEnqueuer = downloadEnqueuer,
+        )
+
+        assertThat(testVm.state.value.error).isEqualTo("Refresh failed")
+        testVm.clearError()
+        assertThat(testVm.state.value.error).isNull()
+        assertThat(testVm.state.value.series).isEqualTo(persisted)
+
+        repo.refreshDetailsHandler = { throw RuntimeException("Second refresh failed") }
+        testVm.onAction(SeriesAction.Refresh)
+        assertThat(testVm.state.value.error).isEqualTo("Second refresh failed")
+
+        testVm.dismissError()
+        assertThat(testVm.state.value.error).isNull()
+        assertThat(testVm.state.value.series).isEqualTo(persisted)
+    }
 }

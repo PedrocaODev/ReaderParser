@@ -1,6 +1,7 @@
 package com.opus.readerparser.ui.series
 
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -31,7 +32,15 @@ fun SeriesScreen(
                     )
                 }
                 is SeriesEffect.ShowError -> {
-                    launch { snackbarHostState.showSnackbar(effect.message) }
+                    launch {
+                        val result = snackbarHostState.showSnackbar(
+                            message = effect.message,
+                            actionLabel = "Retry",
+                        )
+                        if (result == SnackbarResult.ActionPerformed) {
+                            viewModel.onAction(SeriesAction.Refresh)
+                        }
+                    }
                 }
                 is SeriesEffect.ShowSnackbar -> {
                     launch { snackbarHostState.showSnackbar(effect.message) }

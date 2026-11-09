@@ -116,10 +116,10 @@ fun SeriesContent(
                 .padding(innerPadding),
         ) {
             when {
-                state.isLoading -> {
+                state.isLoading && state.series == null -> {
                     LoadingStateView()
                 }
-                state.error != null -> {
+                state.error != null && state.series == null -> {
                     ErrorRetryStateView(
                         message = state.error,
                         onRetry = { onAction(SeriesAction.Refresh) },
@@ -131,6 +131,20 @@ fun SeriesContent(
                             .fillMaxSize()
                             .testTag("chapter_list"),
                     ) {
+                        if (state.error != null && state.series != null) {
+                            item(key = "series_error_banner") {
+                                SeriesErrorBanner(
+                                    message = state.error,
+                                    onRetry = { onAction(SeriesAction.Refresh) },
+                                    onDismiss = { onAction(SeriesAction.DismissError) },
+                                    modifier = Modifier.padding(
+                                        horizontal = AppSpacing.lg,
+                                        vertical = AppSpacing.sm,
+                                    ),
+                                )
+                            }
+                        }
+
                         state.series?.let { series ->
                             item(key = "series_hero") {
                                 SeriesHeroCard(

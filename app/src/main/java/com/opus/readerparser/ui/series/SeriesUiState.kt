@@ -26,6 +26,8 @@ data class SeriesUiState(
     val unreadOnly: Boolean = false,
     val sortAscending: Boolean = false,
 ) {
+    val isInitialLoading: Boolean = isLoading && series == null
+    val isInitialError: Boolean = error != null && series == null
     val readChapterCount: Int = chapters.count { it.read }
     val totalChapterCount: Int = chapters.size
     val resumeState: ReadingResumeState = computeResumeState(chapters)
@@ -75,6 +77,8 @@ internal fun computeResumeState(chapters: List<ChapterWithState>): ReadingResume
 
 sealed interface SeriesAction {
     data object Refresh : SeriesAction
+    data object DismissError : SeriesAction
+    data object ClearError : SeriesAction
     data class ToggleLibrary(val inLibrary: Boolean) : SeriesAction
     data class OpenChapter(val chapter: Chapter) : SeriesAction
     data object ResumeReading : SeriesAction
