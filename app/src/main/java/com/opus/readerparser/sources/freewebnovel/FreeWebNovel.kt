@@ -16,15 +16,10 @@ import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.statement.bodyAsText
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.last
-import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withPermit
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
@@ -49,6 +44,7 @@ class FreeWebNovel(
     client: HttpClient,
     private val seriesDao: SeriesDao? = null,
     private val crawlDelayMs: Long = 300L,
+    private val paginationDelayMs: Long = 100L,
 ) : HtmlSource(client), CatalogHarvester {
 
     private val batchPersister = seriesDao?.let { FreeWebNovelCatalogBatchPersister(it) }
@@ -199,7 +195,7 @@ class FreeWebNovel(
     override fun seriesDetailsParse(doc: Document, series: Series): Series {
         val author = doc.selectFirst("a[href^=\"/author/\"]")?.text()?.trim()
         val descriptionEl = doc.selectFirst(".m-desc .txt .inner")
-        val description = descriptionEl?.html()?.trim()
+        val description = cleanDescription(descriptionEl)
         val genres = doc.select(".m-book1 .txt .item a[href^=\"/genre/\"]")
             .map { it.text().trim() }
         // Use .s1 alone so it matches both .s1.s2 (OnGoing) and .s1.s3 (Completed).
@@ -220,6 +216,41 @@ class FreeWebNovel(
             status = status,
             coverUrl = coverUrl ?: series.coverUrl,
         )
+    }
+
+    /**
+     * Cleans an HTML description element into plain text.
+     *
+     * - Strips all raw HTML tags (<p>, </p>, <div>, <br>, <span>, etc.)
+     * - Unescapes HTML entities
+     * - Preserves paragraph formatting as double newlines (`\n\n`)
+     */
+    private fun cleanDescription(element: Element?): String? {
+        if (element == null) return null
+        val pElements = element.select("p")
+        val rawText = if (pElements.isNotEmpty()) {
+            pElements.map { p ->
+                cleanElementText(p)
+            }.filter { it.isNotBlank() }
+            .joinToString("\n\n")
+        } else {
+            val divElements = element.select("div")
+            if (divElements.isNotEmpty()) {
+                divElements.map { div ->
+                    cleanElementText(div)
+                }.filter { it.isNotBlank() }
+                .joinToString("\n\n")
+            } else {
+                cleanElementText(element)
+            }
+        }
+        return rawText.trim().takeIf { it.isNotBlank() }
+    }
+
+    private fun cleanElementText(element: Element): String {
+        val clone = element.clone()
+        clone.select("br").forEach { it.replaceWith(org.jsoup.nodes.TextNode("\n")) }
+        return clone.wholeText().lines().map { it.trim() }.filter { it.isNotEmpty() }.joinToString("\n")
     }
 
     // =========================================================================
@@ -259,6 +290,7 @@ class FreeWebNovel(
     companion object {
         private val json = Json { ignoreUnknownKeys = true }
         private const val chapterListAjaxPageSize = 200
+        private val CHAPTER_NUMBER_REGEX = Regex("""Chapter\s+(\d+(?:\.\d+)?)""", RegexOption.IGNORE_CASE)
     }
 
     override fun fetchChapterListProgressive(series: Series): Flow<List<Chapter>> = flow {
@@ -282,33 +314,20 @@ class FreeWebNovel(
 
         val totalPage = firstPage.totalPage.coerceAtLeast(1)
         if (totalPage > 1) {
-            val semaphore = Semaphore(4)
-            val remainingPages = coroutineScope {
-                (2..totalPage).map { page ->
-                    async {
-                        semaphore.withPermit {
-                            val payload = fetchOptionalChapterListAjax(series.url, page)
-                                ?: throw IllegalStateException(
-                                    "Failed to load continuation page $page of $totalPage for ${series.url}"
-                                )
-                            if (payload.html.isBlank()) {
-                                throw IllegalStateException(
-                                    "Continuation page $page of $totalPage had blank HTML for ${series.url}"
-                                )
-                            }
-                            val pageChapters = parseChaptersFragment(payload.html, series)
-                            if (pageChapters.isEmpty()) {
-                                throw IllegalStateException(
-                                    "Continuation page $page of $totalPage contained no new chapters for ${series.url}"
-                                )
-                            }
-                            page to pageChapters
-                        }
-                    }
-                }.awaitAll()
-            }
-
-            for ((page, pageChapters) in remainingPages.sortedBy { it.first }) {
+            for (page in 2..totalPage) {
+                if (paginationDelayMs > 0) {
+                    delay(paginationDelayMs)
+                }
+                val payload = fetchChapterListAjaxWithRetry(series.url, page)
+                if (payload == null || payload.html.isBlank()) {
+                    logWarning("Continuation page $page of $totalPage failed or had blank HTML for ${series.url}; returning partial chapters gathered so far")
+                    break
+                }
+                val pageChapters = parseChaptersFragment(payload.html, series)
+                if (pageChapters.isEmpty()) {
+                    logWarning("Continuation page $page of $totalPage contained no chapters for ${series.url}; returning partial chapters gathered so far")
+                    break
+                }
                 var addedOnPage = 0
                 for (chapter in pageChapters) {
                     if (chaptersByUrl.putIfAbsent(chapter.url, chapter) == null) {
@@ -316,12 +335,11 @@ class FreeWebNovel(
                     }
                 }
                 if (addedOnPage == 0) {
-                    throw IllegalStateException(
-                        "Continuation page $page of $totalPage contained no new chapters for ${series.url}"
-                    )
+                    logWarning("Continuation page $page of $totalPage contained no new chapters for ${series.url}; returning partial chapters gathered so far")
+                    break
                 }
+                emit(chaptersByUrl.values.toList())
             }
-            emit(chaptersByUrl.values.toList())
         }
     }
 
@@ -335,27 +353,64 @@ class FreeWebNovel(
             .map { chapterFromElement(it, series) }
     }
 
-    private suspend fun fetchChapterListAjax(seriesUrl: String, page: Int): ChapterListAjaxResponse? {
-        val ajaxUrl = "$seriesUrl?ajax=chapters&page=$page&pageSize=$chapterListAjaxPageSize"
-        val response = client.get(ajaxUrl) {
-            header("X-Requested-With", "XMLHttpRequest")
+    private suspend fun fetchChapterListAjaxWithRetry(
+        seriesUrl: String,
+        page: Int,
+        maxRetries: Int = 2,
+        initialBackoffMs: Long = 100L,
+    ): ChapterListAjaxResponse? {
+        var attempt = 0
+        var currentBackoff = initialBackoffMs
+        while (true) {
+            attempt++
+            try {
+                val ajaxUrl = "$seriesUrl?ajax=chapters&page=$page&pageSize=$chapterListAjaxPageSize"
+                val response = client.get(ajaxUrl) {
+                    header("X-Requested-With", "XMLHttpRequest")
+                }
+                val statusCode = response.status.value
+                if (statusCode in 200..299) {
+                    val body = response.bodyAsText()
+                    return decodeChapterListAjaxResponse(body)
+                }
+                if (isTransientHttpError(statusCode) && attempt <= maxRetries) {
+                    delay(currentBackoff)
+                    currentBackoff *= 2
+                    continue
+                }
+                return null
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (isTransientException(e) && attempt <= maxRetries) {
+                    delay(currentBackoff)
+                    currentBackoff *= 2
+                    continue
+                }
+                return null
+            }
         }
-        check(response.status.value in 200..299) {
-            "Failed to fetch chapter list ajax: HTTP ${response.status.value}"
-        }
-        val responseBody = response.bodyAsText()
-        return decodeChapterListAjaxResponse(responseBody)
     }
+
+    private fun isTransientHttpError(statusCode: Int): Boolean =
+        statusCode == 429 || statusCode == 503 || statusCode == 504 || statusCode == 408
+
+    private fun isTransientException(e: Exception): Boolean =
+        e is java.io.IOException || e is java.net.SocketException ||
+            e.javaClass.simpleName.contains("Timeout", ignoreCase = true)
 
     private suspend fun fetchOptionalChapterListAjax(
         seriesUrl: String,
         page: Int,
-    ): ChapterListAjaxResponse? = try {
-        fetchChapterListAjax(seriesUrl, page)
-    } catch (e: CancellationException) {
-        throw e
-    } catch (_: Exception) {
-        null
+    ): ChapterListAjaxResponse? = fetchChapterListAjaxWithRetry(seriesUrl, page)
+
+    private fun logWarning(message: String, throwable: Throwable? = null) {
+        try {
+            android.util.Log.w("FreeWebNovel", message, throwable)
+        } catch (_: Throwable) {
+            System.err.println("FreeWebNovel: $message")
+            throwable?.printStackTrace(System.err)
+        }
     }
 
     private fun decodeChapterListAjaxResponse(body: String): ChapterListAjaxResponse? = try {
@@ -470,7 +525,6 @@ class FreeWebNovel(
      * - `"Chapter 2233.2: Getting Married..."` → 2233.2f
      */
     private fun parseChapterNumber(name: String): Float {
-        return Regex("""Chapter\s+(\d+(?:\.\d+)?)""", RegexOption.IGNORE_CASE)
-            .find(name)?.groupValues?.get(1)?.toFloatOrNull() ?: -1f
+        return CHAPTER_NUMBER_REGEX.find(name)?.groupValues?.get(1)?.toFloatOrNull() ?: -1f
     }
 }
