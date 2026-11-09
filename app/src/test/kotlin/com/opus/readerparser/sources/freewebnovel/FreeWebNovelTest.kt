@@ -35,7 +35,7 @@ import java.util.concurrent.atomic.AtomicInteger
  * Fixtures live under `src/test/resources/fixtures/freewebnovel/`:
  * - `popular.html` — most-popular listing page (`/sort/most-popular`)
  * - `latest.html`  — latest-release page (`/sort/latest-release`)
- * - `search.html`  — search results page (`/search?searchkey=...`)
+ * - `search.html`  — search results page (`/search?keyword=...`)
  * - `series.html`  — series detail page (`/novel/advent-of-the-three-calamities`)
  * - `chapter.html` — chapter reader page (`/novel/.../chapter-876`)
  *
@@ -227,8 +227,8 @@ class FreeWebNovelTest {
 
         assertEquals(
             listOf(
-                "https://freewebnovel.com/search?searchkey=shadow",
-                "https://freewebnovel.com/search?searchkey=shadow",
+                "https://freewebnovel.com/search?keyword=shadow",
+                "https://freewebnovel.com/search?keyword=shadow",
             ),
             requestedUrls,
         )
@@ -236,6 +236,31 @@ class FreeWebNovelTest {
         assertEquals(page1.series.map { it.title }, page2.series.map { it.title })
         assertFalse(page1.hasNextPage)
         assertFalse(page2.hasNextPage)
+    }
+
+    @Test
+    fun `search with direct novel url fetches series details directly`() = runTest {
+        val html = readFixture("fixtures/freewebnovel/series.html")
+        val requestedUrls = mutableListOf<String>()
+        val source = FreeWebNovel(
+            mockHttpClient { request ->
+                requestedUrls += request.url.toString()
+                respondHtml(html)
+            }
+        )
+
+        val result = source.search("https://freewebnovel.com/novel/advent-of-the-three-calamities", 1, FilterList())
+
+        assertEquals(
+            listOf("https://freewebnovel.com/novel/advent-of-the-three-calamities"),
+            requestedUrls,
+        )
+        assertEquals(1, result.series.size)
+        assertFalse(result.hasNextPage)
+        val series = result.series.single()
+        assertEquals("Advent of the Three Calamities", series.title)
+        assertEquals("Entrail_JI", series.author)
+        assertEquals("https://freewebnovel.com/novel/advent-of-the-three-calamities", series.url)
     }
 
     // =========================================================================
@@ -266,8 +291,45 @@ class FreeWebNovelTest {
         assertTrue(result.genres.contains("Slice of Life"))
         assertNotNull("Description should be present", result.description)
         assertTrue(result.description!!.contains("Emotions are like a drug"))
+        assertFalse("Description should not contain <p> tags", result.description!!.contains("<p>"))
+        assertFalse("Description should not contain </p> tags", result.description!!.contains("</p>"))
+        assertTrue("Description should contain double newlines between paragraphs", result.description!!.contains("\n\n"))
         assertNotNull("Cover URL should be present", result.coverUrl)
         assertTrue(result.coverUrl!!.contains("files/article/image"))
+    }
+
+    @Test
+    fun `getSeriesDetails cleans multi-paragraph html description into plain text with double newlines`() = runTest {
+        val html = """
+            <html><body>
+              <div class="m-desc">
+                <h1 class="tit">Test Title</h1>
+                <div class="txt">
+                  <div class="inner">
+                    <p>First paragraph with <span class="highlight">styled text</span> and <a href="/link">link</a>.</p>
+                    <p>Second paragraph with &amp; entity and &quot;quotes&quot; and &#39;apostrophe&#39;.</p>
+                    <p>Third paragraph.</p>
+                  </div>
+                </div>
+              </div>
+            </body></html>
+        """.trimIndent()
+        val source = freeWebNovel(html)
+        val series = Series(
+            sourceId = source.id,
+            url = "https://freewebnovel.com/novel/test-desc",
+            title = "Test Title",
+            type = ContentType.NOVEL,
+        )
+        val result = source.getSeriesDetails(series)
+
+        assertNotNull(result.description)
+        assertFalse(result.description!!.contains("<p>"))
+        assertFalse(result.description!!.contains("</p>"))
+        assertFalse(result.description!!.contains("<span"))
+        assertFalse(result.description!!.contains("<a"))
+        val expected = "First paragraph with styled text and link.\n\nSecond paragraph with & entity and \"quotes\" and 'apostrophe'.\n\nThird paragraph."
+        assertEquals(expected, result.description)
     }
 
     @Test
@@ -477,12 +539,10 @@ class FreeWebNovelTest {
             }
         )
 
-        try {
-            source.getChapterList(series)
-            throw AssertionError("Expected IllegalStateException")
-        } catch (e: IllegalStateException) {
-            assertTrue(e.message!!.contains("Failed to load continuation page 2 of 2"))
-        }
+        val chapters = source.getChapterList(series)
+
+        assertEquals(2, chapters.size)
+        assertEquals(listOf("Chapter 1: One", "Chapter 2: Two"), chapters.map { it.name })
 
         assertEquals(
             listOf(
@@ -494,7 +554,7 @@ class FreeWebNovelTest {
     }
 
     @Test
-    fun `getChapterList throws when continuation page request fails with 500`() = runTest {
+    fun `getChapterList returns partial chapters when continuation page request fails with 500`() = runTest {
         val page1Json = """{"code":200,"html":"<li><span class=\"glyphicon glyphicon-book right-5\"><\/span><a href=\"\/novel\/test-pagination\/chapter-1\" title=\"Chapter 1: One\" class=\"con\">Chapter 1: One<\/a><\/li>","page":1,"pageSize":200,"totalPage":2,"totalChapters":2}"""
 
         val series = Series(
@@ -520,16 +580,12 @@ class FreeWebNovelTest {
             }
         )
 
-        try {
-            source.getChapterList(series)
-            throw AssertionError("Expected IllegalStateException")
-        } catch (e: IllegalStateException) {
-            assertTrue(e.message!!.contains("Failed to load continuation page 2 of 2"))
-        }
+        val chapters = source.getChapterList(series)
+        assertEquals(listOf("Chapter 1: One"), chapters.map { it.name })
     }
 
     @Test
-    fun `getChapterList throws when continuation page has blank html`() = runTest {
+    fun `getChapterList returns partial chapters when continuation page has blank html`() = runTest {
         val page1Json = """{"code":200,"html":"<li><span class=\"glyphicon glyphicon-book right-5\"><\/span><a href=\"\/novel\/test-pagination\/chapter-1\" title=\"Chapter 1: One\" class=\"con\">Chapter 1: One<\/a><\/li>","page":1,"pageSize":200,"totalPage":2,"totalChapters":2}"""
         val page2Json = """{"code":200,"html":"   ","page":2,"pageSize":200,"totalPage":2,"totalChapters":2}"""
 
@@ -557,16 +613,12 @@ class FreeWebNovelTest {
             }
         )
 
-        try {
-            source.getChapterList(series)
-            throw AssertionError("Expected IllegalStateException")
-        } catch (e: IllegalStateException) {
-            assertTrue(e.message!!.contains("had blank HTML"))
-        }
+        val chapters = source.getChapterList(series)
+        assertEquals(listOf("Chapter 1: One"), chapters.map { it.name })
     }
 
     @Test
-    fun `getChapterList throws when continuation page contains no new chapters`() = runTest {
+    fun `getChapterList returns partial chapters when continuation page contains no new chapters`() = runTest {
         val page1Json = """{"code":200,"html":"<li><span class=\"glyphicon glyphicon-book right-5\"><\/span><a href=\"\/novel\/test-pagination\/chapter-1\" title=\"Chapter 1: One\" class=\"con\">Chapter 1: One<\/a><\/li>","page":1,"pageSize":200,"totalPage":2,"totalChapters":2}"""
         val page2Json = """{"code":200,"html":"<li><span class=\"glyphicon glyphicon-book right-5\"><\/span><a href=\"\/novel\/test-pagination\/chapter-1\" title=\"Chapter 1: One\" class=\"con\">Chapter 1: One<\/a><\/li>","page":2,"pageSize":200,"totalPage":2,"totalChapters":2}"""
 
@@ -594,12 +646,8 @@ class FreeWebNovelTest {
             }
         )
 
-        try {
-            source.getChapterList(series)
-            throw AssertionError("Expected IllegalStateException")
-        } catch (e: IllegalStateException) {
-            assertTrue(e.message!!.contains("contained no new chapters"))
-        }
+        val chapters = source.getChapterList(series)
+        assertEquals(listOf("Chapter 1: One"), chapters.map { it.name })
     }
 
     @Test
@@ -690,6 +738,170 @@ class FreeWebNovelTest {
     }
 
     @Test
+    fun `getChapterList retries transient 429 errors and recovers successfully`() = runTest {
+        val page1Json = """{"code":200,"html":"<li><span class=\"glyphicon glyphicon-book right-5\"><\/span><a href=\"\/novel\/test-retry-429\/chapter-1\" title=\"Chapter 1: One\" class=\"con\">Chapter 1: One<\/a><\/li>","page":1,"pageSize":200,"totalPage":2,"totalChapters":2}"""
+        val page2Json = """{"code":200,"html":"<li><span class=\"glyphicon glyphicon-book right-5\"><\/span><a href=\"\/novel\/test-retry-429\/chapter-2\" title=\"Chapter 2: Two\" class=\"con\">Chapter 2: Two<\/a><\/li>","page":2,"pageSize":200,"totalPage":2,"totalChapters":2}"""
+
+        val requestedUrls = mutableListOf<String>()
+        var page2Attempts = 0
+        val series = Series(
+            sourceId = computeSourceId("FreeWebNovel", "en", ContentType.NOVEL),
+            url = "https://freewebnovel.com/novel/test-retry-429",
+            title = "Test Retry 429",
+            type = ContentType.NOVEL,
+        )
+        val source = FreeWebNovel(
+            mockHttpClient { request ->
+                requestedUrls += request.url.toString()
+                when (request.url.toString()) {
+                    "https://freewebnovel.com/novel/test-retry-429?ajax=chapters&page=1&pageSize=200" -> respond(
+                        content = page1Json,
+                        status = HttpStatusCode.OK,
+                        headers = headersOf("Content-Type", "application/json; charset=UTF-8"),
+                    )
+                    "https://freewebnovel.com/novel/test-retry-429?ajax=chapters&page=2&pageSize=200" -> {
+                        page2Attempts++
+                        if (page2Attempts == 1) {
+                            respond(
+                                content = "Too Many Requests",
+                                status = HttpStatusCode.TooManyRequests,
+                            )
+                        } else {
+                            respond(
+                                content = page2Json,
+                                status = HttpStatusCode.OK,
+                                headers = headersOf("Content-Type", "application/json; charset=UTF-8"),
+                            )
+                        }
+                    }
+                    else -> error("Unexpected request: ${request.url}")
+                }
+            }
+        )
+
+        val chapters = source.getChapterList(series)
+
+        assertEquals(2, chapters.size)
+        assertEquals(listOf("Chapter 1: One", "Chapter 2: Two"), chapters.map { it.name })
+        assertEquals(2, page2Attempts)
+        assertEquals(
+            listOf(
+                "https://freewebnovel.com/novel/test-retry-429?ajax=chapters&page=1&pageSize=200",
+                "https://freewebnovel.com/novel/test-retry-429?ajax=chapters&page=2&pageSize=200",
+                "https://freewebnovel.com/novel/test-retry-429?ajax=chapters&page=2&pageSize=200",
+            ),
+            requestedUrls,
+        )
+    }
+
+    @Test
+    fun `getChapterList retries transient 503 errors and recovers successfully`() = runTest {
+        val page1Json = """{"code":200,"html":"<li><span class=\"glyphicon glyphicon-book right-5\"><\/span><a href=\"\/novel\/test-retry-503\/chapter-1\" title=\"Chapter 1: One\" class=\"con\">Chapter 1: One<\/a><\/li>","page":1,"pageSize":200,"totalPage":2,"totalChapters":2}"""
+        val page2Json = """{"code":200,"html":"<li><span class=\"glyphicon glyphicon-book right-5\"><\/span><a href=\"\/novel\/test-retry-503\/chapter-2\" title=\"Chapter 2: Two\" class=\"con\">Chapter 2: Two<\/a><\/li>","page":2,"pageSize":200,"totalPage":2,"totalChapters":2}"""
+
+        val requestedUrls = mutableListOf<String>()
+        var page2Attempts = 0
+        val series = Series(
+            sourceId = computeSourceId("FreeWebNovel", "en", ContentType.NOVEL),
+            url = "https://freewebnovel.com/novel/test-retry-503",
+            title = "Test Retry 503",
+            type = ContentType.NOVEL,
+        )
+        val source = FreeWebNovel(
+            mockHttpClient { request ->
+                requestedUrls += request.url.toString()
+                when (request.url.toString()) {
+                    "https://freewebnovel.com/novel/test-retry-503?ajax=chapters&page=1&pageSize=200" -> respond(
+                        content = page1Json,
+                        status = HttpStatusCode.OK,
+                        headers = headersOf("Content-Type", "application/json; charset=UTF-8"),
+                    )
+                    "https://freewebnovel.com/novel/test-retry-503?ajax=chapters&page=2&pageSize=200" -> {
+                        page2Attempts++
+                        if (page2Attempts <= 2) {
+                            respond(
+                                content = "Service Unavailable",
+                                status = HttpStatusCode.ServiceUnavailable,
+                            )
+                        } else {
+                            respond(
+                                content = page2Json,
+                                status = HttpStatusCode.OK,
+                                headers = headersOf("Content-Type", "application/json; charset=UTF-8"),
+                            )
+                        }
+                    }
+                    else -> error("Unexpected request: ${request.url}")
+                }
+            }
+        )
+
+        val chapters = source.getChapterList(series)
+
+        assertEquals(2, chapters.size)
+        assertEquals(listOf("Chapter 1: One", "Chapter 2: Two"), chapters.map { it.name })
+        assertEquals(3, page2Attempts)
+        assertEquals(
+            listOf(
+                "https://freewebnovel.com/novel/test-retry-503?ajax=chapters&page=1&pageSize=200",
+                "https://freewebnovel.com/novel/test-retry-503?ajax=chapters&page=2&pageSize=200",
+                "https://freewebnovel.com/novel/test-retry-503?ajax=chapters&page=2&pageSize=200",
+                "https://freewebnovel.com/novel/test-retry-503?ajax=chapters&page=2&pageSize=200",
+            ),
+            requestedUrls,
+        )
+    }
+
+    @Test
+    fun `getChapterList returns partial chapters when continuation page exceeds max retries on 429`() = runTest {
+        val page1Json = """{"code":200,"html":"<li><span class=\"glyphicon glyphicon-book right-5\"><\/span><a href=\"\/novel\/test-retry-exhaust\/chapter-1\" title=\"Chapter 1: One\" class=\"con\">Chapter 1: One<\/a><\/li>","page":1,"pageSize":200,"totalPage":2,"totalChapters":2}"""
+
+        val requestedUrls = mutableListOf<String>()
+        var page2Attempts = 0
+        val series = Series(
+            sourceId = computeSourceId("FreeWebNovel", "en", ContentType.NOVEL),
+            url = "https://freewebnovel.com/novel/test-retry-exhaust",
+            title = "Test Retry Exhaust",
+            type = ContentType.NOVEL,
+        )
+        val source = FreeWebNovel(
+            mockHttpClient { request ->
+                requestedUrls += request.url.toString()
+                when (request.url.toString()) {
+                    "https://freewebnovel.com/novel/test-retry-exhaust?ajax=chapters&page=1&pageSize=200" -> respond(
+                        content = page1Json,
+                        status = HttpStatusCode.OK,
+                        headers = headersOf("Content-Type", "application/json; charset=UTF-8"),
+                    )
+                    "https://freewebnovel.com/novel/test-retry-exhaust?ajax=chapters&page=2&pageSize=200" -> {
+                        page2Attempts++
+                        respond(
+                            content = "Too Many Requests",
+                            status = HttpStatusCode.TooManyRequests,
+                        )
+                    }
+                    else -> error("Unexpected request: ${request.url}")
+                }
+            }
+        )
+
+        val chapters = source.getChapterList(series)
+
+        assertEquals(1, chapters.size)
+        assertEquals(listOf("Chapter 1: One"), chapters.map { it.name })
+        assertEquals(3, page2Attempts)
+        assertEquals(
+            listOf(
+                "https://freewebnovel.com/novel/test-retry-exhaust?ajax=chapters&page=1&pageSize=200",
+                "https://freewebnovel.com/novel/test-retry-exhaust?ajax=chapters&page=2&pageSize=200",
+                "https://freewebnovel.com/novel/test-retry-exhaust?ajax=chapters&page=2&pageSize=200",
+                "https://freewebnovel.com/novel/test-retry-exhaust?ajax=chapters&page=2&pageSize=200",
+            ),
+            requestedUrls,
+        )
+    }
+
+    @Test
     fun `fetchChapterListProgressive emits page 1 chapters immediately before remaining pages complete`() = runTest {
         val page1Json = """{"code":200,"html":"<li><span class=\"glyphicon glyphicon-book right-5\"><\/span><a href=\"\/novel\/test-prog\/chapter-1\" title=\"Chapter 1: One\" class=\"con\">Chapter 1: One<\/a><\/li>","page":1,"pageSize":200,"totalPage":2,"totalChapters":2}"""
         val page2Json = """{"code":200,"html":"<li><span class=\"glyphicon glyphicon-book right-5\"><\/span><a href=\"\/novel\/test-prog\/chapter-2\" title=\"Chapter 2: Two\" class=\"con\">Chapter 2: Two<\/a><\/li>","page":2,"pageSize":200,"totalPage":2,"totalChapters":2}"""
@@ -745,7 +957,7 @@ class FreeWebNovelTest {
     }
 
     @Test
-    fun `fetchChapterListProgressive bounds concurrent page requests to 4 and merges out of order responses deterministically`() = runTest {
+    fun `fetchChapterListProgressive sequentially pages with polite pacing and deduplicates chapters`() = runTest {
         val totalPage = 10
         val page1Json = """{"code":200,"html":"<li><span class=\"glyphicon glyphicon-book right-5\"><\/span><a href=\"\/novel\/test-bound\/chapter-1\" title=\"Chapter 1: 1\" class=\"con\">Chapter 1: 1<\/a><\/li>","page":1,"pageSize":200,"totalPage":$totalPage,"totalChapters":$totalPage}"""
 
@@ -799,16 +1011,15 @@ class FreeWebNovelTest {
 
         val emissions = source.fetchChapterListProgressive(series).toList()
 
-        assertEquals(2, emissions.size)
         assertEquals(listOf("Chapter 1: 1"), emissions[0].map { it.name })
 
         // Check ascending order and deduplication
         val expectedNames = (1..10).map { "Chapter $it: $it" }
-        assertEquals(expectedNames, emissions[1].map { it.name })
-        assertEquals(10, emissions[1].size)
+        assertEquals(expectedNames, emissions.last().map { it.name })
+        assertEquals(10, emissions.last().size)
 
-        // Concurrency bounded by Semaphore(4)
-        assertEquals(4, maxInFlight.get())
+        // Concurrency bounded by sequential polite retrieval
+        assertEquals(1, maxInFlight.get())
         assertEquals(0, inFlight.get())
     }
 

@@ -167,6 +167,12 @@ class SeriesRepositoryImpl @Inject constructor(
     override suspend fun isInLibrary(sourceId: Long, url: String): Boolean =
         seriesDao.getByUrl(sourceId, url)?.inLibrary ?: false
 
+    override suspend fun searchCatalog(sourceId: Long, query: String): List<Series> {
+        val trimmed = query.trim()
+        if (trimmed.isBlank()) return emptyList()
+        return seriesDao.searchCatalog(sourceId, trimmed).map { it.toDomain() }
+    }
+
     private suspend fun saveSeries(series: Series) {
         val entity = series.toEntity()
         val updated = seriesDao.updateDetails(

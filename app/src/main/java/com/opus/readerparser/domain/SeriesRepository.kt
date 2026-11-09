@@ -31,4 +31,13 @@ interface SeriesRepository {
     suspend fun removeFromLibrary(series: Series)
 
     suspend fun isInLibrary(sourceId: Long, url: String): Boolean
+
+    /**
+     * Searches locally cached series for the given [sourceId] whose title contains
+     * [query], matching case-insensitively using native SQLite LIKE.
+     *
+     * Returns matching series ordered alphabetically by title. If [query] is blank,
+     * returns an empty list.
+     */
+    suspend fun searchCatalog(sourceId: Long, query: String): List<Series> = emptyList()
 }

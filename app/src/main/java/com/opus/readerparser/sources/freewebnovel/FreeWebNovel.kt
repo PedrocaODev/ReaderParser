@@ -1,6 +1,8 @@
 package com.opus.readerparser.sources.freewebnovel
 
 import com.opus.readerparser.core.util.computeSourceId
+import com.opus.readerparser.data.local.database.dao.SeriesDao
+import com.opus.readerparser.data.source.CatalogHarvester
 import com.opus.readerparser.data.source.HtmlSource
 import com.opus.readerparser.domain.model.Chapter
 import com.opus.readerparser.domain.model.ChapterContent
@@ -14,20 +16,22 @@ import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.statement.bodyAsText
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.last
-import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withPermit
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
+
+private const val USER_AGENT =
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+private const val ACCEPT_HEADER =
+    "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"
+private const val ACCEPT_LANGUAGE = "en-US,en;q=0.9"
 
 /**
  * Source plugin for [Free Web Novel](https://freewebnovel.com/), an English webnovel aggregator.
@@ -40,11 +44,16 @@ import org.jsoup.nodes.Element
  * - Latest listing  : `/sort/latest-release` (page 1), `/sort/latest-release/{page}` (page 2+)
  * - Series detail   : `/novel/{slug}`
  * - Chapter         : `/novel/{slug}/chapter-{n}`
- * - Search          : `/search?searchkey={query}`
+ * - Search          : `/search?keyword={query}`
  */
 class FreeWebNovel(
     client: HttpClient,
-) : HtmlSource(client) {
+    private val seriesDao: SeriesDao? = null,
+    private val crawlDelayMs: Long = 300L,
+    private val paginationDelayMs: Long = 100L,
+) : HtmlSource(client), CatalogHarvester {
+
+    private val batchPersister = seriesDao?.let { FreeWebNovelCatalogBatchPersister(it) }
 
     // =========================================================================
     // Source identity
@@ -55,6 +64,13 @@ class FreeWebNovel(
     override val lang: String = "en"
     override val baseUrl: String = "https://freewebnovel.com"
     override val type: ContentType = ContentType.NOVEL
+
+    override suspend fun fetchDocBody(url: String): String =
+        client.get(url) {
+            header("User-Agent", USER_AGENT)
+            header("Accept", ACCEPT_HEADER)
+            header("Accept-Language", ACCEPT_LANGUAGE)
+        }.bodyAsText()
 
     // =========================================================================
     // getPopular — most-popular listing
@@ -167,11 +183,31 @@ class FreeWebNovel(
     /**
      * Search uses the same card structure as the popular listing.
      * The site search form submits via POST but also responds to GET
-     * at `/search?searchkey={query}`.
+     * at `/search?keyword={query}`.
      */
     override fun searchUrl(query: String, page: Int, filters: FilterList): String {
         val encoded = java.net.URLEncoder.encode(query, "UTF-8")
-        return "$baseUrl/search?searchkey=$encoded"
+        return "$baseUrl/search?keyword=$encoded"
+    }
+
+    override suspend fun search(query: String, page: Int, filters: FilterList): SeriesPage {
+        val trimmed = query.trim()
+        if (trimmed.startsWith("$baseUrl/novel/") || trimmed.startsWith("/novel/") || (trimmed.startsWith("http") && trimmed.contains("/novel/"))) {
+            val fullUrl = if (trimmed.startsWith("http")) trimmed else "$baseUrl$trimmed"
+            val dummy = Series(
+                sourceId = id,
+                url = fullUrl,
+                title = "",
+                type = type,
+            )
+            return try {
+                val enriched = getSeriesDetails(dummy)
+                SeriesPage(listOf(enriched), hasNextPage = false)
+            } catch (_: Exception) {
+                super.search(query, page, filters)
+            }
+        }
+        return super.search(query, page, filters)
     }
 
     // =========================================================================
@@ -192,7 +228,7 @@ class FreeWebNovel(
     override fun seriesDetailsParse(doc: Document, series: Series): Series {
         val author = doc.selectFirst("a[href^=\"/author/\"]")?.text()?.trim()
         val descriptionEl = doc.selectFirst(".m-desc .txt .inner")
-        val description = descriptionEl?.html()?.trim()
+        val description = cleanDescription(descriptionEl)
         val genres = doc.select(".m-book1 .txt .item a[href^=\"/genre/\"]")
             .map { it.text().trim() }
         // Use .s1 alone so it matches both .s1.s2 (OnGoing) and .s1.s3 (Completed).
@@ -213,6 +249,41 @@ class FreeWebNovel(
             status = status,
             coverUrl = coverUrl ?: series.coverUrl,
         )
+    }
+
+    /**
+     * Cleans an HTML description element into plain text.
+     *
+     * - Strips all raw HTML tags (<p>, </p>, <div>, <br>, <span>, etc.)
+     * - Unescapes HTML entities
+     * - Preserves paragraph formatting as double newlines (`\n\n`)
+     */
+    private fun cleanDescription(element: Element?): String? {
+        if (element == null) return null
+        val pElements = element.select("p")
+        val rawText = if (pElements.isNotEmpty()) {
+            pElements.map { p ->
+                cleanElementText(p)
+            }.filter { it.isNotBlank() }
+            .joinToString("\n\n")
+        } else {
+            val divElements = element.select("div")
+            if (divElements.isNotEmpty()) {
+                divElements.map { div ->
+                    cleanElementText(div)
+                }.filter { it.isNotBlank() }
+                .joinToString("\n\n")
+            } else {
+                cleanElementText(element)
+            }
+        }
+        return rawText.trim().takeIf { it.isNotBlank() }
+    }
+
+    private fun cleanElementText(element: Element): String {
+        val clone = element.clone()
+        clone.select("br").forEach { it.replaceWith(org.jsoup.nodes.TextNode("\n")) }
+        return clone.wholeText().lines().map { it.trim() }.filter { it.isNotEmpty() }.joinToString("\n")
     }
 
     // =========================================================================
@@ -252,6 +323,7 @@ class FreeWebNovel(
     companion object {
         private val json = Json { ignoreUnknownKeys = true }
         private const val chapterListAjaxPageSize = 200
+        private val CHAPTER_NUMBER_REGEX = Regex("""Chapter\s+(\d+(?:\.\d+)?)""", RegexOption.IGNORE_CASE)
     }
 
     override fun fetchChapterListProgressive(series: Series): Flow<List<Chapter>> = flow {
@@ -275,33 +347,20 @@ class FreeWebNovel(
 
         val totalPage = firstPage.totalPage.coerceAtLeast(1)
         if (totalPage > 1) {
-            val semaphore = Semaphore(4)
-            val remainingPages = coroutineScope {
-                (2..totalPage).map { page ->
-                    async {
-                        semaphore.withPermit {
-                            val payload = fetchOptionalChapterListAjax(series.url, page)
-                                ?: throw IllegalStateException(
-                                    "Failed to load continuation page $page of $totalPage for ${series.url}"
-                                )
-                            if (payload.html.isBlank()) {
-                                throw IllegalStateException(
-                                    "Continuation page $page of $totalPage had blank HTML for ${series.url}"
-                                )
-                            }
-                            val pageChapters = parseChaptersFragment(payload.html, series)
-                            if (pageChapters.isEmpty()) {
-                                throw IllegalStateException(
-                                    "Continuation page $page of $totalPage contained no new chapters for ${series.url}"
-                                )
-                            }
-                            page to pageChapters
-                        }
-                    }
-                }.awaitAll()
-            }
-
-            for ((page, pageChapters) in remainingPages.sortedBy { it.first }) {
+            for (page in 2..totalPage) {
+                if (paginationDelayMs > 0) {
+                    delay(paginationDelayMs)
+                }
+                val payload = fetchChapterListAjaxWithRetry(series.url, page)
+                if (payload == null || payload.html.isBlank()) {
+                    logWarning("Continuation page $page of $totalPage failed or had blank HTML for ${series.url}; returning partial chapters gathered so far")
+                    break
+                }
+                val pageChapters = parseChaptersFragment(payload.html, series)
+                if (pageChapters.isEmpty()) {
+                    logWarning("Continuation page $page of $totalPage contained no chapters for ${series.url}; returning partial chapters gathered so far")
+                    break
+                }
                 var addedOnPage = 0
                 for (chapter in pageChapters) {
                     if (chaptersByUrl.putIfAbsent(chapter.url, chapter) == null) {
@@ -309,12 +368,11 @@ class FreeWebNovel(
                     }
                 }
                 if (addedOnPage == 0) {
-                    throw IllegalStateException(
-                        "Continuation page $page of $totalPage contained no new chapters for ${series.url}"
-                    )
+                    logWarning("Continuation page $page of $totalPage contained no new chapters for ${series.url}; returning partial chapters gathered so far")
+                    break
                 }
+                emit(chaptersByUrl.values.toList())
             }
-            emit(chaptersByUrl.values.toList())
         }
     }
 
@@ -328,27 +386,64 @@ class FreeWebNovel(
             .map { chapterFromElement(it, series) }
     }
 
-    private suspend fun fetchChapterListAjax(seriesUrl: String, page: Int): ChapterListAjaxResponse? {
-        val ajaxUrl = "$seriesUrl?ajax=chapters&page=$page&pageSize=$chapterListAjaxPageSize"
-        val response = client.get(ajaxUrl) {
-            header("X-Requested-With", "XMLHttpRequest")
+    private suspend fun fetchChapterListAjaxWithRetry(
+        seriesUrl: String,
+        page: Int,
+        maxRetries: Int = 2,
+        initialBackoffMs: Long = 100L,
+    ): ChapterListAjaxResponse? {
+        var attempt = 0
+        var currentBackoff = initialBackoffMs
+        while (true) {
+            attempt++
+            try {
+                val ajaxUrl = "$seriesUrl?ajax=chapters&page=$page&pageSize=$chapterListAjaxPageSize"
+                val response = client.get(ajaxUrl) {
+                    header("X-Requested-With", "XMLHttpRequest")
+                }
+                val statusCode = response.status.value
+                if (statusCode in 200..299) {
+                    val body = response.bodyAsText()
+                    return decodeChapterListAjaxResponse(body)
+                }
+                if (isTransientHttpError(statusCode) && attempt <= maxRetries) {
+                    delay(currentBackoff)
+                    currentBackoff *= 2
+                    continue
+                }
+                return null
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (isTransientException(e) && attempt <= maxRetries) {
+                    delay(currentBackoff)
+                    currentBackoff *= 2
+                    continue
+                }
+                return null
+            }
         }
-        check(response.status.value in 200..299) {
-            "Failed to fetch chapter list ajax: HTTP ${response.status.value}"
-        }
-        val responseBody = response.bodyAsText()
-        return decodeChapterListAjaxResponse(responseBody)
     }
+
+    private fun isTransientHttpError(statusCode: Int): Boolean =
+        statusCode == 429 || statusCode == 503 || statusCode == 504 || statusCode == 408
+
+    private fun isTransientException(e: Exception): Boolean =
+        e is java.io.IOException || e is java.net.SocketException ||
+            e.javaClass.simpleName.contains("Timeout", ignoreCase = true)
 
     private suspend fun fetchOptionalChapterListAjax(
         seriesUrl: String,
         page: Int,
-    ): ChapterListAjaxResponse? = try {
-        fetchChapterListAjax(seriesUrl, page)
-    } catch (e: CancellationException) {
-        throw e
-    } catch (_: Exception) {
-        null
+    ): ChapterListAjaxResponse? = fetchChapterListAjaxWithRetry(seriesUrl, page)
+
+    private fun logWarning(message: String, throwable: Throwable? = null) {
+        try {
+            android.util.Log.w("FreeWebNovel", message, throwable)
+        } catch (_: Throwable) {
+            System.err.println("FreeWebNovel: $message")
+            throwable?.printStackTrace(System.err)
+        }
     }
 
     private fun decodeChapterListAjaxResponse(body: String): ChapterListAjaxResponse? = try {
@@ -399,6 +494,47 @@ class FreeWebNovel(
         error("Override for manhwa sources — FreeWebNovel is a novel source")
 
     // =========================================================================
+    // CatalogHarvester — exhaustive catalog crawling & batch persistence
+    // =========================================================================
+
+    /**
+     * Sequentially crawls the `/sort/latest-novel/{page}` directory, extracting
+     * series cards into [Series] stubs and emitting page batches.
+     *
+     * If [seriesDao] was provided at construction, each batch is automatically
+     * persisted to Room with `inLibrary = false` and zero chapters fetched or inserted.
+     * Crawling terminates when next-page pagination (`>>`) is absent or points to javascript:void,
+     * or when an empty series page is encountered.
+     */
+    override suspend fun harvestCatalog(): Flow<List<Series>> = flow {
+        var page = 1
+        while (true) {
+            val url = directoryUrl(page)
+            val doc = fetchDoc(url)
+            val series = doc.select(popularSelector()).map(::seriesFromElement)
+            if (series.isNotEmpty()) {
+                batchPersister?.persistBatch(series)
+                emit(series)
+            }
+            val hasNext = doc.selectFirst("div.pages a:matches(>>):not([href*=\"javascript\"])") != null
+            if (!hasNext || series.isEmpty()) {
+                break
+            }
+            page++
+            if (crawlDelayMs > 0) {
+                delay(crawlDelayMs)
+            }
+        }
+    }
+
+    fun directoryUrl(page: Int): String = "$baseUrl/sort/latest-novel/$page"
+
+    suspend fun persistBatch(seriesList: List<Series>): Int? = batchPersister?.persistBatch(seriesList)
+
+    suspend fun persistBatch(dao: SeriesDao, seriesList: List<Series>): Int =
+        FreeWebNovelCatalogBatchPersister(dao).persistBatch(seriesList)
+
+    // =========================================================================
     // Helpers
     // =========================================================================
 
@@ -422,7 +558,6 @@ class FreeWebNovel(
      * - `"Chapter 2233.2: Getting Married..."` → 2233.2f
      */
     private fun parseChapterNumber(name: String): Float {
-        return Regex("""Chapter\s+(\d+(?:\.\d+)?)""", RegexOption.IGNORE_CASE)
-            .find(name)?.groupValues?.get(1)?.toFloatOrNull() ?: -1f
+        return CHAPTER_NUMBER_REGEX.find(name)?.groupValues?.get(1)?.toFloatOrNull() ?: -1f
     }
 }
