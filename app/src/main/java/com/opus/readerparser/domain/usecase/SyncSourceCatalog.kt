@@ -78,7 +78,7 @@ open class SyncSourceCatalog(
 
                 if (!fullSync && pageBatch.isNotEmpty()) {
                     val allExist = pageBatch.all { series ->
-                        val targetSourceId = if (sourceId != 0L) sourceId else series.sourceId
+                        val targetSourceId = if (series.sourceId != 0L) series.sourceId else sourceId
                         seriesRepository.getPersistedSeries(targetSourceId, series.url) != null
                     }
                     if (allExist) {

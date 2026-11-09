@@ -35,7 +35,7 @@ import java.util.concurrent.atomic.AtomicInteger
  * Fixtures live under `src/test/resources/fixtures/freewebnovel/`:
  * - `popular.html` — most-popular listing page (`/sort/most-popular`)
  * - `latest.html`  — latest-release page (`/sort/latest-release`)
- * - `search.html`  — search results page (`/search?searchkey=...`)
+ * - `search.html`  — search results page (`/search?keyword=...`)
  * - `series.html`  — series detail page (`/novel/advent-of-the-three-calamities`)
  * - `chapter.html` — chapter reader page (`/novel/.../chapter-876`)
  *
@@ -227,8 +227,8 @@ class FreeWebNovelTest {
 
         assertEquals(
             listOf(
-                "https://freewebnovel.com/search?searchkey=shadow",
-                "https://freewebnovel.com/search?searchkey=shadow",
+                "https://freewebnovel.com/search?keyword=shadow",
+                "https://freewebnovel.com/search?keyword=shadow",
             ),
             requestedUrls,
         )
@@ -236,6 +236,31 @@ class FreeWebNovelTest {
         assertEquals(page1.series.map { it.title }, page2.series.map { it.title })
         assertFalse(page1.hasNextPage)
         assertFalse(page2.hasNextPage)
+    }
+
+    @Test
+    fun `search with direct novel url fetches series details directly`() = runTest {
+        val html = readFixture("fixtures/freewebnovel/series.html")
+        val requestedUrls = mutableListOf<String>()
+        val source = FreeWebNovel(
+            mockHttpClient { request ->
+                requestedUrls += request.url.toString()
+                respondHtml(html)
+            }
+        )
+
+        val result = source.search("https://freewebnovel.com/novel/advent-of-the-three-calamities", 1, FilterList())
+
+        assertEquals(
+            listOf("https://freewebnovel.com/novel/advent-of-the-three-calamities"),
+            requestedUrls,
+        )
+        assertEquals(1, result.series.size)
+        assertFalse(result.hasNextPage)
+        val series = result.series.single()
+        assertEquals("Advent of the Three Calamities", series.title)
+        assertEquals("Entrail_JI", series.author)
+        assertEquals("https://freewebnovel.com/novel/advent-of-the-three-calamities", series.url)
     }
 
     // =========================================================================

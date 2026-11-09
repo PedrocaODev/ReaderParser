@@ -34,7 +34,7 @@ class CatalogSyncWorkerTest {
         override suspend fun fetchPopular(sourceId: Long, page: Int): SeriesPage = SeriesPage(emptyList(), false)
         override suspend fun fetchLatest(sourceId: Long, page: Int): SeriesPage = SeriesPage(emptyList(), false)
         override suspend fun search(sourceId: Long, query: String, page: Int, filters: FilterList): SeriesPage = SeriesPage(emptyList(), false)
-        override suspend fun searchLibrary(query: String): LibrarySearchResult = LibrarySearchResult(emptyList(), emptyList())
+        override suspend fun searchLibrary(query: String): LibrarySearchResult = LibrarySearchResult.Success(emptyList())
         override suspend fun refreshDetails(series: Series): Series = series
         override suspend fun getPersistedSeries(sourceId: Long, url: String): Series? = null
         override suspend fun addToLibrary(series: Series) {}

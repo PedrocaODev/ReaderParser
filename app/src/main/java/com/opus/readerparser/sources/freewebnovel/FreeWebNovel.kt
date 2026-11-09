@@ -27,6 +27,12 @@ import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 
+private const val USER_AGENT =
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+private const val ACCEPT_HEADER =
+    "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"
+private const val ACCEPT_LANGUAGE = "en-US,en;q=0.9"
+
 /**
  * Source plugin for [Free Web Novel](https://freewebnovel.com/), an English webnovel aggregator.
  *
@@ -38,7 +44,7 @@ import org.jsoup.nodes.Element
  * - Latest listing  : `/sort/latest-release` (page 1), `/sort/latest-release/{page}` (page 2+)
  * - Series detail   : `/novel/{slug}`
  * - Chapter         : `/novel/{slug}/chapter-{n}`
- * - Search          : `/search?searchkey={query}`
+ * - Search          : `/search?keyword={query}`
  */
 class FreeWebNovel(
     client: HttpClient,
@@ -58,6 +64,13 @@ class FreeWebNovel(
     override val lang: String = "en"
     override val baseUrl: String = "https://freewebnovel.com"
     override val type: ContentType = ContentType.NOVEL
+
+    override suspend fun fetchDocBody(url: String): String =
+        client.get(url) {
+            header("User-Agent", USER_AGENT)
+            header("Accept", ACCEPT_HEADER)
+            header("Accept-Language", ACCEPT_LANGUAGE)
+        }.bodyAsText()
 
     // =========================================================================
     // getPopular — most-popular listing
@@ -170,11 +183,31 @@ class FreeWebNovel(
     /**
      * Search uses the same card structure as the popular listing.
      * The site search form submits via POST but also responds to GET
-     * at `/search?searchkey={query}`.
+     * at `/search?keyword={query}`.
      */
     override fun searchUrl(query: String, page: Int, filters: FilterList): String {
         val encoded = java.net.URLEncoder.encode(query, "UTF-8")
-        return "$baseUrl/search?searchkey=$encoded"
+        return "$baseUrl/search?keyword=$encoded"
+    }
+
+    override suspend fun search(query: String, page: Int, filters: FilterList): SeriesPage {
+        val trimmed = query.trim()
+        if (trimmed.startsWith("$baseUrl/novel/") || trimmed.startsWith("/novel/") || (trimmed.startsWith("http") && trimmed.contains("/novel/"))) {
+            val fullUrl = if (trimmed.startsWith("http")) trimmed else "$baseUrl$trimmed"
+            val dummy = Series(
+                sourceId = id,
+                url = fullUrl,
+                title = "",
+                type = type,
+            )
+            return try {
+                val enriched = getSeriesDetails(dummy)
+                SeriesPage(listOf(enriched), hasNextPage = false)
+            } catch (_: Exception) {
+                super.search(query, page, filters)
+            }
+        }
+        return super.search(query, page, filters)
     }
 
     // =========================================================================
