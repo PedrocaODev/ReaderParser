@@ -56,6 +56,9 @@ class SeriesViewModel @Inject constructor(
     fun onAction(action: SeriesAction) {
         when (action) {
             is SeriesAction.Refresh -> refresh()
+            is SeriesAction.DismissError, is SeriesAction.ClearError -> {
+                _state.update { it.copy(error = null) }
+            }
             is SeriesAction.ToggleLibrary -> viewModelScope.launch {
                 val series = _state.value.series ?: return@launch
                 try {
@@ -167,6 +170,14 @@ class SeriesViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    fun dismissError() {
+        onAction(SeriesAction.DismissError)
+    }
+
+    fun clearError() {
+        onAction(SeriesAction.ClearError)
     }
 
     private fun observe() {
